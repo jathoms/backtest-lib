@@ -3,11 +3,17 @@ name = "backtest-lib"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-authors = [
-    { name = "jathoms", email = "james@getkbm.io" }
-]
 requires-python = ">=3.13"
-dependencies = []
+authors = [{ name = "jathoms", email = "james@getkbm.io" }]
+dependencies = [
+  "numpy>=2.3.2",
+]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.12.8",
+  "ty>=0.0.1a17",
+]
 
 [build-system]
 requires = ["hatchling"]
