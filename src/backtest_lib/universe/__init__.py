@@ -1,5 +1,6 @@
 from collections.abc import Mapping
-from typing import Protocol, TypeVar
+from dataclasses import dataclass
+from typing import TypeVar
 
 SecurityName = str
 Price = float
@@ -9,16 +10,24 @@ Volume = float
 T_co = TypeVar("T_co", covariant=True)
 
 
-Universe = list[str]
+Universe = tuple[SecurityName]
 
 
-class UniverseMapping(Mapping[SecurityName, T_co], Protocol): ...
+type UniverseMapping[T_co] = Mapping[SecurityName, T_co]
 
 
-class UniversePrices(UniverseMapping[Price], Protocol): ...
+type UniverseVolume = UniverseMapping[Volume]
 
 
-class UniverseVolume(UniverseMapping[Volume], Protocol): ...
+type UniverseMask = UniverseMapping[bool]
 
 
-class UniverseMask(UniverseMapping[bool], Protocol): ...
+type UniverseClosePrices = UniverseMapping[Price]
+
+
+@dataclass(frozen=True)
+class UniversePrices:
+    close: UniverseMapping[Price]
+    open: UniverseMapping[Price] | None
+    high: UniverseMapping[Price] | None
+    low: UniverseMapping[Price] | None
