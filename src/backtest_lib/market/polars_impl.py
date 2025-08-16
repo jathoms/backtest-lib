@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import polars as pl
 import numpy as np
-from typing import Sequence
+from typing import Sequence, SupportsIndex, overload
 from collections.abc import Iterator, Mapping
 from numpy.typing import NDArray
 from backtest_lib.universe import SecurityName, Universe
@@ -22,16 +22,10 @@ class Axis:
 @dataclass(frozen=True)
 class ArrayRowMapping(Mapping[SecurityName, float]):
     names: Universe
-    data: NDArray[np.float64]  # (N,)
+    data: NDArray[np.float64]
     pos: dict[SecurityName, int] = field(repr=False)
 
     def __post_init__(self):
-        # dtype/shape checks
-        if 1 not in self.data.shape:
-            raise ValueError("data must be 1-D")
-
-        self.data.reshape(-1)
-
         if self.data.dtype != np.float64:
             # normalize once so downstream math is predictable
             object.__setattr__(self, "data", self.data.astype(np.float64, copy=False))
@@ -87,22 +81,29 @@ class PolarsPastView:
         return PolarsPastView(df, axis, dates)
 
     def latest(self) -> ArrayRowMapping:
-        vec = self._inner_df.select(self._inner_df.columns[0]).to_numpy()
-        return ArrayRowMapping(names=self._axis.names, data=vec, pos=self._axis.pos)
+        return self[-1]
 
     def window(self, size: int, *, stagger: int = 0) -> PolarsPastView:
-        new_inner_df = self._inner_df.select(
-            self._inner_df.columns[stagger : size + stagger]
-        )
-        return PolarsPastView(
-            new_inner_df,
-            self._axis,
-            self._dates[stagger : size + stagger],
-        )
+        return self[stagger : size + stagger]
+
+    @overload
+    def __getitem__(self, key: SupportsIndex) -> ArrayRowMapping: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> PolarsPastView: ...
+
+    def __getitem__(
+        self, key: SupportsIndex | slice
+    ) -> ArrayRowMapping | PolarsPastView:
+        if isinstance(key, SupportsIndex):
+            vec = self._inner_df.get_column(self._inner_df.columns[key]).to_numpy()
+            return ArrayRowMapping(names=self._axis.names, data=vec, pos=self._axis.pos)
+        elif isinstance(key, slice):
+            new_inner_df = self._inner_df.select(self._inner_df.columns[key])
+            return PolarsPastView(new_inner_df, self._axis, self._dates[key])
+        else:
+            raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
 
     @property
     def size(self) -> int:
         return len(self._inner_df.columns)
-
-    def truncate(self, period: int) -> PolarsPastView:
-        return self.window(self.size - period, stagger=period)

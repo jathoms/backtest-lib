@@ -8,3 +8,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+#pkl dumps of data
+
+*.pkl

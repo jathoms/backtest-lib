@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Protocol, TypeVar, runtime_checkable, overload, SupportsIndex
 
 from backtest_lib.universe import (
     UniverseVolume,
@@ -59,6 +59,12 @@ class PastView(Protocol[T]):
         """
         ...
 
+    @overload
+    def __getitem__(self, key: SupportsIndex) -> T: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> PastView[T]: ...
+
 
 @dataclass(frozen=True)
 class MarketSnapshot:
@@ -92,3 +98,21 @@ class MarketView:
 
     def size(self) -> int:
         return min(v.size for v in self.__dict__.values() if isinstance(v, PastView))
+
+    @overload
+    def __getitem__(self, key: SupportsIndex) -> MarketSnapshot: ...
+
+    @overload
+    def __getitem__(self, key: slice) -> MarketView: ...
+
+    def __getitem__(self, key: SupportsIndex | slice) -> MarketSnapshot | MarketView:
+        if isinstance(key, SupportsIndex):
+            return MarketSnapshot(
+                self.prices[key], self.volume[key], self.tradable[key]
+            )
+        elif isinstance(key, slice):
+            return MarketView(self.prices[key], self.volume[key], self.tradable[key])
+        else:
+            raise ValueError(
+                f"Unsupported index '{key}' ({key.__name__}) with type {type(key)}"
+            )
