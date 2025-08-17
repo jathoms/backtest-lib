@@ -1,19 +1,42 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, TypeVar, runtime_checkable, overload, SupportsIndex
+from typing import (
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+    overload,
+    SupportsIndex,
+    Any,
+    Self,
+)
 
 from backtest_lib.universe import (
     UniverseVolume,
     UniverseMask,
-    UniversePrices,
+    UniverseMapping,
+    PastUniversePrices,
+    SecurityName,
 )
 
-T = TypeVar("T", covariant=True)
+from numpy import datetime64
+
+from backtest_lib.market.timeseries import Timeseries
+from backtest_lib.market.timeseries import Comparable
+
+
+Index = TypeVar("Index", bound=Comparable, covariant=True)
+
+S = TypeVar(
+    "S", bound=UniverseMapping, covariant=True
+)  # mapping of securities to prices
+P = TypeVar(
+    "P", bound=Timeseries[Any, Index], covariant=True
+)  # mapping of periods to some data (prices, volume, is_tradable)
 
 
 @runtime_checkable
-class PastView(Protocol[T]):
+class PastView(Protocol[S, P, Index]):
     """
     Time-fenced read-only series up to the current decision point.
 
@@ -24,95 +47,57 @@ class PastView(Protocol[T]):
     interface to access the market conditions.
     """
 
-    def latest(self) -> T:
-        """
-        Return the latest snapshot in the view.
-
-        This is always the last available element in the time-fenced
-        series (index -1). For example, for a price series this would be
-        the most recent bar's prices for the universe.
-        """
-        ...
-
-    def window(self, size: int, *, stagger: int = 0) -> PastView[T]:
-        """
-        Return a contiguous sequence of snapshots from the view.
-
-        Args:
-            size: Number of elements to return (must be > 0 and <= view size).
-            stagger: How far back from the latest snapshot to start
-                     (0 = end at latest; 1 = end one before latest, etc.).
-
-        Example:
-            view.window(10)               # last 10 snapshots ending at "now"
-            view.window(10, stagger=5)    # 10 snapshots ending 5 before "now"
-        """
-        ...
+    @property
+    def by_period(self) -> ByPeriod[S, P, Index]: ...
 
     @property
-    def size(self) -> int:
-        """
-        Number of snapshots in the view.
+    def by_security(self) -> BySecurity[S, P, Index]: ...
 
-        This counts how many time steps are available in the current
-        fence. Equal to the maximum `size` you can request from `window()`.
-        """
-        ...
+    def between(
+        self,
+        start: Index | str,
+        end: Index | str,
+    ) -> Self: ...  # will not clone data, must be contiguous, performs a binary search
+
+    def after(
+        self,
+        start: Index | str,
+        *,
+        inclusive: bool = True,  # common expectation: include the start tick
+    ) -> Self: ...
+
+    def before(
+        self,
+        end: Index | str,
+        *,
+        inclusive: bool = False,  # common expectation: half-open [.., end)
+    ) -> Self: ...
+
+
+@runtime_checkable
+class ByPeriod(Protocol[S, P, Index]):
+    def __len__(self) -> int: ...
 
     @overload
-    def __getitem__(self, key: SupportsIndex) -> T: ...
+    def __getitem__(self, key: SupportsIndex) -> S: ...
 
     @overload
-    def __getitem__(self, key: slice) -> PastView[T]: ...
+    def __getitem__(self, key: slice) -> PastView[S, P, Index]: ...
 
 
-@dataclass(frozen=True)
-class MarketSnapshot:
-    prices: UniversePrices
-    volume: UniverseVolume | None
-    tradable: UniverseMask
+@runtime_checkable
+class BySecurity(Protocol[S, P, Index]):
+    def __len__(self) -> int: ...
+
+    @overload
+    def __getitem__(self, key: SecurityName) -> P: ...
+
+    @overload
+    def __getitem__(self, key: list[SecurityName]) -> PastView[S, P, Index]: ...
 
 
 @dataclass(frozen=True)
 class MarketView:
-    prices: PastView[UniversePrices]
-    volume: PastView[UniverseVolume] | None
-    tradable: PastView[UniverseMask]
-    # more stuff here
-
-    def latest(self) -> MarketSnapshot:
-        return MarketSnapshot(
-            self.prices.latest(),
-            self.volume.latest() if self.volume is not None else None,
-            self.tradable.latest(),
-        )
-
-    def window(self, size: int, *, stagger: int = 0) -> MarketView:
-        return MarketView(
-            prices=self.prices.window(size, stagger=stagger),
-            volume=self.volume.window(size, stagger=stagger)
-            if self.volume is not None
-            else None,
-            tradable=self.tradable.window(size, stagger=stagger),
-        )
-
-    def size(self) -> int:
-        return min(v.size for v in self.__dict__.values() if isinstance(v, PastView))
-
-    @overload
-    def __getitem__(self, key: SupportsIndex) -> MarketSnapshot: ...
-
-    @overload
-    def __getitem__(self, key: slice) -> MarketView: ...
-
-    def __getitem__(self, key: SupportsIndex | slice) -> MarketSnapshot | MarketView:
-        if isinstance(key, SupportsIndex):
-            return MarketSnapshot(
-                self.prices[key], self.volume[key], self.tradable[key]
-            )
-        elif isinstance(key, slice):
-            return MarketView(self.prices[key], self.volume[key], self.tradable[key])
-        else:
-            raise ValueError(
-                f"Unsupported index '{key}' ({key.__name__}) with type {type(key)}"
-            )
+    prices: PastUniversePrices
+    volume: PastView[UniverseVolume, Timeseries, datetime64] | None
+    tradable: PastView[UniverseMask, Timeseries, datetime64]

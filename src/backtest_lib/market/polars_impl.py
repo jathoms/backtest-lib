@@ -19,6 +19,14 @@ class Axis:
         return Axis(names_t, {s: i for i, s in enumerate(names_t)})
 
 
+def _to_npdt64(x: np.datetime64 | str) -> np.datetime64:
+    if isinstance(x, np.datetime64):
+        return x.astype("datetime64[ns]")
+    if isinstance(x, str):
+        return np.datetime64(x, "ns")
+    raise TypeError(f"Unsupported type {type(x)}")
+
+
 @dataclass(frozen=True)
 class PeriodAxis:
     dt64: NDArray[np.datetime64]
@@ -37,59 +45,190 @@ class PeriodAxis:
         # assert np.all(dt64[1:] >= dt64[:-1])
         return PeriodAxis(dt64, labels, {lbl: i for i, lbl in enumerate(labels)})
 
-    # convenience for date-range slicing
-    def range(
-        self, start: np.datetime64, end: np.datetime64, *, closed: str = "both"
+    def take(self, idxs: list[int]) -> PeriodAxis:
+        """
+        Creates a new PeriodAxis from a list of
+        integer indices contained in the period axis.
+        """
+        new_labels = tuple(self.labels[i] for i in idxs)
+        return PeriodAxis(
+            dt64=self.dt64[idxs],
+            labels=tuple(new_labels),
+            pos={lbl: i for i, lbl in enumerate(new_labels)},
+        )
+
+    def _slice(self, key: slice) -> PeriodAxis:
+        """
+        Creates a new PeriodAxis from a slice
+        of the current PeriodAxis.
+        """
+        start, stop, step = key.indices(len(self))
+        if step == 1:
+            return self.slice_contiguous(start, stop)
+        period_idxs = np.arange(start, stop, step, dtype=np.int64)
+        return self.take(period_idxs)
+
+    def slice_contiguous(self, start: int, stop: int) -> PeriodAxis:
+        """
+        Creates a new PeriodAxis from a slice
+        of the current PeriodAxis.
+        """
+        new_dt64 = self.dt64[start:stop]
+        new_labels = self.labels[start:stop]
+        new_pos = {lbl: i for i, lbl in enumerate(new_labels)}
+        return PeriodAxis(new_dt64, new_labels, new_pos)
+
+    def bounds_after(
+        self, start: np.datetime64, *, inclusive: bool = True
+    ) -> tuple[int, int]:
+        left = int(
+            np.searchsorted(self.dt64, start, side="left" if inclusive else "right")
+        )
+        return left, len(self.dt64)
+
+    def bounds_before(
+        self, end: np.datetime64, *, inclusive: bool = False
+    ) -> tuple[int, int]:
+        right = int(
+            np.searchsorted(self.dt64, end, side="right" if inclusive else "left")
+        )
+        return 0, right
+
+    def bounds_between(
+        self,
+        start: np.datetime64,
+        end: np.datetime64,
+        *,
+        closed: str = "both",
+    ) -> tuple[int, int]:
+        inc_start = closed in ("both", "left")
+        inc_end = closed in ("both", "right")
+        left, _ = self.bounds_after(start, inclusive=inc_start)
+        _, right = self.bounds_before(end, inclusive=inc_end)
+        return left, right
+
+    def after(
+        self, start: np.datetime64, *, inclusive: bool = True
     ) -> NDArray[np.int64]:
-        dt = self.dt64
-        if closed in ("both", "left"):
-            left = np.searchsorted(dt, start, side="left")
-        else:
-            left = np.searchsorted(dt, start, side="right")
-        if closed in ("both", "right"):
-            right = np.searchsorted(dt, end, side="right")
-        else:
-            right = np.searchsorted(dt, end, side="left")
+        left, right = self.bounds_after(start, inclusive=inclusive)
         return np.arange(left, right, dtype=np.int64)
+
+    def before(
+        self, end: np.datetime64, *, inclusive: bool = False
+    ) -> NDArray[np.int64]:
+        left, right = self.bounds_before(end, inclusive=inclusive)
+        return np.arange(left, right, dtype=np.int64)
+
+    def between(
+        self,
+        start: np.datetime64,
+        end: np.datetime64,
+        *,
+        closed: str = "left",
+    ) -> NDArray[np.int64]:
+        left, right = self.bounds_between(start, end, closed)
+        return np.arange(left, right, dtype=np.int64)
+
+
+@dataclass(frozen=True)
+class PolarsTimeseries:
+    _vec: NDArray[np.float64]
+    _axis: PeriodAxis
+    _name: str
+
+    @overload
+    def __getitem__(self, key: int) -> float: ...
+
+    @overload
+    def __getitem__(
+        self, key: slice
+    ) -> (
+        PolarsTimeseries
+    ): ...  # can clone, must provide exact items in the index or integer indices
+
+    def __getitem__(self, key: int | slice) -> float | PolarsTimeseries:
+        if isinstance(key, int):
+            return float(self._vec[key])
+        else:
+            return PolarsTimeseries(self._vec[key], self._axis._slice(key), self._name)
+
+    def before(self, end: np.datetime64 | str, *, inclusive=False) -> PolarsTimeseries:
+        end = _to_npdt64(end)
+        left, right = self._axis.bounds_before(end, inclusive=inclusive)
+        return PolarsTimeseries(
+            self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
+        )
+
+    def after(self, start: np.datetime64 | str, *, inclusive=True) -> PolarsTimeseries:
+        start = _to_npdt64(start)
+        left, right = self._axis.bounds_after(start, inclusive=inclusive)
+        print(left, right)
+        return PolarsTimeseries(
+            self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
+        )
+
+    def between(
+        self,
+        start: np.datetime64 | str,
+        end: np.datetime64 | str,
+        *,
+        closed: str = "left",
+    ) -> PolarsTimeseries:
+        start = _to_npdt64(start)
+        end = _to_npdt64(end)
+        left, right = self._axis.bounds_between(start, end, closed=closed)
+        return PolarsTimeseries(
+            self._vec[left:right], self._axis._slice(left, right), self._name
+        )
+
+    def __iter__(self) -> Iterator[float]:
+        return (float(x) for x in self._vec)
+
+    def __len__(self) -> int:
+        return self._vec.shape[0]
+
+    def as_array(self) -> NDArray[np.float64]:
+        return self._vec
+
+    def as_series(self) -> pl.Series:
+        return pl.Series(name=self._name, values=self._vec, dtype=pl.Float64)
 
 
 @dataclass(frozen=True)
 class ArrayRowMapping(Mapping[SecurityName, float]):
     names: Universe
-    data: NDArray[np.float64]
+    _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
 
+    def as_series(self) -> pl.Series:
+        return self._data
+
     def __post_init__(self):
-        if self.data.dtype != np.float64:
-            # normalize once so downstream math is predictable
-            object.__setattr__(self, "data", self.data.astype(np.float64, copy=False))
         n = len(self.names)
-        if len(self.data) != n or len(self.pos) != n:
+        if len(self._data) != n or len(self.pos) != n:
             raise ValueError(
-                f"Row mapping misaligned: names={n}, data={len(self.data)}, pos={len(self.pos)}"
+                f"Row mapping misaligned: names={n}, data={len(self._data)}, pos={len(self.pos)}"
             )
         # ensure pos matches the declared order
         if any(self.pos[name] != i for i, name in enumerate(self.names)):
             raise ValueError("pos mapping does not match names order")
-        # expose as read-only
-        self.data.setflags(write=False)
+        if self._data.dtype != pl.Float64:
+            object.__setattr__(self, "data", self._data.cast(pl.Float64))
 
     @overload
     def __getitem__(self, key: SecurityName) -> float: ...
 
     @overload
-    def __getitem__(self, key: list[SecurityName]) -> NDArray[np.float64]: ...
+    def __getitem__(self, key: list[SecurityName]) -> pl.Series: ...
 
-    def __getitem__(
-        self, key: SecurityName | list[SecurityName]
-    ) -> float | NDArray[np.float64]:
+    def __getitem__(self, key: SecurityName | list[SecurityName]) -> float | pl.Series:
         if isinstance(key, SecurityName):
-            return float(self.data[self.pos[key]])
+            return float(self._data.item(self.pos[key]))
         elif isinstance(key, list):
             idx = np.fromiter(
                 (self.pos[k] for k in key), dtype=np.int64, count=len(key)
             )
-            return self.data[idx]
+            return self._data.take(idx)
         else:
             raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
 
@@ -101,7 +240,7 @@ class ArrayRowMapping(Mapping[SecurityName, float]):
 
 
 @dataclass(frozen=True)
-class ByPeriod:
+class PolarsByPeriod:
     _period_column_df: pl.DataFrame
     _security_column_df: pl.DataFrame = field(repr=False)
     _security_axis: Axis = field(repr=False)
@@ -110,11 +249,8 @@ class ByPeriod:
     def as_df(self) -> pl.DataFrame:
         return self._period_column_df
 
-    def latest(self) -> ArrayRowMapping:
-        return self[-1]
-
     @overload
-    def __getitem__(self, key: SupportsIndex) -> ArrayRowMapping: ...
+    def __getitem__(self, key: int) -> ArrayRowMapping: ...
 
     @overload
     def __getitem__(self, key: slice) -> PolarsPastView: ...
@@ -123,11 +259,13 @@ class ByPeriod:
         self, key: SupportsIndex | slice
     ) -> ArrayRowMapping | PolarsPastView:
         if isinstance(key, SupportsIndex):
-            vec = self._period_column_df.get_column(
+            series = self._period_column_df.get_column(
                 self._period_column_df.columns[key]
-            ).to_numpy(allow_copy=False)
+            )
             return ArrayRowMapping(
-                names=self._security_axis.names, data=vec, pos=self._security_axis.pos
+                names=self._security_axis.names,
+                _data=series,
+                pos=self._security_axis.pos,
             )
         elif isinstance(key, slice):
             start, stop, step = key.indices(len(self._period_axis))
@@ -152,9 +290,12 @@ class ByPeriod:
         else:
             raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
 
+    def __len__(self) -> int:
+        return len(self._period_column_df.columns)
+
 
 @dataclass(frozen=True)
-class BySecurity:
+class PolarsBySecurity:
     _security_column_df: pl.DataFrame
     _period_column_df: pl.DataFrame = field(repr=False)
     _security_axis: Axis = field(repr=False)
@@ -164,16 +305,17 @@ class BySecurity:
         return self._security_column_df
 
     @overload
-    def __getitem__(self, key: SecurityName) -> NDArray[np.float64]: ...
+    def __getitem__(self, key: SecurityName) -> PolarsTimeseries: ...
 
     @overload
     def __getitem__(self, key: list) -> PolarsPastView: ...
 
     def __getitem__(
         self, key: SecurityName | list
-    ) -> NDArray[np.float64] | PolarsPastView:
-        if not isinstance(key, list):
-            return self._security_column_df.get_column(key).to_numpy()
+    ) -> PolarsTimeseries | PolarsPastView:
+        if isinstance(key, SecurityName):
+            vec = self._security_column_df.get_column(key).to_numpy()
+            return PolarsTimeseries(vec, self._period_axis, key)
 
         names = key
 
@@ -189,21 +331,24 @@ class BySecurity:
         new_security_axis = Axis.from_names(names)
 
         return PolarsPastView(
-            by_period=ByPeriod(
+            by_period=PolarsByPeriod(
                 new_period_df, new_security_df, new_security_axis, self._period_axis
             ),
-            by_security=BySecurity(
+            by_security=PolarsBySecurity(
                 new_security_df, new_period_df, new_security_axis, self._period_axis
             ),
             _period_axis=self._period_axis,
             _security_axis=new_security_axis,
         )
 
+    def __len__(self) -> int:
+        return len(self._security_column_df.columns)
+
 
 @dataclass(frozen=True)
 class PolarsPastView:
-    by_period: ByPeriod
-    by_security: BySecurity
+    by_period: PolarsByPeriod
+    by_security: PolarsBySecurity
     _security_axis: Axis
     _period_axis: PeriodAxis
 
@@ -229,20 +374,62 @@ class PolarsPastView:
         period_axis = PeriodAxis.from_series(dates)
 
         return PolarsPastView(
-            ByPeriod(period_column_df, security_column_df, security_axis, period_axis),
-            BySecurity(
+            PolarsByPeriod(
+                period_column_df, security_column_df, security_axis, period_axis
+            ),
+            PolarsBySecurity(
                 security_column_df, period_column_df, security_axis, period_axis
             ),
             security_axis,
             period_axis,
         )
 
-    def latest(self) -> ArrayRowMapping:
-        return self.by_period.latest()
+    def _slice_period(self, left: int, right: int) -> PolarsPastView:
+        cols = self.by_period._period_column_df.columns[left:right]
+        new_period_df = self.by_period._period_column_df.select(cols)
 
-    def window(self, size: int, *, stagger: int = 0) -> PolarsPastView:
-        return self.by_period[stagger : size + stagger]
+        win_len = right - left
+        new_security_df = self.by_security._security_column_df.select(
+            pl.all().slice(left, win_len)
+        )
 
-    @property
-    def size(self) -> int:
-        return len(self.by_period.columns)
+        new_period_axis = self._period_axis.slice_contiguous(left, right)
+
+        return PolarsPastView(
+            PolarsByPeriod(
+                new_period_df, new_security_df, self._security_axis, new_period_axis
+            ),
+            PolarsBySecurity(
+                new_security_df, new_period_df, self._security_axis, new_period_axis
+            ),
+            self._security_axis,
+            new_period_axis,
+        )
+
+    def after(
+        self, start: np.datetime64 | str, *, inclusive: bool = True
+    ) -> PolarsPastView:
+        left, right = self._period_axis.bounds_after(
+            _to_npdt64(start), inclusive=inclusive
+        )
+        return self._slice_period(left, right)
+
+    def before(
+        self, end: np.datetime64 | str, *, inclusive: bool = False
+    ) -> PolarsPastView:
+        left, right = self._period_axis.bounds_before(
+            _to_npdt64(end), inclusive=inclusive
+        )
+        return self._slice_period(left, right)
+
+    def between(
+        self,
+        start: np.datetime64 | str,
+        end: np.datetime64 | str,
+        *,
+        closed: str = "left",
+    ) -> PolarsPastView:
+        left, right = self._period_axis.bounds_between(
+            _to_npdt64(start), _to_npdt64(end), closed=closed
+        )
+        return self._slice_period(left, right)
