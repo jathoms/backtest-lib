@@ -285,7 +285,24 @@ class PolarsByPeriod:
             )
 
             return PolarsPastView(
-                new_period_df, new_security_df, self._security_axis, new_period_axis
+                by_period=(
+                    PolarsByPeriod(
+                        new_period_df,
+                        new_security_df,
+                        self._security_axis,
+                        new_period_axis,
+                    )
+                ),
+                by_security=(
+                    PolarsBySecurity(
+                        new_security_df,
+                        new_period_df,
+                        self._security_axis,
+                        new_period_axis,
+                    )
+                ),
+                _period_axis=new_period_axis,
+                _security_axis=self._security_axis,
             )
         else:
             raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
