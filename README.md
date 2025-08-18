@@ -23,6 +23,8 @@ class Strategy(Protocol):
     ) -> Decision: ...
 ```
 
+_In short, a function is called a strategy as long as it takes the universe, the current holdings, a market view, and additional context as parameters, and returns a Decision (which wraps the desired holdings)._
+
 As inputs, the strategy receives the available universe, current holdings, a view of the market, and a context object for state.
 
 For outputs, the strategy emits a Decision specifying the new target holdings for each decision point in the _decision schedule_ (TODO) (plus optional notes for inspection/memoized signals).
