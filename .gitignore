@@ -12,3 +12,4 @@ wheels/
 #pkl dumps of data
 
 *.pkl
+!sp500_close.pkl
