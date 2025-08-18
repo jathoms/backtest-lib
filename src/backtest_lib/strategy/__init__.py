@@ -10,7 +10,7 @@ class Holdings: ...
 
 class Decision:
     target: Holdings
-    notes = UniverseMapping[Any]
+    notes = UniverseMapping[Any] | None
 
 
 class Strategy(Protocol):
