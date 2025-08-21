@@ -26,6 +26,14 @@ type UniversePriceView = PastView[UniverseMapping[Price], Timeseries, datetime64
 @dataclass(frozen=True)
 class PastUniversePrices:
     close: UniversePriceView
-    open: UniversePriceView | None
-    high: UniversePriceView | None
-    low: UniversePriceView | None
+    open: UniversePriceView | None = None
+    high: UniversePriceView | None = None
+    low: UniversePriceView | None = None
+
+    def truncated_to(self, n_periods: int) -> PastUniversePrices:
+        return PastUniversePrices(
+            close=self.close.by_period[:n_periods],
+            open=self.open.by_period[:n_periods] if self.open else None,
+            low=self.low.by_period[:n_periods] if self.low else None,
+            high=self.high.by_period[:n_periods] if self.high else None,
+        )

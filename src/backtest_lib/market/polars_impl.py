@@ -195,10 +195,16 @@ class PolarsTimeseries:
 
 
 @dataclass(frozen=True)
-class ArrayRowMapping(Mapping[SecurityName, float]):
+class SeriesUniverseMapping(Mapping[SecurityName, float]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
+
+    @staticmethod
+    def from_names_and_data(names: Universe, data: pl.Series) -> SeriesUniverseMapping:
+        return SeriesUniverseMapping(
+            names=names, _data=data, pos={name: i for i, name in enumerate(names)}
+        )
 
     def as_series(self) -> pl.Series:
         return self._data
@@ -250,19 +256,19 @@ class PolarsByPeriod:
         return self._period_column_df
 
     @overload
-    def __getitem__(self, key: int) -> ArrayRowMapping: ...
+    def __getitem__(self, key: int) -> SeriesUniverseMapping: ...
 
     @overload
     def __getitem__(self, key: slice) -> PolarsPastView: ...
 
     def __getitem__(
         self, key: SupportsIndex | slice
-    ) -> ArrayRowMapping | PolarsPastView:
+    ) -> SeriesUniverseMapping | PolarsPastView:
         if isinstance(key, SupportsIndex):
             series = self._period_column_df.get_column(
                 self._period_column_df.columns[key]
             )
-            return ArrayRowMapping(
+            return SeriesUniverseMapping(
                 names=self._security_axis.names,
                 _data=series,
                 pos=self._security_axis.pos,

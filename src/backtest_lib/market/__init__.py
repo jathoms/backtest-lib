@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Sequence
 
 from dataclasses import dataclass
 from typing import (
@@ -99,5 +100,14 @@ class BySecurity(Protocol[S, P, Index]):
 @dataclass(frozen=True)
 class MarketView:
     prices: PastUniversePrices
-    volume: PastView[UniverseVolume, Timeseries, datetime64] | None
-    tradable: PastView[UniverseMask, Timeseries, datetime64]
+    periods: Sequence[datetime64]
+    tradable: PastView[UniverseMask, Timeseries, datetime64] | None = None
+    volume: PastView[UniverseVolume, Timeseries, datetime64] | None = None
+
+    def truncated_to(self, n_periods: int) -> MarketView:
+        return MarketView(
+            prices=self.prices.truncated_to(n_periods),
+            volume=self.volume.by_period[:n_periods] if self.volume else None,
+            tradable=self.tradable.by_period[:n_periods] if self.tradable else None,
+            periods=self.periods[:n_periods],
+        )
