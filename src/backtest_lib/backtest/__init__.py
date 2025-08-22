@@ -40,6 +40,7 @@ class Backtest:
         self.settings = settings
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults | None:
+        total_value = 1
         self._current_portfolio = self.initial_portfolio
 
         past_market_view = self.market_view.truncated_to(1)
@@ -63,16 +64,26 @@ class Backtest:
             )
 
             new_weights_vec = self._current_portfolio.weights.as_series() * pct_change
+            new_total_weight = new_weights_vec.sum()
+            total_value *= new_total_weight
+            new_weights_normed = new_weights_vec / new_total_weight
             new_weights = SeriesUniverseMapping.from_names_and_data(
-                self.universe, new_weights_vec
+                self.universe, new_weights_normed
             )
-            new_cash_weight = 1 - new_weights_vec.sum()
+            new_cash_weight = 1 - new_weights_normed.sum()
 
             self._current_portfolio = WeightedPortfolio(
                 cash=new_cash_weight, weights=new_weights
             )
 
+            decision = self.strategy(
+                universe=self.universe,
+                current_portfolio=self._current_portfolio,
+                market=past_market_view,
+                ctx=ctx,
+            )
+            # assume we can perfectly track the target portfolio for now
+            self._current_portfolio = decision.target
+
         # again more cheating with polars series
-        return BacktestResults(
-            total_return=self._current_portfolio.weights.as_series().sum()
-        )
+        return BacktestResults(total_return=total_value)
