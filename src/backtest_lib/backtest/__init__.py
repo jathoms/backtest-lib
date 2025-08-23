@@ -63,12 +63,10 @@ class Backtest:
             new_weights_normed = new_weights_vec / new_total_weight
             new_cash_weight = 1 - new_weights_normed.sum()
 
-            self._current_portfolio: WeightedPortfolio[SeriesUniverseMapping] = (
-                WeightedPortfolio(
-                    cash=new_cash_weight,
-                    weights=new_weights_normed,
-                    _mapping_cls=SeriesUniverseMapping,
-                )
+            self._current_portfolio = WeightedPortfolio(
+                cash=new_cash_weight,
+                weights=new_weights_normed,
+                _mapping_cls=self._current_portfolio._mapping_cls,
             )
 
             decision = self.strategy(

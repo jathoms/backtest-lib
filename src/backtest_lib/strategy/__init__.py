@@ -8,7 +8,7 @@ from backtest_lib.universe.vector_mapping import VectorMappingConstructor
 
 from backtest_lib.market import MarketView
 from backtest_lib.strategy.context import StrategyContext
-from backtest_lib.universe import Price, Universe, UniverseMapping
+from backtest_lib.universe import Price, Universe, UniverseMapping, SecurityName
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 Quantity = int
@@ -23,7 +23,7 @@ MappingType = TypeVar("MappingType", bound=VectorMapping)
 class Portfolio(Generic[H, MappingType]):
     cash: H
     holdings: UniverseMapping[H]  # asset -> quantity
-    _mapping_cls: VectorMappingConstructor[MappingType]
+    _mapping_cls: VectorMappingConstructor[MappingType, SecurityName, H]
 
     @classmethod
     def from_raw(
@@ -32,7 +32,7 @@ class Portfolio(Generic[H, MappingType]):
         cash: H,
         keys: Sequence[str],
         values: Sequence[H],
-        mapping_cls: VectorMappingConstructor[MappingType],
+        mapping_cls: VectorMappingConstructor[MappingType, SecurityName, H],
     ) -> Portfolio[H, MappingType]:
         return cls(
             cash=cash,
@@ -58,7 +58,7 @@ class Portfolio(Generic[H, MappingType]):
 class WeightedPortfolio(Generic[MappingType]):
     cash: Weight  # cash weight in [0, 1]
     weights: UniverseMapping[Weight]
-    _mapping_cls: VectorMappingConstructor[MappingType]
+    _mapping_cls: VectorMappingConstructor[MappingType, SecurityName, Weight]
 
     @classmethod
     def from_raw(
@@ -67,7 +67,7 @@ class WeightedPortfolio(Generic[MappingType]):
         cash: float,
         keys: Sequence[str],
         values: Sequence[float],
-        mapping_cls: VectorMappingConstructor[MappingType],
+        mapping_cls: VectorMappingConstructor[MappingType, SecurityName, Weight],
     ) -> WeightedPortfolio[MappingType]:
         return cls(
             cash=cash,

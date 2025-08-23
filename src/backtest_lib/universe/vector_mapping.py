@@ -18,7 +18,7 @@ M = TypeVar("M", bound="VectorMapping", covariant=True)
 
 
 @runtime_checkable
-class VectorMappingConstructor(Protocol[M]):
+class VectorMappingConstructor(Protocol[M, K, Scalar]):
     @classmethod
     def from_vectors(cls, keys: Sequence[K], values: Sequence[Scalar]) -> M: ...
 
