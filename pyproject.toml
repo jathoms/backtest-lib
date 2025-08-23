@@ -19,6 +19,9 @@ dev = [
   "ruff>=0.12.8",
   "ty>=0.0.1a17",
   "yfinance>=0.2.65",
+  "mypy>=1.17.1",
+  "pyright>=1.1.404",
+  "pyrefly>=0.29.2",
 ]
 
 [build-system]
