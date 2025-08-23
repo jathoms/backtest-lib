@@ -1,17 +1,20 @@
 from __future__ import annotations
+from typing import cast
+from collections.abc import Iterator
+from backtest_lib.universe.vector_mapping import VectorMapping
 from dataclasses import dataclass, field
 import polars as pl
 import numpy as np
-from typing import Sequence, SupportsIndex, overload, Hashable
-from collections.abc import Iterator, Mapping
+from typing import Sequence, SupportsIndex, overload
 from numpy.typing import NDArray
 from backtest_lib.universe import SecurityName, Universe
+from numbers import Real
 
 
 @dataclass(frozen=True)
 class Axis:
-    names: tuple[Hashable, ...]
-    pos: dict[Hashable, int]  # name -> index (0..N-1)
+    names: tuple[str, ...]
+    pos: dict[str, int]  # name -> index (0..N-1)
 
     @staticmethod
     def from_names(names: Sequence[SecurityName]) -> Axis:
@@ -37,7 +40,7 @@ class PeriodAxis:
         return len(self.labels)
 
     @staticmethod
-    def from_series(date_s: pl.Series, fmt: str = "%Y-%m-%d") -> "PeriodAxis":
+    def from_series(date_s: pl.Series, fmt: str = "%Y-%m-%d") -> PeriodAxis:
         if date_s.dtype not in (pl.Date, pl.Datetime):
             date_s = date_s.cast(pl.Datetime("ns"))
         labels = tuple(date_s.dt.strftime(fmt).to_list())
@@ -45,9 +48,9 @@ class PeriodAxis:
         # assert np.all(dt64[1:] >= dt64[:-1])
         return PeriodAxis(dt64, labels, {lbl: i for i, lbl in enumerate(labels)})
 
-    def take(self, idxs: list[int]) -> PeriodAxis:
+    def take(self, idxs: Sequence[int] | NDArray[np.int64]) -> PeriodAxis:
         """
-        Creates a new PeriodAxis from a list of
+        Creates a new PeriodAxis from a sequence of
         integer indices contained in the period axis.
         """
         new_labels = tuple(self.labels[i] for i in idxs)
@@ -126,12 +129,12 @@ class PeriodAxis:
         *,
         closed: str = "left",
     ) -> NDArray[np.int64]:
-        left, right = self.bounds_between(start, end, closed)
+        left, right = self.bounds_between(start, end, closed=closed)
         return np.arange(left, right, dtype=np.int64)
 
 
 @dataclass(frozen=True)
-class PolarsTimeseries:
+class PolarsTimeseries(VectorMapping[int, float]):
     _vec: NDArray[np.float64]
     _axis: PeriodAxis
     _name: str
@@ -162,7 +165,6 @@ class PolarsTimeseries:
     def after(self, start: np.datetime64 | str, *, inclusive=True) -> PolarsTimeseries:
         start = _to_npdt64(start)
         left, right = self._axis.bounds_after(start, inclusive=inclusive)
-        print(left, right)
         return PolarsTimeseries(
             self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
         )
@@ -178,7 +180,7 @@ class PolarsTimeseries:
         end = _to_npdt64(end)
         left, right = self._axis.bounds_between(start, end, closed=closed)
         return PolarsTimeseries(
-            self._vec[left:right], self._axis._slice(left, right), self._name
+            self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
         )
 
     def __iter__(self) -> Iterator[float]:
@@ -193,9 +195,56 @@ class PolarsTimeseries:
     def as_series(self) -> pl.Series:
         return pl.Series(name=self._name, values=self._vec, dtype=pl.Float64)
 
+    def _rhs(self, other: PolarsTimeseries | Real) -> NDArray[np.float64] | float:
+        if isinstance(other, Real) and not isinstance(other, bool):
+            return float(other)
+        if isinstance(other, PolarsTimeseries):
+            if other._axis is self._axis or other._axis.labels == self._axis.labels:
+                return other._vec
+            raise ValueError("Axis mismatch: operations require identical PeriodAxis.")
+        raise TypeError("Only scalars or same-axis PolarsTimeseries are supported.")
+
+    def __add__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        rhs = self._rhs(other)
+        return PolarsTimeseries(self._vec + rhs, self._axis, self._name)
+
+    def __radd__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        lhs = self._rhs(other)
+        return PolarsTimeseries(lhs + self._vec, self._axis, self._name)
+
+    def __sub__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        rhs = self._rhs(other)
+        return PolarsTimeseries(self._vec - rhs, self._axis, self._name)
+
+    def __rsub__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        lhs = self._rhs(other)
+        return PolarsTimeseries(lhs - self._vec, self._axis, self._name)
+
+    def __mul__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        rhs = self._rhs(other)
+        return PolarsTimeseries(self._vec * rhs, self._axis, self._name)
+
+    def __rmul__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        lhs = self._rhs(other)
+        return PolarsTimeseries(lhs * self._vec, self._axis, self._name)
+
+    def __truediv__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        rhs = self._rhs(other)
+        return PolarsTimeseries(self._vec / rhs, self._axis, self._name)
+
+    def __rtruediv__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+        lhs = self._rhs(other)
+        return PolarsTimeseries(lhs / self._vec, self._axis, self._name)
+
+    def sum(self) -> float:
+        return float(self._vec.sum())
+
+    def mean(self) -> float:
+        return float(self._vec.mean())
+
 
 @dataclass(frozen=True)
-class SeriesUniverseMapping(Mapping[SecurityName, float]):
+class SeriesUniverseMapping(VectorMapping[SecurityName, float]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
@@ -219,7 +268,7 @@ class SeriesUniverseMapping(Mapping[SecurityName, float]):
         if any(self.pos[name] != i for i, name in enumerate(self.names)):
             raise ValueError("pos mapping does not match names order")
         if self._data.dtype != pl.Float64:
-            object.__setattr__(self, "data", self._data.cast(pl.Float64))
+            object.__setattr__(self, "_data", self._data.cast(pl.Float64))
 
     @overload
     def __getitem__(self, key: SecurityName) -> float: ...
@@ -234,7 +283,7 @@ class SeriesUniverseMapping(Mapping[SecurityName, float]):
             idx = np.fromiter(
                 (self.pos[k] for k in key), dtype=np.int64, count=len(key)
             )
-            return self._data.take(idx)
+            return self._data.gather(idx)
         else:
             raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
 
@@ -243,6 +292,82 @@ class SeriesUniverseMapping(Mapping[SecurityName, float]):
 
     def __len__(self) -> int:
         return len(self.names)
+
+    def _rhs(self, other: SeriesUniverseMapping | Real) -> pl.Series | float:
+        if isinstance(other, Real):
+            return float(other)
+        if isinstance(other, SeriesUniverseMapping):
+            if other.names != self.names:
+                raise ValueError(
+                    "Axis mismatch: operations between SeriesUniverseMapping require identical 'names'."
+                )
+            return other._data
+        raise TypeError(
+            "Unsupported operand: only scalars or SeriesUniverseMapping with identical axis are allowed."
+        )
+
+    def __add__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data + rhs, self.pos)
+
+    def __radd__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs + self._data, self.pos)
+
+    def __sub__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data - rhs, self.pos)
+
+    def __rsub__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs - self._data, self.pos)
+
+    def __mul__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data * rhs, self.pos)
+
+    def __rmul__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs * self._data, self.pos)
+
+    def __truediv__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data / rhs, self.pos)
+
+    def __rtruediv__(
+        self, other: SeriesUniverseMapping | Real
+    ) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs / self._data, self.pos)
+
+    def sum(self) -> float:
+        return float(self._data.sum())
+
+    def mean(self) -> float:
+        assert self._data.dtype == pl.Float64
+        m = self._data.mean()
+        if m is None:
+            raise ValueError("mean of empty series")
+        return cast(float, m)
+
+    @classmethod
+    def from_vectors(
+        cls, keys: Sequence[str], values: Sequence[float]
+    ) -> SeriesUniverseMapping:
+        if not isinstance(keys, tuple):
+            keys_tuple = tuple(keys)
+        else:
+            keys_tuple = keys
+        keys_tuple = cast(tuple[str, ...], keys_tuple)
+
+        if not isinstance(values, pl.Series):
+            values_series = pl.Series(values, dtype=pl.Float64)
+        else:
+            values_series = values
+        if values_series.dtype != pl.Float64:
+            values_series = values_series.cast(pl.Float64)
+
+        return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
 
 
 @dataclass(frozen=True)
@@ -385,7 +510,7 @@ class PolarsPastView:
             ) from e
 
         if dates.dtype not in (pl.Date, pl.Datetime):
-            dates = dates.cast(pl.Datetime("s"))
+            dates = dates.cast(pl.Datetime("ms"))
 
         period_names = dates.dt.to_string()
         non_date_cols = [x for x in df.columns if x != "date"]

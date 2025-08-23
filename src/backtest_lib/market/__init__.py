@@ -18,21 +18,20 @@ from backtest_lib.universe import (
     UniverseMapping,
     PastUniversePrices,
     SecurityName,
+    PeriodIndex,
 )
-
-from numpy import datetime64
 
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.market.timeseries import Comparable
 
 
-Index = TypeVar("Index", bound=Comparable, covariant=True)
+Index = TypeVar("Index", bound=Comparable)
 
 S = TypeVar(
     "S", bound=UniverseMapping, covariant=True
 )  # mapping of securities to prices
 P = TypeVar(
-    "P", bound=Timeseries[Any, Index], covariant=True
+    "P", bound=Timeseries[Any, Comparable], covariant=True
 )  # mapping of periods to some data (prices, volume, is_tradable)
 
 
@@ -100,9 +99,9 @@ class BySecurity(Protocol[S, P, Index]):
 @dataclass(frozen=True)
 class MarketView:
     prices: PastUniversePrices
-    periods: Sequence[datetime64]
-    tradable: PastView[UniverseMask, Timeseries, datetime64] | None = None
-    volume: PastView[UniverseVolume, Timeseries, datetime64] | None = None
+    periods: Sequence[PeriodIndex]
+    tradable: PastView[UniverseMask, Timeseries, PeriodIndex] | None = None
+    volume: PastView[UniverseVolume, Timeseries, PeriodIndex] | None = None
 
     def truncated_to(self, n_periods: int) -> MarketView:
         return MarketView(

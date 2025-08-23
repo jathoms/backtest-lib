@@ -19,7 +19,7 @@ class Comparable(Protocol):
 
 
 T = TypeVar("T", covariant=True)  # Scalar elements of the vector
-Index = TypeVar("Index", bound=Comparable, covariant=True)  # Type used for indexing
+Index = TypeVar("Index", bound=Comparable, contravariant=True)  # Type used for indexing
 
 
 @runtime_checkable

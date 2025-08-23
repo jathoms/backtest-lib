@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-import polars as pl
+from backtest_lib.market.polars_impl import SeriesUniverseMapping
 
 from backtest_lib.strategy import (
     MarketView,
@@ -8,8 +8,6 @@ from backtest_lib.strategy import (
     WeightedPortfolio,
 )
 from backtest_lib.universe import Universe
-
-from backtest_lib.market.polars_impl import SeriesUniverseMapping
 
 
 @dataclass
@@ -21,8 +19,8 @@ class Backtest:
     strategy: Strategy
     universe: Universe
     market_view: MarketView
-    initial_portfolio: WeightedPortfolio
-    _current_portfolio: WeightedPortfolio
+    initial_portfolio: WeightedPortfolio[SeriesUniverseMapping]
+    _current_portfolio: WeightedPortfolio[SeriesUniverseMapping]
     settings: dict | None = None
 
     def __init__(
@@ -30,7 +28,7 @@ class Backtest:
         strategy: Strategy,
         universe: Universe,
         market_view: MarketView,
-        initial_portfolio: WeightedPortfolio,
+        initial_portfolio: WeightedPortfolio[SeriesUniverseMapping],
         settings: dict | None = None,
     ):
         self.strategy = strategy
@@ -57,23 +55,20 @@ class Backtest:
             yesterday_prices = today_prices
             past_market_view = self.market_view.truncated_to(i)
             today_prices = past_market_view.prices.close.by_period[-1]
-            # we're cheating here and using the specialised as_series method given by the polars impl
-            # this will be generalised soon, maybe by adding vector math ops to the market structres
-            pct_change: pl.Series = (
-                today_prices.as_series() / yesterday_prices.as_series()
-            )
+            pct_change = today_prices / yesterday_prices
 
-            new_weights_vec = self._current_portfolio.weights.as_series() * pct_change
+            new_weights_vec = self._current_portfolio.weights * pct_change
             new_total_weight = new_weights_vec.sum()
             total_value *= new_total_weight
             new_weights_normed = new_weights_vec / new_total_weight
-            new_weights = SeriesUniverseMapping.from_names_and_data(
-                self.universe, new_weights_normed
-            )
             new_cash_weight = 1 - new_weights_normed.sum()
 
-            self._current_portfolio = WeightedPortfolio(
-                cash=new_cash_weight, weights=new_weights
+            self._current_portfolio: WeightedPortfolio[SeriesUniverseMapping] = (
+                WeightedPortfolio(
+                    cash=new_cash_weight,
+                    weights=new_weights_normed,
+                    _mapping_cls=SeriesUniverseMapping,
+                )
             )
 
             decision = self.strategy(
@@ -85,5 +80,4 @@ class Backtest:
             # assume we can perfectly track the target portfolio for now
             self._current_portfolio = decision.target
 
-        # again more cheating with polars series
         return BacktestResults(total_return=total_value)

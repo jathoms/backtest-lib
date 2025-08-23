@@ -1,26 +1,29 @@
 from __future__ import annotations
-from numpy import datetime64
-from collections.abc import Mapping
 from backtest_lib.market.timeseries import Timeseries
 from dataclasses import dataclass
-from typing import TypeVar, TYPE_CHECKING
+from typing import TYPE_CHECKING
+from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
     from backtest_lib.market import PastView
+
+from backtest_lib.market.timeseries import Comparable
+from typing import SupportsFloat
 
 SecurityName = str
 Price = float
 Volume = float
 
 
-T_co = TypeVar("T_co", covariant=True)
+PeriodIndex = Comparable
 
+Universe = tuple[SecurityName, ...]
 
-Universe = tuple[SecurityName]
-type UniverseMapping[T_co] = Mapping[SecurityName, T_co]
+type UniverseMapping[T: SupportsFloat] = VectorMapping[SecurityName, T]
 type UniverseVolume = UniverseMapping[Volume]
 type UniverseMask = UniverseMapping[bool]
-type UniversePriceView = PastView[UniverseMapping[Price], Timeseries, datetime64]
+# expect Comparable to come in as something like a numpy datetime64
+type UniversePriceView = PastView[UniverseMapping[Price], Timeseries, PeriodIndex]
 
 
 @dataclass(frozen=True)
