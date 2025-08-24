@@ -15,7 +15,6 @@ from typing import (
 from backtest_lib.universe import (
     UniverseVolume,
     UniverseMask,
-    UniverseMapping,
     PastUniversePrices,
     SecurityName,
     PeriodIndex,
@@ -23,12 +22,12 @@ from backtest_lib.universe import (
 
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.market.timeseries import Comparable
-
+from collections.abc import Mapping
 
 Index = TypeVar("Index", bound=Comparable)
 
 S = TypeVar(
-    "S", bound=UniverseMapping, covariant=True
+    "S", bound=Mapping[SecurityName, Any], covariant=True
 )  # mapping of securities to prices
 P = TypeVar(
     "P", bound=Timeseries[Any, Comparable], covariant=True

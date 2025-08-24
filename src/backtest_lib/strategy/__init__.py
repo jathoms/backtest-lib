@@ -2,44 +2,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar
-from collections.abc import Sequence
-from backtest_lib.universe.vector_mapping import VectorMappingConstructor
 
 
 from backtest_lib.market import MarketView
 from backtest_lib.strategy.context import StrategyContext
-from backtest_lib.universe import Price, Universe, UniverseMapping, SecurityName
+from backtest_lib.universe import Price, Universe, UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 Quantity = int
 FractionalQuantity = float
 Weight = float
 
-H = TypeVar("H", bound=float)
+H = TypeVar("H", int, float)
 MappingType = TypeVar("MappingType", bound=VectorMapping)
 
 
 @dataclass(frozen=True)
 class Portfolio(Generic[H, MappingType]):
-    cash: H
+    cash: float
     holdings: UniverseMapping[H]  # asset -> quantity
-    _mapping_cls: VectorMappingConstructor[MappingType, SecurityName, H]
 
-    @classmethod
-    def from_raw(
-        cls: type[Portfolio[H, MappingType]],
-        *,
-        cash: H,
-        keys: Sequence[str],
-        values: Sequence[H],
-        mapping_cls: VectorMappingConstructor[MappingType, SecurityName, H],
-    ) -> Portfolio[H, MappingType]:
-        return cls(
-            cash=cash,
-            holdings=mapping_cls.from_vectors(keys, values),
-            _mapping_cls=mapping_cls,
-        )
 
+class QuantityPortfolio(Portfolio[Quantity, MappingType], Generic[MappingType]):
     def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
         values = self.holdings * prices
         total_value = values.sum() + self.cash
@@ -47,41 +31,46 @@ class Portfolio(Generic[H, MappingType]):
         cash_weight = self.cash / total_value
         return WeightedPortfolio(
             cash=cash_weight,
-            weights=weights,
-            _mapping_cls=self._mapping_cls,
+            holdings=weights,
+        )
+
+
+class FractionalQuantityPortfolio(
+    Portfolio[FractionalQuantity, MappingType], Generic[MappingType]
+):
+    def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
+        values = self.holdings * prices
+        total_value = values.sum() + self.cash
+        weights = values / total_value
+        cash_weight = self.cash / total_value
+        return WeightedPortfolio(
+            cash=cash_weight,
+            holdings=weights,
         )
 
 
 @dataclass(frozen=True)
-class WeightedPortfolio(Generic[MappingType]):
-    cash: Weight  # cash weight in [0, 1]
-    weights: UniverseMapping[Weight]
-    _mapping_cls: VectorMappingConstructor[MappingType, SecurityName, Weight]
-
-    @classmethod
-    def from_raw(
-        cls: type[WeightedPortfolio[MappingType]],
-        *,
-        cash: float,
-        keys: Sequence[str],
-        values: Sequence[float],
-        mapping_cls: VectorMappingConstructor[MappingType, SecurityName, Weight],
-    ) -> WeightedPortfolio[MappingType]:
-        return cls(
-            cash=cash,
-            weights=mapping_cls.from_vectors(keys, values),
-            _mapping_cls=mapping_cls,
-        )
-
+class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
     def into_quantities(
         self, prices: UniverseMapping[Price], total_value: Price
-    ) -> Portfolio:
-        cash_weight = total_value * self.cash
-        holdings = (total_value * self.weights) / prices
-        return Portfolio(
-            cash=cash_weight,
+    ) -> QuantityPortfolio:
+        target_qtys = (total_value * self.holdings) / prices
+        qtys = target_qtys.floor()
+        spent = (qtys * prices).sum()
+        cash_value = total_value - spent
+        return QuantityPortfolio(
+            cash=cash_value,
+            holdings=qtys,
+        )
+
+    def into_quantities_fractional(
+        self, prices: UniverseMapping[Price], total_value: Price
+    ) -> FractionalQuantityPortfolio:
+        cash = total_value * self.cash
+        holdings = (total_value * self.holdings) / prices
+        return FractionalQuantityPortfolio(
+            cash=cash,
             holdings=holdings,
-            _mapping_cls=self._mapping_cls,
         )
 
 

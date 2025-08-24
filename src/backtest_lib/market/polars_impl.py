@@ -1,14 +1,20 @@
 from __future__ import annotations
+import polars.datatypes
+
 from typing import cast
 from collections.abc import Iterator
 from backtest_lib.universe.vector_mapping import VectorMapping
+from backtest_lib.universe.vector_ops import VectorOps
 from dataclasses import dataclass, field
 import polars as pl
 import numpy as np
-from typing import Sequence, SupportsIndex, overload
+from typing import Sequence, SupportsIndex, overload, SupportsFloat
 from numpy.typing import NDArray
 from backtest_lib.universe import SecurityName, Universe
-from numbers import Real
+from typing import Generic, TypeVar
+from backtest_lib.market.timeseries import Timeseries
+
+T = TypeVar("T", int, float)
 
 
 @dataclass(frozen=True)
@@ -134,13 +140,14 @@ class PeriodAxis:
 
 
 @dataclass(frozen=True)
-class PolarsTimeseries(VectorMapping[int, float]):
+class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
     _vec: NDArray[np.float64]
     _axis: PeriodAxis
     _name: str
+    _scalar_type: type[T]
 
     @overload
-    def __getitem__(self, key: int) -> float: ...
+    def __getitem__(self, key: int) -> T: ...
 
     @overload
     def __getitem__(
@@ -149,24 +156,32 @@ class PolarsTimeseries(VectorMapping[int, float]):
         PolarsTimeseries
     ): ...  # can clone, must provide exact items in the index or integer indices
 
-    def __getitem__(self, key: int | slice) -> float | PolarsTimeseries:
+    def __getitem__(self, key: int | slice) -> T | PolarsTimeseries:
         if isinstance(key, int):
-            return float(self._vec[key])
+            return self._scalar_type(self._vec[key])
         else:
-            return PolarsTimeseries(self._vec[key], self._axis._slice(key), self._name)
+            return PolarsTimeseries(
+                self._vec[key], self._axis._slice(key), self._name, self._scalar_type
+            )
 
     def before(self, end: np.datetime64 | str, *, inclusive=False) -> PolarsTimeseries:
         end = _to_npdt64(end)
         left, right = self._axis.bounds_before(end, inclusive=inclusive)
         return PolarsTimeseries(
-            self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
+            self._vec[left:right],
+            self._axis.slice_contiguous(left, right),
+            self._name,
+            self._scalar_type,
         )
 
     def after(self, start: np.datetime64 | str, *, inclusive=True) -> PolarsTimeseries:
         start = _to_npdt64(start)
         left, right = self._axis.bounds_after(start, inclusive=inclusive)
         return PolarsTimeseries(
-            self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
+            self._vec[left:right],
+            self._axis.slice_contiguous(left, right),
+            self._name,
+            self._scalar_type,
         )
 
     def between(
@@ -180,14 +195,17 @@ class PolarsTimeseries(VectorMapping[int, float]):
         end = _to_npdt64(end)
         left, right = self._axis.bounds_between(start, end, closed=closed)
         return PolarsTimeseries(
-            self._vec[left:right], self._axis.slice_contiguous(left, right), self._name
+            self._vec[left:right],
+            self._axis.slice_contiguous(left, right),
+            self._name,
+            self._scalar_type,
         )
 
-    def __iter__(self) -> Iterator[float]:
-        return (float(x) for x in self._vec)
+    def __iter__(self) -> Iterator[T]:
+        return iter(self._vec)
 
     def __len__(self) -> int:
-        return self._vec.shape[0]
+        return len(self._axis)
 
     def as_array(self) -> NDArray[np.float64]:
         return self._vec
@@ -195,64 +213,112 @@ class PolarsTimeseries(VectorMapping[int, float]):
     def as_series(self) -> pl.Series:
         return pl.Series(name=self._name, values=self._vec, dtype=pl.Float64)
 
-    def _rhs(self, other: PolarsTimeseries | Real) -> NDArray[np.float64] | float:
-        if isinstance(other, Real) and not isinstance(other, bool):
-            return float(other)
+    def _rhs(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> NDArray[np.float64] | T:
+        if isinstance(other, SupportsFloat):
+            return self._scalar_type(float(other))
         if isinstance(other, PolarsTimeseries):
             if other._axis is self._axis or other._axis.labels == self._axis.labels:
                 return other._vec
             raise ValueError("Axis mismatch: operations require identical PeriodAxis.")
         raise TypeError("Only scalars or same-axis PolarsTimeseries are supported.")
 
-    def __add__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __add__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         rhs = self._rhs(other)
-        return PolarsTimeseries(self._vec + rhs, self._axis, self._name)
+        return PolarsTimeseries(
+            self._vec + rhs, self._axis, self._name, self._scalar_type
+        )
 
-    def __radd__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __radd__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         lhs = self._rhs(other)
-        return PolarsTimeseries(lhs + self._vec, self._axis, self._name)
+        return PolarsTimeseries(
+            lhs + self._vec, self._axis, self._name, self._scalar_type
+        )
 
-    def __sub__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __sub__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         rhs = self._rhs(other)
-        return PolarsTimeseries(self._vec - rhs, self._axis, self._name)
+        return PolarsTimeseries(
+            self._vec - rhs, self._axis, self._name, self._scalar_type
+        )
 
-    def __rsub__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __rsub__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         lhs = self._rhs(other)
-        return PolarsTimeseries(lhs - self._vec, self._axis, self._name)
+        return PolarsTimeseries(
+            lhs - self._vec, self._axis, self._name, self._scalar_type
+        )
 
-    def __mul__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __mul__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         rhs = self._rhs(other)
-        return PolarsTimeseries(self._vec * rhs, self._axis, self._name)
+        return PolarsTimeseries(
+            self._vec * rhs, self._axis, self._name, self._scalar_type
+        )
 
-    def __rmul__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __rmul__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         lhs = self._rhs(other)
-        return PolarsTimeseries(lhs * self._vec, self._axis, self._name)
+        return PolarsTimeseries(
+            lhs * self._vec, self._axis, self._name, self._scalar_type
+        )
 
-    def __truediv__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __truediv__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         rhs = self._rhs(other)
-        return PolarsTimeseries(self._vec / rhs, self._axis, self._name)
+        return PolarsTimeseries(
+            self._vec / rhs, self._axis, self._name, self._scalar_type
+        )
 
-    def __rtruediv__(self, other: PolarsTimeseries | Real) -> PolarsTimeseries:
+    def __rtruediv__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> PolarsTimeseries:
         lhs = self._rhs(other)
-        return PolarsTimeseries(lhs / self._vec, self._axis, self._name)
+        return PolarsTimeseries(
+            lhs / self._vec, self._axis, self._name, self._scalar_type
+        )
 
-    def sum(self) -> float:
-        return float(self._vec.sum())
+    def sum(self) -> T:
+        return self._scalar_type(self._vec.sum())
 
-    def mean(self) -> float:
-        return float(self._vec.mean())
+    def mean(self) -> T:
+        return self._scalar_type(self._vec.mean())
+
+    def floor(self) -> PolarsTimeseries[int]:
+        return PolarsTimeseries(
+            _vec=np.floor(self._vec),
+            _axis=self._axis,
+            _name=self._name,
+            _scalar_type=int,
+        )
 
 
 @dataclass(frozen=True)
-class SeriesUniverseMapping(VectorMapping[SecurityName, float]):
+class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
+    _scalar_type: type[int] | type[float] = float
 
     @staticmethod
-    def from_names_and_data(names: Universe, data: pl.Series) -> SeriesUniverseMapping:
+    def from_names_and_data(
+        names: Universe, data: pl.Series, dtype: type[int] | type[float] = float
+    ) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
-            names=names, _data=data, pos={name: i for i, name in enumerate(names)}
+            names=names,
+            _data=data,
+            pos={name: i for i, name in enumerate(names)},
+            _scalar_type=dtype,
         )
 
     def as_series(self) -> pl.Series:
@@ -267,18 +333,20 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, float]):
         # ensure pos matches the declared order
         if any(self.pos[name] != i for i, name in enumerate(self.names)):
             raise ValueError("pos mapping does not match names order")
-        if self._data.dtype != pl.Float64:
+        if self._scalar_type is float and self._data.dtype != pl.Float64:
             object.__setattr__(self, "_data", self._data.cast(pl.Float64))
+        elif self._scalar_type is int and self._data.dtype != pl.Int64:
+            object.__setattr__(self, "_data", self._data.cast(pl.Int64))
 
     @overload
-    def __getitem__(self, key: SecurityName) -> float: ...
+    def __getitem__(self, key: SecurityName) -> T: ...
 
     @overload
     def __getitem__(self, key: list[SecurityName]) -> pl.Series: ...
 
-    def __getitem__(self, key: SecurityName | list[SecurityName]) -> float | pl.Series:
+    def __getitem__(self, key: SecurityName | list[SecurityName]) -> T | pl.Series:
         if isinstance(key, SecurityName):
-            return float(self._data.item(self.pos[key]))
+            return cast(T, self._scalar_type(self._data.item(self.pos[key])))
         elif isinstance(key, list):
             idx = np.fromiter(
                 (self.pos[k] for k in key), dtype=np.int64, count=len(key)
@@ -293,8 +361,10 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, float]):
     def __len__(self) -> int:
         return len(self.names)
 
-    def _rhs(self, other: SeriesUniverseMapping | Real) -> pl.Series | float:
-        if isinstance(other, Real):
+    def _rhs(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> pl.Series | float:
+        if isinstance(other, SupportsFloat):
             return float(other)
         if isinstance(other, SeriesUniverseMapping):
             if other.names != self.names:
@@ -306,49 +376,92 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, float]):
             "Unsupported operand: only scalars or SeriesUniverseMapping with identical axis are allowed."
         )
 
-    def __add__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
+    def __add__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
         rhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, self._data + rhs, self.pos)
+        return SeriesUniverseMapping(
+            self.names, self._data + rhs, self.pos, self._scalar_type
+        )
 
-    def __radd__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, lhs + self._data, self.pos)
-
-    def __sub__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, self._data - rhs, self.pos)
-
-    def __rsub__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, lhs - self._data, self.pos)
-
-    def __mul__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, self._data * rhs, self.pos)
-
-    def __rmul__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, lhs * self._data, self.pos)
-
-    def __truediv__(self, other: SeriesUniverseMapping | Real) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, self._data / rhs, self.pos)
-
-    def __rtruediv__(
-        self, other: SeriesUniverseMapping | Real
+    def __radd__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
         lhs = self._rhs(other)
-        return SeriesUniverseMapping(self.names, lhs / self._data, self.pos)
+        return SeriesUniverseMapping(
+            self.names, lhs + self._data, self.pos, self._scalar_type
+        )
 
-    def sum(self) -> float:
-        return float(self._data.sum())
+    def __sub__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(
+            self.names, self._data - rhs, self.pos, self._scalar_type
+        )
 
-    def mean(self) -> float:
-        assert self._data.dtype == pl.Float64
+    def __rsub__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(
+            self.names, lhs - self._data, self.pos, self._scalar_type
+        )
+
+    def __mul__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(
+            self.names, self._data * rhs, self.pos, self._scalar_type
+        )
+
+    def __rmul__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(
+            self.names, lhs * self._data, self.pos, self._scalar_type
+        )
+
+    def __truediv__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
+        rhs = self._rhs(other)
+        return SeriesUniverseMapping(
+            self.names, self._data / rhs, self.pos, self._scalar_type
+        )
+
+    def __rtruediv__(
+        self, other: VectorOps[SupportsFloat] | SupportsFloat
+    ) -> SeriesUniverseMapping:
+        lhs = self._rhs(other)
+        return SeriesUniverseMapping(
+            self.names, lhs / self._data, self.pos, self._scalar_type
+        )
+
+    def sum(self) -> T:
+        return cast(T, self._scalar_type(self._data.sum()))
+
+    def mean(self) -> T:
+        # assert self._data.dtype == pl.Float64
+        dt = self._data.dtype
+        if not (dt.is_numeric()):
+            raise TypeError(f"mean() only supported on numeric dtypes, got {dt!r}")
         m = self._data.mean()
         if m is None:
             raise ValueError("mean of empty series")
-        return cast(float, m)
+        mf = float(cast(SupportsFloat, m))
+
+        if self._scalar_type is int:
+            return cast(T, int(mf))
+        else:
+            return cast(T, mf)
+
+    def floor(self) -> SeriesUniverseMapping[int]:
+        return SeriesUniverseMapping(
+            names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
+        )
 
     @classmethod
     def from_vectors(
@@ -397,6 +510,7 @@ class PolarsByPeriod:
                 names=self._security_axis.names,
                 _data=series,
                 pos=self._security_axis.pos,
+                _scalar_type=float,
             )
         elif isinstance(key, slice):
             start, stop, step = key.indices(len(self._period_axis))
@@ -463,7 +577,7 @@ class PolarsBySecurity:
     ) -> PolarsTimeseries | PolarsPastView:
         if isinstance(key, SecurityName):
             vec = self._security_column_df.get_column(key).to_numpy()
-            return PolarsTimeseries(vec, self._period_axis, key)
+            return PolarsTimeseries(vec, self._period_axis, key, float)
 
         names = key
 

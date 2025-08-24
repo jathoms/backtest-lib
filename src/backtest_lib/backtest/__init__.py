@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from backtest_lib.market.polars_impl import SeriesUniverseMapping
 
 from backtest_lib.strategy import (
     MarketView,
@@ -38,7 +37,7 @@ class Backtest:
         self.settings = settings
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults | None:
-        total_value = 1
+        total_value = 1.0
         self._current_portfolio = self.initial_portfolio
 
         past_market_view = self.market_view.truncated_to(1)
@@ -57,7 +56,7 @@ class Backtest:
             today_prices = past_market_view.prices.close.by_period[-1]
             pct_change = today_prices / yesterday_prices
 
-            new_weights_vec = self._current_portfolio.weights * pct_change
+            new_weights_vec = self._current_portfolio.holdings * pct_change
             new_total_weight = new_weights_vec.sum()
             total_value *= new_total_weight
             new_weights_normed = new_weights_vec / new_total_weight
@@ -65,8 +64,7 @@ class Backtest:
 
             self._current_portfolio = WeightedPortfolio(
                 cash=new_cash_weight,
-                weights=new_weights_normed,
-                _mapping_cls=self._current_portfolio._mapping_cls,
+                holdings=new_weights_normed,
             )
 
             decision = self.strategy(

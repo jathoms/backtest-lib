@@ -8,7 +8,11 @@ if TYPE_CHECKING:
     from backtest_lib.market import PastView
 
 from backtest_lib.market.timeseries import Comparable
-from typing import SupportsFloat
+from backtest_lib.universe.vector_mapping import SupportsFloat
+from numbers import Real
+from typing import TypeVar
+
+R = TypeVar("R", bound=Real, contravariant=True)
 
 SecurityName = str
 Price = float
@@ -21,8 +25,8 @@ Universe = tuple[SecurityName, ...]
 
 type UniverseMapping[T: SupportsFloat] = VectorMapping[SecurityName, T]
 type UniverseVolume = UniverseMapping[Volume]
-type UniverseMask = UniverseMapping[bool]
-# expect Comparable to come in as something like a numpy datetime64
+
+type UniverseMask = VectorMapping[SecurityName, bool]
 type UniversePriceView = PastView[UniverseMapping[Price], Timeseries, PeriodIndex]
 
 
