@@ -6,6 +6,8 @@ typecheck:
 	just pyrefly;        if ($LASTEXITCODE) { $fails += 'pyrefly' } 
 	just mypy;   		 if ($LASTEXITCODE) { $fails += 'mypy' } 
 	just pyright;        if ($LASTEXITCODE) { $fails += 'pyright' }
+	just ruffcheck;        if ($LASTEXITCODE) { $fails += 'ruffcheck' }
+
 
 pyright: 
 	uv run pyright 
@@ -18,3 +20,6 @@ ty:
 
 pyrefly: 
 	uv run pyrefly check
+
+ruffcheck:
+	uv run ruff check --fix
