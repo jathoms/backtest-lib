@@ -49,7 +49,6 @@ class FractionalQuantityPortfolio(
         )
 
 
-@dataclass(frozen=True)
 class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
     def into_quantities(
         self, prices: UniverseMapping[Price], total_value: Price
