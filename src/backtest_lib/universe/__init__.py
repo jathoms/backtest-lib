@@ -16,7 +16,7 @@ R = TypeVar("R", bound=Real, contravariant=True)
 
 SecurityName = str
 Price = float
-Volume = float
+Volume = int
 
 
 PeriodIndex = Comparable
