@@ -41,16 +41,14 @@ class Portfolio(Generic[H, MappingType]):
         )
 
     def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
-        securities = tuple(self.holdings.keys())
         values = self.holdings * prices
         total_value = values.sum() + self.cash
         weights = values / total_value
         cash_weight = self.cash / total_value
-        return WeightedPortfolio.from_raw(
+        return WeightedPortfolio(
             cash=cash_weight,
-            keys=securities,
-            values=list(weights.values()),
-            mapping_cls=self._mapping_cls,
+            weights=weights,
+            _mapping_cls=self._mapping_cls,
         )
 
 
@@ -80,12 +78,10 @@ class WeightedPortfolio(Generic[MappingType]):
     ) -> Portfolio:
         cash_weight = total_value * self.cash
         holdings = (total_value * self.weights) / prices
-
-        return Portfolio.from_raw(
+        return Portfolio(
             cash=cash_weight,
-            keys=list(self.weights.keys()),
-            values=list(holdings.values()),
-            mapping_cls=self._mapping_cls,
+            holdings=holdings,
+            _mapping_cls=self._mapping_cls,
         )
 
 
