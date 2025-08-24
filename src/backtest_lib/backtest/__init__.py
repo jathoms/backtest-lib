@@ -19,8 +19,8 @@ class Backtest:
     strategy: Strategy
     universe: Universe
     market_view: MarketView
-    initial_portfolio: WeightedPortfolio[SeriesUniverseMapping]
-    _current_portfolio: WeightedPortfolio[SeriesUniverseMapping]
+    initial_portfolio: WeightedPortfolio
+    _current_portfolio: WeightedPortfolio
     settings: dict | None = None
 
     def __init__(
@@ -28,7 +28,7 @@ class Backtest:
         strategy: Strategy,
         universe: Universe,
         market_view: MarketView,
-        initial_portfolio: WeightedPortfolio[SeriesUniverseMapping],
+        initial_portfolio: WeightedPortfolio,
         settings: dict | None = None,
     ):
         self.strategy = strategy
