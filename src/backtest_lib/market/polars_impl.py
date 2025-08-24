@@ -141,7 +141,7 @@ class PeriodAxis:
 
 @dataclass(frozen=True)
 class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
-    _vec: NDArray[np.float64]
+    _vec: pl.Series
     _axis: PeriodAxis
     _name: str
     _scalar_type: type[T]
@@ -207,15 +207,10 @@ class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
     def __len__(self) -> int:
         return len(self._axis)
 
-    def as_array(self) -> NDArray[np.float64]:
+    def as_series(self) -> pl.Series:
         return self._vec
 
-    def as_series(self) -> pl.Series:
-        return pl.Series(name=self._name, values=self._vec, dtype=pl.Float64)
-
-    def _rhs(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
-    ) -> NDArray[np.float64] | T:
+    def _rhs(self, other: VectorOps[SupportsFloat] | SupportsFloat) -> pl.Series | T:
         if isinstance(other, SupportsFloat):
             return self._scalar_type(float(other))
         if isinstance(other, PolarsTimeseries):
@@ -292,11 +287,11 @@ class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
         return self._scalar_type(self._vec.sum())
 
     def mean(self) -> T:
-        return self._scalar_type(self._vec.mean())
+        return self._scalar_type(cast(T, self._vec.mean()))
 
     def floor(self) -> PolarsTimeseries[int]:
         return PolarsTimeseries(
-            _vec=np.floor(self._vec),
+            _vec=self._vec.floor(),
             _axis=self._axis,
             _name=self._name,
             _scalar_type=int,
@@ -490,70 +485,127 @@ class PolarsByPeriod:
     _security_axis: Axis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
+    _col_start: int = 0
+    _col_len: int | None = None  # None => to end
+
+    _row_indexer: np.ndarray | None = None
+
+    _col_names_cache: tuple[str, ...] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "_col_names_cache", tuple(self._period_column_df.columns)
+        )
+
+    def __len__(self) -> int:
+        total = len(self._col_names_cache)
+        if self._col_len is None:
+            return max(0, total - self._col_start)
+        return max(0, min(self._col_len, total - self._col_start))
+
+    def _abs_col_index(self, logical_i: int) -> int:
+        n = len(self)
+        i = logical_i if logical_i >= 0 else n + logical_i
+        if i < 0 or i >= n:
+            raise IndexError(i)
+        return self._col_start + i
+
     def as_df(self) -> pl.DataFrame:
-        return self._period_column_df
+        start = self._col_start
+        stop = self._col_start + len(self)
+        df = self._period_column_df[:, start:stop]
+        if self._row_indexer is not None:
+            df = df.select(pl.all().gather(self._row_indexer))
+        return df
 
     @overload
     def __getitem__(self, key: int) -> SeriesUniverseMapping: ...
-
     @overload
     def __getitem__(self, key: slice) -> PolarsPastView: ...
 
-    def __getitem__(
-        self, key: SupportsIndex | slice
-    ) -> SeriesUniverseMapping | PolarsPastView:
+    def __getitem__(self, key: SupportsIndex | slice):
         if isinstance(key, SupportsIndex):
-            series = self._period_column_df.get_column(
-                self._period_column_df.columns[key]
-            )
+            abs_j = self._abs_col_index(int(key))
+            col_name = self._col_names_cache[abs_j]
+            s = self._period_column_df.get_column(col_name)
+            if self._row_indexer is not None:
+                s = s.gather(self._row_indexer)
             return SeriesUniverseMapping(
                 names=self._security_axis.names,
-                _data=series,
+                _data=s,
                 pos=self._security_axis.pos,
                 _scalar_type=float,
             )
-        elif isinstance(key, slice):
-            start, stop, step = key.indices(len(self._period_axis))
 
-            new_period_cols = self._period_column_df.columns[key]
-            new_period_df = self._period_column_df.select(new_period_cols)
+        start, stop, step = key.indices(len(self))
+        if step == 1:
+            abs_start = self._col_start + start
+            abs_stop = self._col_start + stop
 
-            period_idxs = np.arange(start, stop, step, dtype=np.int64)
-            new_security_df = self._security_column_df.select(
-                pl.all().gather(period_idxs)
+            by_period_view = PolarsByPeriod(
+                self._period_column_df,
+                self._security_column_df,
+                self._security_axis,
+                self._period_axis,
+                _col_start=abs_start,
+                _col_len=abs_stop - abs_start,
+                _row_indexer=self._row_indexer,
             )
 
+            new_period_cols = self._col_names_cache[abs_start:abs_stop]
             new_period_axis = PeriodAxis(
-                dt64=self._period_axis.dt64[period_idxs],
+                dt64=self._period_axis.dt64[abs_start:abs_stop],
                 labels=tuple(new_period_cols),
                 pos={lbl: i for i, lbl in enumerate(new_period_cols)},
             )
 
-            return PolarsPastView(
-                by_period=(
-                    PolarsByPeriod(
-                        new_period_df,
-                        new_security_df,
-                        self._security_axis,
-                        new_period_axis,
-                    )
-                ),
-                by_security=(
-                    PolarsBySecurity(
-                        new_security_df,
-                        new_period_df,
-                        self._security_axis,
-                        new_period_axis,
-                    )
+            by_security_view = PolarsBySecurity(
+                _security_column_df=self._security_column_df,
+                _period_column_df=self._period_column_df,
+                _security_axis=self._security_axis
+                if self._row_indexer is None
+                else Axis.from_names(
+                    tuple(self._security_axis.names[i] for i in self._row_indexer)
                 ),
                 _period_axis=new_period_axis,
-                _security_axis=self._security_axis,
+                _sel_names=None
+                if self._row_indexer is None
+                else tuple(self._security_axis.names[i] for i in self._row_indexer),
+                _row_start=abs_start,
+                _row_len=abs_stop - abs_start,
             )
-        else:
-            raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
 
-    def __len__(self) -> int:
-        return len(self._period_column_df.columns)
+            return PolarsPastView(
+                by_period=by_period_view,
+                by_security=by_security_view,
+                _period_axis=new_period_axis,
+                _security_axis=by_security_view._security_axis,
+            )
+
+        abs_start = self._col_start + start
+        abs_stop = self._col_start + stop
+        idx = np.arange(abs_start, abs_stop, step, dtype=np.int64)
+
+        period_cols = tuple(self._col_names_cache[i] for i in idx.tolist())
+        period_df = self._period_column_df.select(list(period_cols))
+        if self._row_indexer is not None:
+            period_df = period_df.select(pl.all().gather(self._row_indexer))
+
+        sec_df = self._security_column_df.select(pl.all().gather(idx))
+        new_pax = PeriodAxis(
+            dt64=self._period_axis.dt64[idx],
+            labels=period_cols,
+            pos={lbl: i for i, lbl in enumerate(period_cols)},
+        )
+
+        return PolarsPastView(
+            by_period=PolarsByPeriod(period_df, sec_df, self._security_axis, new_pax),
+            by_security=PolarsBySecurity(
+                sec_df, period_df, self._security_axis, new_pax
+            ),
+            _period_axis=new_pax,
+            _security_axis=self._security_axis,
+        )
 
 
 @dataclass(frozen=True)
@@ -563,48 +615,109 @@ class PolarsBySecurity:
     _security_axis: Axis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
+    _row_start: int = 0
+    _row_len: int | None = None
+    _sel_names: tuple[str, ...] | None = None
+
+    _sec_names_cache: tuple[str, ...] = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "_sec_names_cache", tuple(self._security_column_df.columns)
+        )
+
+    def __len__(self) -> int:
+        return (
+            len(self._sel_names)
+            if self._sel_names is not None
+            else len(self._sec_names_cache)
+        )
+
     def as_df(self) -> pl.DataFrame:
-        return self._security_column_df
+        if self._sel_names is None:
+            df = self._security_column_df
+        else:
+            df = self._security_column_df.select(list(self._sel_names))
+        if self._row_start != 0 or self._row_len is not None:
+            df = df.slice(self._row_start, self._row_len)
+        return df
 
     @overload
-    def __getitem__(self, key: SecurityName) -> PolarsTimeseries: ...
-
+    def __getitem__(self, key: str) -> PolarsTimeseries: ...
     @overload
-    def __getitem__(self, key: list) -> PolarsPastView: ...
+    def __getitem__(self, key: list[str]) -> PolarsPastView: ...
 
-    def __getitem__(
-        self, key: SecurityName | list
-    ) -> PolarsTimeseries | PolarsPastView:
+    def __getitem__(self, key: str | list[str]) -> PolarsTimeseries | PolarsPastView:
         if isinstance(key, SecurityName):
-            vec = self._security_column_df.get_column(key).to_numpy()
-            return PolarsTimeseries(vec, self._period_axis, key, float)
+            if self._sel_names is not None and key not in self._sel_names:
+                raise KeyError(key)
 
-        names = key
+            s = self._security_column_df.get_column(key)
+            if self._row_start != 0 or self._row_len is not None:
+                s = s.slice(self._row_start, self._row_len)
 
+            start = self._row_start
+            stop = start + (
+                len(self._period_axis.labels) - start
+                if self._row_len is None
+                else self._row_len
+            )
+            pax = PeriodAxis(
+                dt64=self._period_axis.dt64[start:stop],
+                labels=tuple(self._period_axis.labels[start:stop]),
+                pos={
+                    lbl: i for i, lbl in enumerate(self._period_axis.labels[start:stop])
+                },
+            )
+            return PolarsTimeseries(s, pax, key, float)
+
+        names = tuple(key)
         idx = np.fromiter(
             (self._security_axis.pos[n] for n in names),
             dtype=np.int64,
             count=len(names),
         )
 
-        new_security_df = self._security_column_df.select(names)
-        new_period_df = self._period_column_df.select(pl.all().gather(idx))
-
         new_security_axis = Axis.from_names(names)
 
-        return PolarsPastView(
-            by_period=PolarsByPeriod(
-                new_period_df, new_security_df, new_security_axis, self._period_axis
-            ),
-            by_security=PolarsBySecurity(
-                new_security_df, new_period_df, new_security_axis, self._period_axis
-            ),
-            _period_axis=self._period_axis,
-            _security_axis=new_security_axis,
+        start = self._row_start
+        stop = start + (
+            len(self._period_axis.labels) - start
+            if self._row_len is None
+            else self._row_len
+        )
+        pax = PeriodAxis(
+            dt64=self._period_axis.dt64[start:stop],
+            labels=tuple(self._period_axis.labels[start:stop]),
+            pos={lbl: i for i, lbl in enumerate(self._period_axis.labels[start:stop])},
         )
 
-    def __len__(self) -> int:
-        return len(self._security_column_df.columns)
+        by_security_view = PolarsBySecurity(
+            _security_column_df=self._security_column_df,
+            _period_column_df=self._period_column_df,
+            _security_axis=new_security_axis,
+            _period_axis=pax,
+            _row_start=self._row_start,
+            _row_len=self._row_len,
+            _sel_names=names,
+        )
+
+        by_period_view = PolarsByPeriod(
+            _period_column_df=self._period_column_df,
+            _security_column_df=self._security_column_df,
+            _security_axis=new_security_axis,
+            _period_axis=pax,
+            _col_start=0,
+            _col_len=None if self._row_len is None else (self._row_len),
+            _row_indexer=idx,
+        )
+
+        return PolarsPastView(
+            by_period=by_period_view,
+            by_security=by_security_view,
+            _period_axis=pax,
+            _security_axis=new_security_axis,
+        )
 
 
 @dataclass(frozen=True)
