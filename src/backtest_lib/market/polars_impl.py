@@ -485,8 +485,8 @@ class PolarsByPeriod:
     _security_axis: Axis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
-    _col_start: int = 0
-    _col_len: int | None = None  # None => to end
+    _period_slice_start: int = 0
+    _period_slice_len: int | None = None  # None => to end
 
     _row_indexer: np.ndarray | None = None
 
@@ -499,20 +499,20 @@ class PolarsByPeriod:
 
     def __len__(self) -> int:
         total = len(self._col_names_cache)
-        if self._col_len is None:
-            return max(0, total - self._col_start)
-        return max(0, min(self._col_len, total - self._col_start))
+        if self._period_slice_len is None:
+            return max(0, total - self._period_slice_start)
+        return max(0, min(self._period_slice_len, total - self._period_slice_start))
 
     def _abs_col_index(self, logical_i: int) -> int:
         n = len(self)
         i = logical_i if logical_i >= 0 else n + logical_i
         if i < 0 or i >= n:
             raise IndexError(i)
-        return self._col_start + i
+        return self._period_slice_start + i
 
     def as_df(self) -> pl.DataFrame:
-        start = self._col_start
-        stop = self._col_start + len(self)
+        start = self._period_slice_start
+        stop = self._period_slice_start + len(self)
         df = self._period_column_df[:, start:stop]
         if self._row_indexer is not None:
             df = df.select(pl.all().gather(self._row_indexer))
@@ -539,16 +539,16 @@ class PolarsByPeriod:
 
         start, stop, step = key.indices(len(self))
         if step == 1:
-            abs_start = self._col_start + start
-            abs_stop = self._col_start + stop
+            abs_start = self._period_slice_start + start
+            abs_stop = self._period_slice_start + stop
 
             by_period_view = PolarsByPeriod(
                 self._period_column_df,
                 self._security_column_df,
                 self._security_axis,
                 self._period_axis,
-                _col_start=abs_start,
-                _col_len=abs_stop - abs_start,
+                _period_slice_start=abs_start,
+                _period_slice_len=abs_stop - abs_start,
                 _row_indexer=self._row_indexer,
             )
 
@@ -562,28 +562,22 @@ class PolarsByPeriod:
             by_security_view = PolarsBySecurity(
                 _security_column_df=self._security_column_df,
                 _period_column_df=self._period_column_df,
-                _security_axis=self._security_axis
-                if self._row_indexer is None
-                else Axis.from_names(
-                    tuple(self._security_axis.names[i] for i in self._row_indexer)
-                ),
+                _security_axis=self._security_axis,
                 _period_axis=new_period_axis,
-                _sel_names=None
-                if self._row_indexer is None
-                else tuple(self._security_axis.names[i] for i in self._row_indexer),
-                _row_start=abs_start,
-                _row_len=abs_stop - abs_start,
+                _sel_names=self._security_axis.names,
+                _period_slice_start=abs_start,
+                _period_slice_len=abs_stop - abs_start,
             )
 
             return PolarsPastView(
                 by_period=by_period_view,
                 by_security=by_security_view,
                 _period_axis=new_period_axis,
-                _security_axis=by_security_view._security_axis,
+                _security_axis=self._security_axis,
             )
 
-        abs_start = self._col_start + start
-        abs_stop = self._col_start + stop
+        abs_start = self._period_slice_start + start
+        abs_stop = self._period_slice_start + stop
         idx = np.arange(abs_start, abs_stop, step, dtype=np.int64)
 
         period_cols = tuple(self._col_names_cache[i] for i in idx.tolist())
@@ -615,8 +609,8 @@ class PolarsBySecurity:
     _security_axis: Axis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
-    _row_start: int = 0
-    _row_len: int | None = None
+    _period_slice_start: int = 0
+    _period_slice_len: int | None = None
     _sel_names: tuple[str, ...] | None = None
 
     _sec_names_cache: tuple[str, ...] = field(init=False, repr=False)
@@ -638,8 +632,8 @@ class PolarsBySecurity:
             df = self._security_column_df
         else:
             df = self._security_column_df.select(list(self._sel_names))
-        if self._row_start != 0 or self._row_len is not None:
-            df = df.slice(self._row_start, self._row_len)
+        if self._period_slice_start != 0 or self._period_slice_len is not None:
+            df = df.slice(self._period_slice_start, self._period_slice_len)
         return df
 
     @overload
@@ -653,14 +647,14 @@ class PolarsBySecurity:
                 raise KeyError(key)
 
             s = self._security_column_df.get_column(key)
-            if self._row_start != 0 or self._row_len is not None:
-                s = s.slice(self._row_start, self._row_len)
+            if self._period_slice_start != 0 or self._period_slice_len is not None:
+                s = s.slice(self._period_slice_start, self._period_slice_len)
 
-            start = self._row_start
+            start = self._period_slice_start
             stop = start + (
                 len(self._period_axis.labels) - start
-                if self._row_len is None
-                else self._row_len
+                if self._period_slice_len is None
+                else self._period_slice_len
             )
             pax = PeriodAxis(
                 dt64=self._period_axis.dt64[start:stop],
@@ -680,11 +674,11 @@ class PolarsBySecurity:
 
         new_security_axis = Axis.from_names(names)
 
-        start = self._row_start
+        start = self._period_slice_start
         stop = start + (
             len(self._period_axis.labels) - start
-            if self._row_len is None
-            else self._row_len
+            if self._period_slice_len is None
+            else self._period_slice_len
         )
         pax = PeriodAxis(
             dt64=self._period_axis.dt64[start:stop],
@@ -697,8 +691,8 @@ class PolarsBySecurity:
             _period_column_df=self._period_column_df,
             _security_axis=new_security_axis,
             _period_axis=pax,
-            _row_start=self._row_start,
-            _row_len=self._row_len,
+            _period_slice_start=self._period_slice_start,
+            _period_slice_len=self._period_slice_len,
             _sel_names=names,
         )
 
@@ -707,8 +701,8 @@ class PolarsBySecurity:
             _security_column_df=self._security_column_df,
             _security_axis=new_security_axis,
             _period_axis=pax,
-            _col_start=0,
-            _col_len=None if self._row_len is None else (self._row_len),
+            _period_slice_start=self._period_slice_start,
+            _period_slice_len=self._period_slice_len,
             _row_indexer=idx,
         )
 
