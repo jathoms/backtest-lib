@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import numpy as np
 
 from backtest_lib.strategy import (
     MarketView,
@@ -11,7 +12,7 @@ from backtest_lib.universe import Universe
 
 @dataclass
 class BacktestResults:
-    total_return: float
+    total_growth: float
 
 
 class Backtest:
@@ -37,7 +38,7 @@ class Backtest:
         self.settings = settings
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults | None:
-        total_value = 1.0
+        results = BacktestResults(total_growth=1)
         self._current_portfolio = self.initial_portfolio
 
         past_market_view = self.market_view.truncated_to(1)
@@ -58,7 +59,7 @@ class Backtest:
 
             new_weights_vec = self._current_portfolio.holdings * pct_change
             new_total_weight = new_weights_vec.sum()
-            total_value *= new_total_weight
+            results.total_growth *= new_total_weight
             new_weights_normed = new_weights_vec / new_total_weight
             new_cash_weight = 1 - new_weights_normed.sum()
 
@@ -73,7 +74,13 @@ class Backtest:
                 market=past_market_view,
                 ctx=ctx,
             )
+            target_portfolio = decision.target
+            if not isinstance(target_portfolio, WeightedPortfolio):
+                target_portfolio = target_portfolio.into_weighted()
+            assert np.isclose(
+                decision.target.holdings.sum() + decision.target.cash, 1.0
+            )
             # assume we can perfectly track the target portfolio for now
             self._current_portfolio = decision.target
 
-        return BacktestResults(total_return=total_value)
+        return results
