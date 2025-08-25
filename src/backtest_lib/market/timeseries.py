@@ -28,16 +28,21 @@ Index = TypeVar("Index", bound=Comparable, contravariant=True)  # Type used for 
 
 
 class Timeseries(VectorOps[Scalar], Generic[Scalar, Index], ABC):
-    @abstractmethod
     @overload
     def __getitem__(self, key: int) -> Scalar: ...
 
-    @abstractmethod
     @overload
     def __getitem__(
         self, key: slice
     ) -> (
         Self
+    ): ...  # can clone, must provide exact items in the index or integer indices
+
+    @abstractmethod
+    def __getitem__(
+        self, key: int | slice
+    ) -> (
+        Scalar | Self
     ): ...  # can clone, must provide exact items in the index or integer indices
 
     @abstractmethod

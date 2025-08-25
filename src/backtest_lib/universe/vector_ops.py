@@ -15,6 +15,13 @@ Scalar = TypeVar("Scalar", bound=SupportsFloat)
 
 
 class VectorOps(Sized, Generic[Scalar], ABC):
+    # We allow `other` in this case to be a VectorOps of Any, 
+    # as we want to keep the flexibility of, say, adding a 
+    # float to a vector of ints.
+    #
+    # In actuality, these type signatures are not completely accurate,
+    # as adding a float to a vector of ints will produce a vector of floats,
+    # which is not `Self` (a vector of ints)
     @abstractmethod
     def __add__(self, other: VectorOps | Scalar) -> Self: ...
 

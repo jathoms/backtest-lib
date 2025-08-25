@@ -325,7 +325,6 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
             raise ValueError(
                 f"Row mapping misaligned: names={n}, data={len(self._data)}, pos={len(self.pos)}"
             )
-        # ensure pos matches the declared order
         if any(self.pos[name] != i for i, name in enumerate(self.names)):
             raise ValueError("pos mapping does not match names order")
         if self._scalar_type is float and self._data.dtype != pl.Float64:
@@ -358,15 +357,19 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
 
     def _rhs(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
-    ) -> pl.Series | float:
+    ) -> tuple[pl.Series | float, type]:
         if isinstance(other, SupportsFloat):
-            return float(other)
+            if not isinstance(other, int) and self._scalar_type is int:
+                return float(other), type(other)
+            return float(other), self._scalar_type
         if isinstance(other, SeriesUniverseMapping):
             if other.names != self.names:
                 raise ValueError(
                     "Axis mismatch: operations between SeriesUniverseMapping require identical 'names'."
                 )
-            return other._data
+            if other._scalar_type is not int and self._scalar_type is int:
+                return other._data, float
+            return other._data, self._scalar_type
         raise TypeError(
             "Unsupported operand: only scalars or SeriesUniverseMapping with identical axis are allowed."
         )
@@ -374,66 +377,50 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
     def __add__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, self._data + rhs, self.pos, self._scalar_type
-        )
+        rhs, new_type = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
 
     def __radd__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, lhs + self._data, self.pos, self._scalar_type
-        )
+        lhs, new_type = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
 
     def __sub__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, self._data - rhs, self.pos, self._scalar_type
-        )
+        rhs, new_type = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
 
     def __rsub__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, lhs - self._data, self.pos, self._scalar_type
-        )
+        lhs, new_type = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
 
     def __mul__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, self._data * rhs, self.pos, self._scalar_type
-        )
+        rhs, new_type = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data * rhs, self.pos, new_type)
 
     def __rmul__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, lhs * self._data, self.pos, self._scalar_type
-        )
+        lhs, new_type = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
 
     def __truediv__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        rhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, self._data / rhs, self.pos, self._scalar_type
-        )
+        rhs, _ = self._rhs(other)
+        return SeriesUniverseMapping(self.names, self._data / rhs, self.pos, float)
 
     def __rtruediv__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat
     ) -> SeriesUniverseMapping:
-        lhs = self._rhs(other)
-        return SeriesUniverseMapping(
-            self.names, lhs / self._data, self.pos, self._scalar_type
-        )
+        lhs, _ = self._rhs(other)
+        return SeriesUniverseMapping(self.names, lhs / self._data, self.pos, float)
 
     def sum(self) -> T:
         return cast(T, self._scalar_type(self._data.sum()))
