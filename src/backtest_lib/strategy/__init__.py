@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Generic, Protocol, TypeVar
-
+from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
 
 from backtest_lib.market import MarketView
-from backtest_lib.strategy.context import StrategyContext
 from backtest_lib.universe import Price, Universe, UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
+
+if TYPE_CHECKING:
+    from backtest_lib.strategy.context import StrategyContext
 
 Quantity = int
 FractionalQuantity = float

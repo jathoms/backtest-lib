@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+from collections.abc import Mapping
 import polars.datatypes
 
 from typing import cast
@@ -356,13 +358,13 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
         return len(self.names)
 
     def _rhs(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> tuple[pl.Series | float, type]:
         if isinstance(other, SupportsFloat):
             if not isinstance(other, int) and self._scalar_type is int:
                 return float(other), type(other)
             return float(other), self._scalar_type
-        if isinstance(other, SeriesUniverseMapping):
+        elif isinstance(other, SeriesUniverseMapping):
             if other.names != self.names:
                 raise ValueError(
                     "Axis mismatch: operations between SeriesUniverseMapping require identical 'names'."
@@ -370,56 +372,74 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
             if other._scalar_type is not int and self._scalar_type is int:
                 return other._data, float
             return other._data, self._scalar_type
+        elif isinstance(other, Mapping):
+            aligned_series = _mapping_to_series(self, other)
+            if (
+                any(not isinstance(x, int) for x in other.values())
+                and self._scalar_type is int
+            ):
+                return aligned_series, float
+            return aligned_series, self._scalar_type
+
         raise TypeError(
             "Unsupported operand: only scalars or SeriesUniverseMapping with identical axis are allowed."
         )
 
     def __add__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         return SeriesUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
 
     def __radd__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         return SeriesUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
 
     def __sub__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         return SeriesUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
 
     def __rsub__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         return SeriesUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
 
     def __mul__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
+        # maintain the identity, as rhs defaults to 0 for non-included keys
+        if isinstance(rhs, pl.Series):
+            rhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, self._data * rhs, self.pos, new_type)
 
     def __rmul__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
+        if isinstance(lhs, pl.Series):
+            lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
 
     def __truediv__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, _ = self._rhs(other)
+        if isinstance(rhs, pl.Series):
+            rhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, self._data / rhs, self.pos, float)
 
     def __rtruediv__(
-        self, other: VectorOps[SupportsFloat] | SupportsFloat
+        self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, _ = self._rhs(other)
+        if isinstance(lhs, pl.Series):
+            lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs / self._data, self.pos, float)
 
     def sum(self) -> T:
@@ -789,3 +809,21 @@ class PolarsPastView:
             _to_npdt64(start), _to_npdt64(end), closed=closed
         )
         return self._slice_period(left, right)
+
+
+def _mapping_to_series(
+    mapping: SeriesUniverseMapping, other_mapping: Mapping
+) -> pl.Series:
+    keys_touched = len(other_mapping)
+    idxs = np.fromiter(
+        (mapping.pos[k] for k in other_mapping.keys()),
+        dtype=np.int64,
+        count=keys_touched,
+    )
+    vals = np.fromiter(
+        (float(v) for v in other_mapping.values()), dtype=float, count=keys_touched
+    )
+    series = pl.zeros(len(mapping.names), eager=True)
+    # TODO: I don't like having to use this function.
+    series.scatter(idxs, vals)
+    return series

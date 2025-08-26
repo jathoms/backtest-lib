@@ -15,8 +15,8 @@ Scalar = TypeVar("Scalar", bound=SupportsFloat)
 
 
 class VectorOps(Sized, Generic[Scalar], ABC):
-    # We allow `other` in this case to be a VectorOps of Any, 
-    # as we want to keep the flexibility of, say, adding a 
+    # We allow `other` in this case to be a VectorOps of Any,
+    # as we want to keep the flexibility of, say, adding a
     # float to a vector of ints.
     #
     # In actuality, these type signatures are not completely accurate,
@@ -47,11 +47,11 @@ class VectorOps(Sized, Generic[Scalar], ABC):
     @abstractmethod
     def __rtruediv__(self, other: VectorOps | Scalar) -> VectorOps[float]: ...
 
-    # Default implementations of sum() and mean(), override this
-    # where possible with faster vector operations
     @abstractmethod
     def sum(self) -> float: ...
 
+    # Default implementations of mean(), override this
+    # where possible with faster vector operations
     def mean(self) -> float:
         n = len(self)
         if n == 0:

@@ -32,11 +32,7 @@ class Timeseries(VectorOps[Scalar], Generic[Scalar, Index], ABC):
     def __getitem__(self, key: int) -> Scalar: ...
 
     @overload
-    def __getitem__(
-        self, key: slice
-    ) -> (
-        Self
-    ): ...  # can clone, must provide exact items in the index or integer indices
+    def __getitem__(self, key: slice) -> Self: ...
 
     @abstractmethod
     def __getitem__(
