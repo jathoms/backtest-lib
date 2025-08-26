@@ -4,9 +4,9 @@ import numpy as np
 from backtest_lib.strategy import (
     MarketView,
     Strategy,
-    StrategyContext,
     WeightedPortfolio,
 )
+from backtest_lib.strategy.context import StrategyContext
 from backtest_lib.universe import Universe
 
 
@@ -77,8 +77,11 @@ class Backtest:
             target_portfolio = decision.target
             if not isinstance(target_portfolio, WeightedPortfolio):
                 target_portfolio = target_portfolio.into_weighted()
-            assert np.isclose(
-                decision.target.holdings.sum() + decision.target.cash, 1.0
+            total_weight_after_decision = (
+                decision.target.holdings.sum() + decision.target.cash
+            )
+            assert np.isclose(total_weight_after_decision, 1.0), (
+                f"Total weight after making a decision cannot exceed 1.0, weight on period {i} was {total_weight_after_decision}"
             )
             # assume we can perfectly track the target portfolio for now
             self._current_portfolio = decision.target
