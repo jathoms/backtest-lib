@@ -15,13 +15,18 @@ class BacktestResults:
     total_growth: float
 
 
+@dataclass
+class BacktestSettings:
+    allow_short: bool
+
+
 class Backtest:
     strategy: Strategy
     universe: Universe
     market_view: MarketView
     initial_portfolio: WeightedPortfolio
     _current_portfolio: WeightedPortfolio
-    settings: dict | None = None
+    settings: BacktestSettings | None
 
     def __init__(
         self,
@@ -29,7 +34,7 @@ class Backtest:
         universe: Universe,
         market_view: MarketView,
         initial_portfolio: WeightedPortfolio,
-        settings: dict | None = None,
+        settings: BacktestSettings | None = None,
     ):
         self.strategy = strategy
         self.universe = universe
@@ -80,10 +85,15 @@ class Backtest:
             total_weight_after_decision = (
                 decision.target.holdings.sum() + decision.target.cash
             )
+
+            if not self.settings.allow_short and any(x > 0 for x in target_portfolio.holdings.values()):
+                target_portfolio = target_portfolio.into_long_only()
+
             assert np.isclose(total_weight_after_decision, 1.0), (
                 f"Total weight after making a decision cannot exceed 1.0, weight on period {i} was {total_weight_after_decision}"
             )
+
             # assume we can perfectly track the target portfolio for now
-            self._current_portfolio = decision.target
+            self._current_portfolio = target_portfolio
 
         return results

@@ -1,8 +1,10 @@
 from __future__ import annotations
+import polars as pl
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar
 
+from backtest_lib.market.polars_impl import SeriesUniverseMapping
 from backtest_lib.market import MarketView
 from backtest_lib.universe import Price, Universe, UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
@@ -21,7 +23,7 @@ MappingType = TypeVar("MappingType", bound=VectorMapping)
 @dataclass(frozen=True)
 class Portfolio(Generic[H, MappingType]):
     cash: float
-    holdings: UniverseMapping[H]  # asset -> quantity
+    holdings: UniverseMapping[H]
 
 
 class QuantityPortfolio(Portfolio[Quantity, MappingType], Generic[MappingType]):
@@ -72,6 +74,36 @@ class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
             cash=cash,
             holdings=holdings,
         )
+
+    def into_long_only(self) -> WeightedPortfolio:
+        if isinstance(self.holdings, SeriesUniverseMapping):
+            # Assumes we want to keep our leverage ratio at 1
+            df = pl.DataFrame({"w": self.holdings.as_series()})
+            redistributed_weights = (
+                df.select(
+                    pl.col("w"),
+                    pos_sum=pl.col("w").clip(lower_bound=0).sum().over(pl.lit(1)),
+                    neg_mass=(-pl.col("w").clip(upper_bound=0).sum().over(pl.lit(1))),
+                    exposure_ratio=(pl.col("w").abs().sum().over(pl.lit(1))),
+                )
+                .with_columns(
+                    scale=pl.when(pl.col("pos_sum") > 0)
+                    .then(1 + pl.col("neg_mass") / pl.col("pos_sum"))
+                    .otherwise(0)
+                )
+                .with_columns(
+                    redistributed=pl.when(pl.col("w") > 0)
+                    .then(pl.col("w") * pl.col("scale"))
+                    .otherwise(0)
+                )
+                .with_columns(
+                    norm_redist_w=pl.col("redistributed") / pl.col("exposure_ratio")
+                )
+            )["norm_redist_w"]
+            new_holdings = replace(self.holdings, _data=redistributed_weights)
+            return WeightedPortfolio(self.cash, new_holdings)
+        else:
+            raise NotImplementedError()
 
 
 @dataclass(frozen=True)
