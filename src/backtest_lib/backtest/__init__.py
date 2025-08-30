@@ -1,3 +1,4 @@
+from __future__ import annotations
 from dataclasses import dataclass
 import numpy as np
 
@@ -19,6 +20,10 @@ class BacktestResults:
 class BacktestSettings:
     allow_short: bool
 
+    @staticmethod
+    def default() -> BacktestSettings:
+        return BacktestSettings(allow_short=False)
+
 
 class Backtest:
     strategy: Strategy
@@ -26,7 +31,7 @@ class Backtest:
     market_view: MarketView
     initial_portfolio: WeightedPortfolio
     _current_portfolio: WeightedPortfolio
-    settings: BacktestSettings | None
+    settings: BacktestSettings
 
     def __init__(
         self,
@@ -34,7 +39,7 @@ class Backtest:
         universe: Universe,
         market_view: MarketView,
         initial_portfolio: WeightedPortfolio,
-        settings: BacktestSettings | None = None,
+        settings: BacktestSettings = BacktestSettings.default(),
     ):
         self.strategy = strategy
         self.universe = universe
@@ -86,7 +91,9 @@ class Backtest:
                 decision.target.holdings.sum() + decision.target.cash
             )
 
-            if not self.settings.allow_short and any(x > 0 for x in target_portfolio.holdings.values()):
+            if not self.settings.allow_short and any(
+                x > 0 for x in target_portfolio.holdings.values()
+            ):
                 target_portfolio = target_portfolio.into_long_only()
 
             assert np.isclose(total_weight_after_decision, 1.0), (

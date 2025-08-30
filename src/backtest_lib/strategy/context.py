@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from backtest_lib.strategy import WeightedPortfolio
+from backtest_lib.portfolio import WeightedPortfolio
 
 
 @dataclass
