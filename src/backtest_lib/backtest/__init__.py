@@ -1,5 +1,4 @@
 from __future__ import annotations
-import pandas as pd
 import datetime as dt
 from dataclasses import dataclass
 import numpy as np
@@ -32,11 +31,10 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
     if isinstance(some_datetime, dt.datetime):
         return some_datetime
     elif isinstance(some_datetime, np.datetime64):
-        ts = pd.Timestamp(some_datetime)
-        if not pd.isna(ts):
-            return ts.to_pydatetime()
-        else:
-            raise ValueError("Cannot convert null datetime to python datetime.")
+        if np.isnat(some_datetime):
+            raise ValueError("Cannot convert NaT to Python datetime.")
+        ns = some_datetime.astype("datetime64[ns]").astype(np.int64)
+        return dt.datetime.utcfromtimestamp(ns / 1e9)
     else:
         raise TypeError(
             f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"
