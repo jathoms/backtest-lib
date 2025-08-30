@@ -1,7 +1,10 @@
 from __future__ import annotations
+import pandas as pd
+import datetime as dt
 from dataclasses import dataclass
 import numpy as np
 
+from typing import Any
 from backtest_lib.strategy import (
     MarketView,
     Strategy,
@@ -23,6 +26,21 @@ class BacktestSettings:
     @staticmethod
     def default() -> BacktestSettings:
         return BacktestSettings(allow_short=False)
+
+
+def _to_pydt(some_datetime: Any) -> dt.datetime:
+    if isinstance(some_datetime, dt.datetime):
+        return some_datetime
+    elif isinstance(some_datetime, np.datetime64):
+        ts = pd.Timestamp(some_datetime)
+        if not pd.isna(ts):
+            return ts.to_pydatetime()
+        else:
+            raise ValueError("Cannot convert null datetime to python datetime.")
+    else:
+        raise TypeError(
+            f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"
+        )
 
 
 class Backtest:
@@ -47,7 +65,11 @@ class Backtest:
         self.initial_portfolio = initial_portfolio
         self.settings = settings
 
-    def run(self, ctx: StrategyContext | None = None) -> BacktestResults | None:
+    def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
+        if ctx is None:
+            ctx = StrategyContext()
+            ctx.now = _to_pydt(self.market_view.periods[0])
+
         results = BacktestResults(total_growth=1)
         self._current_portfolio = self.initial_portfolio
 
@@ -77,6 +99,8 @@ class Backtest:
                 cash=new_cash_weight,
                 holdings=new_weights_normed,
             )
+
+            ctx.now = _to_pydt(self.market_view.periods[i])
 
             decision = self.strategy(
                 universe=self.universe,
