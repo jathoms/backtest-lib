@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections.abc import Sequence
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     Protocol,
     TypeVar,
@@ -101,6 +101,8 @@ class MarketView:
     periods: Sequence[PeriodIndex]
     tradable: PastView[UniverseMask, Timeseries, PeriodIndex] | None = None
     volume: PastView[UniverseVolume, Timeseries, PeriodIndex] | None = None
+    signals: dict[str, PastView] = field(default_factory=dict)
+        
 
     def truncated_to(self, n_periods: int) -> MarketView:
         return MarketView(
@@ -108,4 +110,5 @@ class MarketView:
             volume=self.volume.by_period[:n_periods] if self.volume else None,
             tradable=self.tradable.by_period[:n_periods] if self.tradable else None,
             periods=self.periods[:n_periods],
+            signals={k: v.by_period[:n_periods] for k, v in self.signals.items()},
         )
