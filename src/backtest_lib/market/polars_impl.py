@@ -1,20 +1,27 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-import polars.datatypes
+from collections.abc import Iterator, Mapping
+from dataclasses import dataclass, field
+from typing import (
+    Generic,
+    Sequence,
+    SupportsFloat,
+    SupportsIndex,
+    TypeVar,
+    cast,
+    overload,
+)
 
-from typing import cast
-from collections.abc import Iterator
+import numpy as np
+import pandas as pd
+import polars as pl
+import polars.datatypes
+from numpy.typing import NDArray
+
+from backtest_lib.market.timeseries import Timeseries
+from backtest_lib.universe import SecurityName, Universe
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
-from dataclasses import dataclass, field
-import polars as pl
-import numpy as np
-from typing import Sequence, SupportsIndex, overload, SupportsFloat
-from numpy.typing import NDArray
-from backtest_lib.universe import SecurityName, Universe
-from typing import Generic, TypeVar
-from backtest_lib.market.timeseries import Timeseries
 
 T = TypeVar("T", int, float)
 
@@ -729,7 +736,9 @@ class PolarsPastView:
     _period_axis: PeriodAxis
 
     @staticmethod
-    def from_data_frame(df: pl.DataFrame) -> PolarsPastView:
+    def from_data_frame(df: pl.DataFrame | pd.DataFrame) -> PolarsPastView:
+        if isinstance(df, pd.DataFrame):
+            df = pl.DataFrame(df)
         try:
             dates = df.get_column("date", default=None)
         except Exception as e:
