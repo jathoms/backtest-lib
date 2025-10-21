@@ -36,7 +36,7 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
         if np.isnat(some_datetime):
             raise ValueError("Cannot convert NaT to Python datetime.")
         ns = some_datetime.astype("datetime64[ns]").astype(np.int64)
-        return dt.datetime.utcfromtimestamp(ns / 1e9)
+        return dt.datetime.fromtimestamp(ns / 1e9, dt.timezone.utc)
     else:
         raise TypeError(
             f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"
@@ -68,6 +68,7 @@ class Backtest:
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         if ctx is None:
             ctx = StrategyContext()
+        output_weights = []
 
         results = BacktestResults(total_growth=1)
         self._current_portfolio = self.initial_portfolio
@@ -82,6 +83,8 @@ class Backtest:
                 market=past_market_view,
                 ctx=ctx,
             )
+            output_weights.append(decision.target.holdings)
+
             target_portfolio = decision.target
             if not isinstance(target_portfolio, WeightedPortfolio):
                 target_portfolio = target_portfolio.into_weighted()
