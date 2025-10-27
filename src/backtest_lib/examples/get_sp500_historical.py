@@ -5,7 +5,9 @@ import datetime as dt
 import yfinance as yf
 import time
 from backtest_lib.market.polars_impl import PolarsPastView
-from backtest_lib.market import PastView, MarketView, PastUniversePrices
+from backtest_lib.market import MarketView, PastUniversePrices
+from importlib.resources import files
+import backtest_lib.examples
 
 
 def fetch_history(tickers, start, end=None, interval="1d"):
@@ -51,10 +53,15 @@ def fetch_history_one(tickers, start, end=None, interval="1d"):
 def get_sp500_market_view(
     start: dt.datetime, end: dt.datetime | None = dt.datetime.now()
 ) -> MarketView:
-    changes = pkl.load(open("sp500_changes.pkl", "rb"))
-    current = pkl.load(open("sp500_const.pkl", "rb"))
+    changes = pkl.load(
+        files(backtest_lib.examples).joinpath("sp500_changes.pkl").open("rb")
+    )
 
-    dates = pd.date_range(start, end, freq="B")
+    current = pkl.load(
+        files(backtest_lib.examples).joinpath("sp500_const.pkl").open("rb")
+    )
+
+    dates = pd.date_range(start, end, freq="B").values
 
     added = changes[["Effective Date", "Added"]]
     added.columns = added.columns.droplevel(0)
@@ -69,7 +76,11 @@ def get_sp500_market_view(
     removed.dropna(inplace=True)
 
     current_tickers = [
-        line.rstrip("\n") for line in open("sp500_constituents.txt", "r").readlines()
+        line.rstrip("\n")
+        for line in files(backtest_lib.examples)
+        .joinpath("sp500_constituents.txt")
+        .open("r")
+        .readlines()
     ]
     all_historical_tickers = (
         set(added["Ticker"]).union(set(removed["Ticker"])).union(current_tickers)
@@ -115,8 +126,10 @@ def get_sp500_market_view(
         for ticker in all_historical_tickers
         if any(x for x in tradable_view.after(start.isoformat()).by_security[ticker])
     ]
-    history = fetch_history_one(tickers_to_fetch, start, end)
-    # history = pkl.load(open("sp500_more_tk.pkl", "rb"))
+    # history = fetch_history_one(tickers_to_fetch, start, end)
+    history = pkl.load(
+        files(backtest_lib.examples).joinpath("sp500_more_tk.pkl").open("rb")
+    )
     close_df = (
         history.xs("Close", axis=1, level=1)
         .dropna(axis=1, how="any")
@@ -125,7 +138,7 @@ def get_sp500_market_view(
     )
     close_pl = pl.from_pandas(close_df)
 
-    close_prices_df = close_pl.with_columns(pl.Series("date", dates))
+    close_prices_df = close_pl.with_columns(pl.Series("date", dates)).fill_null(0)
     close_price_past_view = PolarsPastView.from_data_frame(close_prices_df)
 
     return MarketView(
