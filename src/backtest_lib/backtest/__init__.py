@@ -87,7 +87,8 @@ class Backtest:
                 ctx=ctx,
             )
 
-            _check_tradable(decision, past_market_view.tradable.by_period[-1], ctx.now)
+            if self.market_view.tradable is not None:
+                _check_tradable(decision, past_market_view.tradable.by_period[-1], ctx.now)
 
             output_weights.append(decision.target.holdings)
 
