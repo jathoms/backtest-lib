@@ -35,7 +35,7 @@ _RHS_HANDOFF = object()
 T = TypeVar("T", int, float)
 
 
-POLARS_TO_PYTHON: dict[pl.DataType, type[Any]] = {
+POLARS_TO_PYTHON: dict[type[pl.DataType], type[Any]] = {
     pl.Boolean: bool,
     pl.Int8: int,
     pl.Int16: int,
