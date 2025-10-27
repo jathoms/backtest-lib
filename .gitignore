@@ -13,3 +13,5 @@ wheels/
 
 *.pkl
 !sp500_close.pkl
+!sp500_const.pkl
+!sp500_changes.pkl
