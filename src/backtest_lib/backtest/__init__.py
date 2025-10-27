@@ -1,18 +1,18 @@
 from __future__ import annotations
+import warnings
 
 import datetime as dt
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import logging
 
-from backtest_lib.strategy import (
-    MarketView,
-    Strategy,
-    WeightedPortfolio,
-)
+from backtest_lib.strategy import MarketView, Strategy, WeightedPortfolio, Decision
 from backtest_lib.strategy.context import StrategyContext
-from backtest_lib.universe import Universe, UniverseMapping
+from backtest_lib.universe import Universe, UniverseMapping, UniverseMask
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -77,12 +77,18 @@ class Backtest:
         for i in range(1, len(self.market_view.periods) + 1):
             past_market_view = self.market_view.truncated_to(i)
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
+            logger.debug(
+                f"Starting period {i} ({ctx.now}). Current total growth: {results.total_growth}"
+            )
             decision = self.strategy(
                 universe=self.universe,
                 current_portfolio=self._current_portfolio,
                 market=past_market_view,
                 ctx=ctx,
             )
+
+            _check_tradable(decision, past_market_view.tradable.by_period[-1], ctx.now)
+
             output_weights.append(decision.target.holdings)
 
             target_portfolio = decision.target
@@ -121,10 +127,16 @@ def _apply_inter_period_price_changes(
     prev_period_prices: UniverseMapping,
     new_period_prices: UniverseMapping,
 ) -> tuple[WeightedPortfolio, float]:
+    logger.debug(f"Prev period prices len: {len(prev_period_prices)}")
+    logger.debug(f"New period prices len: {len(new_period_prices)}")
     pct_change = new_period_prices / prev_period_prices
 
     prev_cash = portfolio.cash
     prev_hold = portfolio.holdings
+    logger.debug(f"Holdings length: {len(prev_hold)}")
+    logger.debug(
+        f"things in holdings not in prev prices: {[x for x in prev_hold if x not in new_period_prices.keys()]}"
+    )
 
     new_total_holdings_weight = prev_hold * pct_change
     new_total_weight = prev_cash + new_total_holdings_weight.sum()
@@ -136,3 +148,20 @@ def _apply_inter_period_price_changes(
         cash=new_cash,
         holdings=new_holdings,
     ), new_total_weight
+
+
+def _check_tradable(
+    decision: Decision, tradable_mapping: UniverseMask, now: dt.datetime
+):
+    tradable = {
+        security for security, is_tradable in tradable_mapping.items() if is_tradable
+    }
+    logger.debug(f"Tradable len: {len(tradable)}")
+    logger.debug(f"Decision weights len: {len(decision.target.holdings.keys())}")
+    msgs = [
+        f"Security '{sec}' is marked as non-tradable on period {now} but is given a value of {val}."
+        for sec, val in decision.target.holdings.items()
+        if val > 0 and sec not in tradable
+    ]
+    if msgs:
+        warnings.warn("\n".join(msgs))

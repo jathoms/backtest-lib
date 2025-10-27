@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import datetime as dt
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import (
+    Any,
     Generic,
     Sequence,
     SupportsFloat,
@@ -23,7 +26,39 @@ from backtest_lib.universe import SecurityName, Universe
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+_RHS_HANDOFF = object()
+
 T = TypeVar("T", int, float)
+
+
+POLARS_TO_PYTHON: dict[pl.DataType, type[Any]] = {
+    pl.Boolean: bool,
+    pl.Int8: int,
+    pl.Int16: int,
+    pl.Int32: int,
+    pl.Int64: int,
+    pl.UInt8: int,
+    pl.UInt16: int,
+    pl.UInt32: int,
+    pl.UInt64: int,
+    pl.Float32: float,
+    pl.Float64: float,
+    pl.String: str,
+    pl.Categorical: str,  # categorical values are stored as strings
+    pl.Enum: str,
+    pl.Date: dt.date,
+    pl.Datetime: dt.datetime,
+    pl.Time: dt.time,
+    pl.Duration: dt.timedelta,
+    pl.Decimal: Decimal,
+    pl.Binary: bytes,
+    pl.Object: object,
+    pl.Null: type(None),
+}
 
 
 @dataclass(frozen=True)
@@ -35,6 +70,9 @@ class Axis:
     def from_names(names: Sequence[SecurityName]) -> Axis:
         names_t = tuple(names)
         return Axis(names_t, {s: i for i, s in enumerate(names_t)})
+
+    def __len__(self):
+        return len(self.names)
 
 
 def _to_npdt64(x: np.datetime64 | str) -> np.datetime64:
@@ -312,11 +350,13 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
-    _scalar_type: type[int] | type[float] = float
+    _scalar_type: type[int] | type[float] | type[bool] = None
 
     @staticmethod
     def from_names_and_data(
-        names: Universe, data: pl.Series, dtype: type[int] | type[float] = float
+        names: Universe,
+        data: pl.Series,
+        dtype: type[int] | type[float] | type[bool] | None = None,
     ) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
             names=names,
@@ -336,6 +376,8 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
             )
         if any(self.pos[name] != i for i, name in enumerate(self.names)):
             raise ValueError("pos mapping does not match names order")
+        if self._scalar_type is None:
+            object.__setattr__(self, "_scalar_type", POLARS_TO_PYTHON[self._data.dtype])
         if self._scalar_type is float and self._data.dtype != pl.Float64:
             object.__setattr__(self, "_data", self._data.cast(pl.Float64))
         elif self._scalar_type is int and self._data.dtype != pl.Int64:
@@ -372,13 +414,18 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
                 return float(other), type(other)
             return float(other), self._scalar_type
         elif isinstance(other, SeriesUniverseMapping):
+            data = other._data
             if other.names != self.names:
-                raise ValueError(
-                    "Axis mismatch: operations between SeriesUniverseMapping require identical 'names'."
-                )
-            if other._scalar_type is not int and self._scalar_type is int:
-                return other._data, float
-            return other._data, self._scalar_type
+                if not all(name in self.names for name in other.names):
+                    logger.debug(f"lhs size: {len(self)}, rhs size: {len(other)}")
+                    logger.debug(
+                        f"{len([name for name in self.names if name not in other.names])} items found in lhs not in rhs"
+                    )
+                    return _RHS_HANDOFF, None
+                data = _mapping_to_series(self, other)
+            if other._scalar_type is not int:
+                return data, float
+            return data, self._scalar_type
         elif isinstance(other, Mapping):
             aligned_series = _mapping_to_series(self, other)
             if (
@@ -389,37 +436,47 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
             return aligned_series, self._scalar_type
 
         raise TypeError(
-            "Unsupported operand: only scalars or SeriesUniverseMapping with identical axis are allowed."
+            "Unsupported operand: only scalars, mappings or SeriesUniverseMapping with compatible axes are allowed."
         )
 
     def __add__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
+        if rhs is _RHS_HANDOFF:
+            return self.__radd__(other)
         return SeriesUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
 
     def __radd__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
+        if lhs is _RHS_HANDOFF:
+            return NotImplemented
         return SeriesUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
 
     def __sub__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
+        if rhs is _RHS_HANDOFF:
+            return other.__rsub__(self)
         return SeriesUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
 
     def __rsub__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
+        if lhs is _RHS_HANDOFF:
+            return NotImplemented
         return SeriesUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
 
     def __mul__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
+        if rhs is _RHS_HANDOFF:
+            return other.__rmul__(self)
         # maintain the identity, as rhs defaults to 0 for non-included keys
         if isinstance(rhs, pl.Series):
             rhs.replace({0: 1})
@@ -428,7 +485,11 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
     def __rmul__(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
+        logger.debug("trying rmul")
         lhs, new_type = self._rhs(other)
+        if lhs is _RHS_HANDOFF:
+            logger.debug("another handoff")
+            return NotImplemented
         if isinstance(lhs, pl.Series):
             lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
@@ -437,6 +498,8 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, _ = self._rhs(other)
+        if rhs is _RHS_HANDOFF:
+            return other.__rtruediv__(self)
         if isinstance(rhs, pl.Series):
             rhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, self._data / rhs, self.pos, float)
@@ -445,6 +508,8 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, _ = self._rhs(other)
+        if lhs is _RHS_HANDOFF:
+            return NotImplemented
         if isinstance(lhs, pl.Series):
             lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs / self._data, self.pos, float)
@@ -548,7 +613,6 @@ class PolarsByPeriod:
                 names=self._security_axis.names,
                 _data=s,
                 pos=self._security_axis.pos,
-                _scalar_type=float,
             )
 
         start, stop, step = key.indices(len(self))
@@ -615,6 +679,10 @@ class PolarsByPeriod:
             _security_axis=self._security_axis,
         )
 
+    def __iter__(self) -> Iterator[np.datetime64]:
+        for period in self._period_axis.dt64:
+            yield period
+
 
 @dataclass(frozen=True)
 class PolarsBySecurity:
@@ -627,19 +695,8 @@ class PolarsBySecurity:
     _period_slice_len: int | None = None
     _sel_names: tuple[str, ...] | None = None
 
-    _sec_names_cache: tuple[str, ...] = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        object.__setattr__(
-            self, "_sec_names_cache", tuple(self._security_column_df.columns)
-        )
-
     def __len__(self) -> int:
-        return (
-            len(self._sel_names)
-            if self._sel_names is not None
-            else len(self._sec_names_cache)
-        )
+        return len(self._security_axis)
 
     def as_df(self) -> pl.DataFrame:
         if self._sel_names is None:
@@ -726,6 +783,10 @@ class PolarsBySecurity:
             _period_axis=pax,
             _security_axis=new_security_axis,
         )
+
+    def __iter__(self) -> Iterator[str]:
+        for sec in self._security_axis.names:
+            yield sec
 
 
 @dataclass(frozen=True)

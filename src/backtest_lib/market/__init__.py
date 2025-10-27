@@ -1,5 +1,5 @@
 from __future__ import annotations
-from collections.abc import Sequence
+from collections.abc import Sequence, Iterator
 
 from dataclasses import dataclass, field
 from typing import (
@@ -83,6 +83,8 @@ class ByPeriod(Protocol[S, P, Index]):
     @overload
     def __getitem__(self, key: slice) -> PastView[S, P, Index]: ...
 
+    def __iter__(self) -> Iterator[P]: ...
+
 
 @runtime_checkable
 class BySecurity(Protocol[S, P, Index]):
@@ -94,6 +96,8 @@ class BySecurity(Protocol[S, P, Index]):
     @overload
     def __getitem__(self, key: list[SecurityName]) -> PastView[S, P, Index]: ...
 
+    def __iter__(self) -> Iterator[S]: ...
+
 
 @dataclass(frozen=True)
 class MarketView:
@@ -102,7 +106,6 @@ class MarketView:
     tradable: PastView[UniverseMask, Timeseries, PeriodIndex] | None = None
     volume: PastView[UniverseVolume, Timeseries, PeriodIndex] | None = None
     signals: dict[str, PastView] = field(default_factory=dict)
-        
 
     def truncated_to(self, n_periods: int) -> MarketView:
         return MarketView(
@@ -111,4 +114,35 @@ class MarketView:
             tradable=self.tradable.by_period[:n_periods] if self.tradable else None,
             periods=self.periods[:n_periods],
             signals={k: v.by_period[:n_periods] for k, v in self.signals.items()},
+        )
+
+    def filter_securities(self, securities: Sequence[SecurityName]) -> MarketView:
+        filtered_price = [
+            sec for sec in securities if sec in self.prices.close.by_security
+        ]
+        filtered_volume = (
+            [sec for sec in securities if sec in self.volume.by_security]
+            if self.volume
+            else None
+        )
+        filtered_tradable = (
+            [sec for sec in securities if sec in self.tradable.by_security]
+            if self.tradable
+            else None
+        )
+        filtered_signal_securities = {
+            k: [sec for sec in securities if sec in self.signals[k].by_security]
+            for k in self.signals.keys()
+        }
+        return MarketView(
+            prices=self.prices.filter_securities(filtered_price),
+            volume=self.volume.by_security[filtered_volume] if self.volume else None,
+            tradable=self.tradable.by_security[filtered_tradable]
+            if self.tradable
+            else None,
+            periods=self.periods,
+            signals={
+                k: v.by_security[filtered_signal_securities[k]]
+                for k, v in self.signals.items()
+            },
         )
