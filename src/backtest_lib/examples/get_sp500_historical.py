@@ -37,7 +37,6 @@ def fetch_history(tickers, start, end=None, interval="1d"):
 
 def fetch_history_one(tickers, start, end=None, interval="1d"):
     tickers = [t.replace(".", "-") for t in tickers]
-    all_data = []
     df = yf.download(
         tickers=tickers,
         start=start,
@@ -126,10 +125,10 @@ def get_sp500_market_view(
         for ticker in all_historical_tickers
         if any(x for x in tradable_view.after(start.isoformat()).by_security[ticker])
     ]
-    # history = fetch_history_one(tickers_to_fetch, start, end)
-    history = pkl.load(
-        files(backtest_lib.examples).joinpath("sp500_more_tk.pkl").open("rb")
-    )
+    history = fetch_history_one(tickers_to_fetch, start, end)
+    # history = pkl.load(
+    #     files(backtest_lib.examples).joinpath("sp500_more_tk.pkl").open("rb")
+    # )
     close_df = (
         history.xs("Close", axis=1, level=1)
         .dropna(axis=1, how="any")
