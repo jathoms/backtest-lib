@@ -42,3 +42,6 @@ class VectorMapping(Mapping[K, Scalar], VectorOps[Scalar], Generic[K, Scalar], A
 
     @abstractmethod
     def floor(self) -> VectorMapping[K, int]: ...
+
+    @abstractmethod
+    def zeroed(self) -> VectorMapping[K, Scalar]: ...

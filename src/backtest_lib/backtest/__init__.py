@@ -1,16 +1,22 @@
 from __future__ import annotations
-import warnings
 
 import datetime as dt
+import logging
+import warnings
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import logging
 
-from backtest_lib.strategy import MarketView, Strategy, WeightedPortfolio, Decision
+from backtest_lib.market import PastView, PeriodIndex
+from backtest_lib.market.polars_impl import PolarsPastView
+from backtest_lib.market.timeseries import Timeseries
+from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
 from backtest_lib.strategy.context import StrategyContext
 from backtest_lib.universe import Universe, UniverseMapping, UniverseMask
+
+if TYPE_CHECKING:
+    from backtest_lib.universe.vector_mapping import VectorMapping
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BacktestResults:
     total_growth: float
+    allocation_history: PastView[UniverseMapping[float], Timeseries, PeriodIndex]
 
 
 @dataclass
@@ -68,9 +75,9 @@ class Backtest:
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         if ctx is None:
             ctx = StrategyContext()
-        output_weights = []
+        output_weights: list[VectorMapping[str, float]] = []
 
-        results = BacktestResults(total_growth=1)
+        results = BacktestResults(total_growth=1, allocation_history=None)
         self._current_portfolio = self.initial_portfolio
         yesterday_prices = self.market_view.prices.close.by_period[0]
 
@@ -86,11 +93,28 @@ class Backtest:
                 market=past_market_view,
                 ctx=ctx,
             )
-
-            if self.market_view.tradable is not None:
-                _check_tradable(decision, past_market_view.tradable.by_period[-1], ctx.now)
+            if len(decision.target.holdings) < len(self.universe):
+                # pad out the unnaccounted-for securities with 0.
+                # NOTE: this is some extra allocation we might not need
+                # as zeroed allocates, and so does + in the case where
+                # keys are not equal.
+                # maybe a .merge() method on the VectorMapping would make
+                # more sense.
+                object.__setattr__(
+                    decision.target,
+                    "holdings",
+                    (
+                        self.market_view.prices.close.by_period[0].zeroed()
+                        + decision.target.holdings
+                    ),
+                )
 
             output_weights.append(decision.target.holdings)
+
+            if self.market_view.tradable is not None:
+                _check_tradable(
+                    decision, past_market_view.tradable.by_period[-1], ctx.now
+                )
 
             target_portfolio = decision.target
             if not isinstance(target_portfolio, WeightedPortfolio):
@@ -119,6 +143,11 @@ class Backtest:
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
+
+        # want to be more abstracted, let's just make it a PolarsPastView for now
+        results.allocation_history = PolarsPastView.from_security_mappings(
+            output_weights, self.market_view.periods
+        )
 
         return results
 

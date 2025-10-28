@@ -556,6 +556,12 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
 
         return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
 
+    def zeroed(self) -> SeriesUniverseMapping[T]:
+        return SeriesUniverseMapping.from_names_and_data(
+            self.names,
+            pl.zeros(len(self.names), eager=True),
+        )
+
 
 @dataclass(frozen=True)
 class PolarsByPeriod:
@@ -795,6 +801,36 @@ class PolarsPastView:
     by_security: PolarsBySecurity
     _security_axis: Axis
     _period_axis: PeriodAxis
+
+    @staticmethod
+    def from_security_mappings(
+        ms: list[Mapping[SecurityName, Any]], periods: Sequence[np.datetime64]
+    ) -> PolarsPastView:
+        if not len(periods) == len(ms):
+            return ValueError(
+                "Length of period sequence must match length of security mapping list"
+            )
+        first_keys = ms[0].keys()
+        if not all(m.keys() == first_keys for m in ms):
+            return KeyError(
+                "All security mappings must have the same keys to create a PolarsPastView."
+            )
+        if not ms or any(not m for m in ms):
+            raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
+        allowed_types = set(POLARS_TO_PYTHON.values())
+
+        unique_passed_types = {type(v) for m in ms for v in m.values()}
+        passed_type = next(iter(unique_passed_types))
+        if not all(x is passed_type for x in unique_passed_types):
+            raise ValueError(
+                f"All values of the mapping must be the same to create a PolarsPastView, {len(unique_passed_types)} types were passed ({unique_passed_types})"
+            )
+        if passed_type not in allowed_types:
+            raise ValueError(f"Cannot create PolarsPastView of type {passed_type}.")
+
+        df = pl.DataFrame(ms).with_columns(date=periods)
+
+        return PolarsPastView.from_data_frame(df)
 
     @staticmethod
     def from_data_frame(df: pl.DataFrame | pd.DataFrame) -> PolarsPastView:
