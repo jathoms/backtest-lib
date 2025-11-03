@@ -72,6 +72,11 @@ class PastView(Protocol[S, P, Index]):
         inclusive: bool = False,  # common expectation: half-open [.., end)
     ) -> Self: ...
 
+    @staticmethod
+    def from_security_mappings(
+        ms: list[Mapping[SecurityName, Any]], periods: Sequence[PeriodIndex]
+    ): ...
+
 
 @runtime_checkable
 class ByPeriod(Protocol[S, P, Index]):

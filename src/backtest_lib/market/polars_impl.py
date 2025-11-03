@@ -806,6 +806,8 @@ class PolarsPastView:
     def from_security_mappings(
         ms: list[Mapping[SecurityName, Any]], periods: Sequence[np.datetime64]
     ) -> PolarsPastView:
+        if not ms or any(not m for m in ms):
+            raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
         if not len(periods) == len(ms):
             return ValueError(
                 "Length of period sequence must match length of security mapping list"
@@ -815,8 +817,6 @@ class PolarsPastView:
             return KeyError(
                 "All security mappings must have the same keys to create a PolarsPastView."
             )
-        if not ms or any(not m for m in ms):
-            raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
         allowed_types = set(POLARS_TO_PYTHON.values())
 
         unique_passed_types = {type(v) for m in ms for v in m.values()}

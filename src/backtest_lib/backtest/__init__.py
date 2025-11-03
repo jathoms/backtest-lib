@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 class BacktestResults:
     total_growth: float
     allocation_history: PastView[UniverseMapping[float], Timeseries, PeriodIndex]
+    pnl_history: PastView[UniverseMapping[float], Timeseries, PeriodIndex]
 
 
 @dataclass
@@ -50,6 +51,9 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
         )
 
 
+_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
+
+
 class Backtest:
     strategy: Strategy
     universe: Universe
@@ -57,6 +61,7 @@ class Backtest:
     initial_portfolio: WeightedPortfolio
     _current_portfolio: WeightedPortfolio
     settings: BacktestSettings
+    _backend: type[PastView]
 
     def __init__(
         self,
@@ -65,19 +70,25 @@ class Backtest:
         market_view: MarketView,
         initial_portfolio: WeightedPortfolio,
         settings: BacktestSettings = BacktestSettings.default(),
+        *,
+        backend="polars",
     ):
         self.strategy = strategy
         self.universe = universe
         self.market_view = market_view
         self.initial_portfolio = initial_portfolio
         self.settings = settings
+        if backend not in _BACKEND_PASTVIEW_MAPPING:
+            raise ValueError(f"Backtest backend '{backend}' not found.")
+        self._backend = _BACKEND_PASTVIEW_MAPPING[backend]
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         if ctx is None:
             ctx = StrategyContext()
         output_weights: list[VectorMapping[str, float]] = []
+        pnl_history: list[VectorMapping[str, float]] = []
 
-        results = BacktestResults(total_growth=1, allocation_history=None)
+        total_growth = 1
         self._current_portfolio = self.initial_portfolio
         yesterday_prices = self.market_view.prices.close.by_period[0]
 
@@ -85,7 +96,7 @@ class Backtest:
             past_market_view = self.market_view.truncated_to(i)
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
             logger.debug(
-                f"Starting period {i} ({ctx.now}). Current total growth: {results.total_growth}"
+                f"Starting period {i} ({ctx.now}). Current total growth: {total_growth}"
             )
             decision = self.strategy(
                 universe=self.universe,
@@ -135,38 +146,35 @@ class Backtest:
             # assume we can perfectly track the target portfolio for now
             portfolio_after_decision = target_portfolio
             today_prices = past_market_view.prices.close.by_period[-1]
+            pct_change = today_prices / yesterday_prices
+            pnl_history.append(pct_change)
             inter_day_adjusted_portfolio, growth = _apply_inter_period_price_changes(
-                portfolio_after_decision, yesterday_prices, today_prices
+                portfolio_after_decision, pct_change
             )
 
-            results.total_growth *= growth
+            total_growth *= growth
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
 
-        # want to be more abstracted, let's just make it a PolarsPastView for now
-        results.allocation_history = PolarsPastView.from_security_mappings(
-            output_weights, self.market_view.periods
+        results = BacktestResults(
+            total_growth=total_growth,
+            allocation_history=self._backend.from_security_mappings(
+                output_weights, self.market_view.periods
+            ),
+            pnl_history=self._backend.from_security_mappings(
+                pnl_history, self.market_view.periods
+            ),
         )
-
         return results
 
 
 def _apply_inter_period_price_changes(
-    portfolio: WeightedPortfolio,
-    prev_period_prices: UniverseMapping,
-    new_period_prices: UniverseMapping,
+    portfolio: WeightedPortfolio, pct_change: UniverseMapping
 ) -> tuple[WeightedPortfolio, float]:
-    logger.debug(f"Prev period prices len: {len(prev_period_prices)}")
-    logger.debug(f"New period prices len: {len(new_period_prices)}")
-    pct_change = new_period_prices / prev_period_prices
-
     prev_cash = portfolio.cash
     prev_hold = portfolio.holdings
     logger.debug(f"Holdings length: {len(prev_hold)}")
-    logger.debug(
-        f"things in holdings not in prev prices: {[x for x in prev_hold if x not in new_period_prices.keys()]}"
-    )
 
     new_total_holdings_weight = prev_hold * pct_change
     new_total_weight = prev_cash + new_total_holdings_weight.sum()

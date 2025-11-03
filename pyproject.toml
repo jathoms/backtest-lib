@@ -22,6 +22,7 @@ dev = [
   "mypy>=1.17.1",
   "pyright>=1.1.404",
   "pyrefly>=0.29.2",
+  "altair>=5.5.0",
 ]
 
 [build-system]
