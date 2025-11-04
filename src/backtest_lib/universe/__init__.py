@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 from collections.abc import Sequence
-from backtest_lib.market.timeseries import Timeseries
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
+
+from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
@@ -10,10 +12,6 @@ if TYPE_CHECKING:
 
 from backtest_lib.market.timeseries import Comparable
 from backtest_lib.universe.vector_mapping import SupportsFloat
-from numbers import Real
-from typing import TypeVar
-
-R = TypeVar("R", bound=Real, contravariant=True)
 
 SecurityName = str
 Price = float

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import (
     Any,
     Generic,
+    Self,
     Sequence,
     SupportsFloat,
     SupportsIndex,
@@ -26,8 +28,6 @@ from backtest_lib.universe import SecurityName, Universe
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
 
-import logging
-
 logger = logging.getLogger(__name__)
 
 _RHS_HANDOFF = object()
@@ -35,7 +35,7 @@ _RHS_HANDOFF = object()
 T = TypeVar("T", int, float)
 
 
-POLARS_TO_PYTHON: dict[type[pl.DataType], type[Any]] = {
+POLARS_TO_PYTHON: dict[pl.DataType | type[Any], type[Any]] = {
     pl.Boolean: bool,
     pl.Int8: int,
     pl.Int16: int,
@@ -75,7 +75,7 @@ class Axis:
         return len(self.names)
 
 
-def _to_npdt64(x: np.datetime64 | str) -> np.datetime64:
+def _to_npdt64(x: np.datetime64 | str) -> np.datetime64[int]:
     if isinstance(x, np.datetime64):
         return x.astype("datetime64[ns]")
     if isinstance(x, str):
@@ -186,12 +186,49 @@ class PeriodAxis:
         return np.arange(left, right, dtype=np.int64)
 
 
-@dataclass(frozen=True)
-class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
+@dataclass(frozen=True, init=False)
+class PolarsTimeseries(Timeseries[T, np.datetime64[int]], Generic[T]):
     _vec: pl.Series
-    _axis: PeriodAxis
+    _axis: "PeriodAxis"
     _name: str
-    _scalar_type: type[T]
+    _scalar_type: type[int] | type[float] | type[bool]
+
+    def __init__(
+        self,
+        _vec: pl.Series,
+        _axis: "PeriodAxis",
+        _name: str = "",
+        _scalar_type: type[int] | type[float] | type[bool] | None = None,
+    ):
+        n = len(_axis)
+        if len(_vec) != n:
+            raise ValueError(f"Timeseries misaligned: axis={n}, vec={len(_vec)}")
+
+        final_name = _name if _name else (_vec.name or "")
+        if _vec.name != final_name:
+            vec = _vec.rename(final_name)
+
+        if _scalar_type is None:
+            try:
+                st = POLARS_TO_PYTHON[vec.dtype]
+            except KeyError as e:
+                raise TypeError(
+                    f"Unsupported dtype for PolarsTimeseries: {vec.dtype}"
+                ) from e
+        else:
+            st = _scalar_type
+
+        if st is float and vec.dtype != pl.Float64:
+            vec = vec.cast(pl.Float64)
+        elif st is int and vec.dtype != pl.Int64:
+            vec = vec.cast(pl.Int64)
+        elif st is bool and vec.dtype != pl.Boolean:
+            vec = vec.cast(pl.Boolean)
+
+        object.__setattr__(self, "_vec", vec)
+        object.__setattr__(self, "_axis", _axis)
+        object.__setattr__(self, "_name", final_name)
+        object.__setattr__(self, "_scalar_type", st)
 
     @overload
     def __getitem__(self, key: int) -> T: ...
@@ -205,7 +242,7 @@ class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
 
     def __getitem__(self, key: int | slice) -> T | PolarsTimeseries:
         if isinstance(key, int):
-            return self._scalar_type(self._vec[key])
+            return cast(T, self._scalar_type(self._vec[key]))
         else:
             return PolarsTimeseries(
                 self._vec[key], self._axis._slice(key), self._name, self._scalar_type
@@ -259,7 +296,7 @@ class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
 
     def _rhs(self, other: VectorOps[SupportsFloat] | SupportsFloat) -> pl.Series | T:
         if isinstance(other, SupportsFloat):
-            return self._scalar_type(float(other))
+            return cast(T, self._scalar_type(float(other)))
         if isinstance(other, PolarsTimeseries):
             if other._axis is self._axis or other._axis.labels == self._axis.labels:
                 return other._vec
@@ -331,10 +368,10 @@ class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
         )
 
     def sum(self) -> T:
-        return self._scalar_type(self._vec.sum())
+        return cast(T, self._scalar_type(self._vec.sum()))
 
     def mean(self) -> T:
-        return self._scalar_type(cast(T, self._vec.mean()))
+        return cast(T, self._scalar_type(cast(T, self._vec.mean())))
 
     def floor(self) -> PolarsTimeseries[int]:
         return PolarsTimeseries(
@@ -345,12 +382,12 @@ class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
-    _scalar_type: type[int] | type[float] | type[bool] = None
+    _scalar_type: type[int] | type[float] | type[bool]
 
     @staticmethod
     def from_names_and_data(
@@ -360,28 +397,38 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
     ) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
             names=names,
-            _data=data,
+            data=data,
             pos={name: i for i, name in enumerate(names)},
-            _scalar_type=dtype,
+            scalar_type=dtype,
         )
+
+    def __init__(
+        self,
+        names: Universe,
+        data: pl.Series,
+        pos: dict[SecurityName, int],
+        scalar_type: type[int] | type[float] | type[bool] | None = None,
+    ):
+        n = len(names)
+        if len(data) != n or len(pos) != n:
+            raise ValueError(
+                f"Row mapping misaligned: names={n}, data={len(data)}, pos={len(pos)}"
+            )
+        if scalar_type is None:
+            scalar_type = POLARS_TO_PYTHON[data.dtype]
+        if scalar_type is float and data.dtype != pl.Float64:
+            data = data.cast(pl.Float64)
+        elif scalar_type is int and data.dtype != pl.Int64:
+            data = data.cast(pl.Int64)
+        elif scalar_type is bool and data.dtype != pl.Boolean:
+            data = data.cast(pl.Boolean)
+        object.__setattr__(self, "names", names)
+        object.__setattr__(self, "_data", data)
+        object.__setattr__(self, "pos", pos)
+        object.__setattr__(self, "_scalar_type", scalar_type)
 
     def as_series(self) -> pl.Series:
         return self._data
-
-    def __post_init__(self):
-        n = len(self.names)
-        if len(self._data) != n or len(self.pos) != n:
-            raise ValueError(
-                f"Row mapping misaligned: names={n}, data={len(self._data)}, pos={len(self.pos)}"
-            )
-        if any(self.pos[name] != i for i, name in enumerate(self.names)):
-            raise ValueError("pos mapping does not match names order")
-        if self._scalar_type is None:
-            object.__setattr__(self, "_scalar_type", POLARS_TO_PYTHON[self._data.dtype])
-        if self._scalar_type is float and self._data.dtype != pl.Float64:
-            object.__setattr__(self, "_data", self._data.cast(pl.Float64))
-        elif self._scalar_type is int and self._data.dtype != pl.Int64:
-            object.__setattr__(self, "_data", self._data.cast(pl.Int64))
 
     @overload
     def __getitem__(self, key: SecurityName) -> T: ...
@@ -408,7 +455,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
 
     def _rhs(
         self, other: VectorOps[SupportsFloat] | SupportsFloat | Mapping
-    ) -> tuple[pl.Series | float, type]:
+    ) -> tuple[pl.Series | float, type[Any] | None]:
         if isinstance(other, SupportsFloat):
             if not isinstance(other, int) and self._scalar_type is int:
                 return float(other), type(other)
@@ -421,7 +468,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
                     logger.debug(
                         f"{len([name for name in self.names if name not in other.names])} items found in lhs not in rhs"
                     )
-                    return _RHS_HANDOFF, None
+                    return cast(float, _RHS_HANDOFF), None
                 data = _mapping_to_series(self, other)
             if other._scalar_type is not int:
                 return data, float
@@ -534,7 +581,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, T], Generic[T]):
 
     def floor(self) -> SeriesUniverseMapping[int]:
         return SeriesUniverseMapping(
-            names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
+            names=self.names, data=self._data.floor(), pos=self.pos, scalar_type=int
         )
 
     @classmethod
@@ -617,8 +664,9 @@ class PolarsByPeriod:
                 s = s.gather(self._row_indexer)
             return SeriesUniverseMapping(
                 names=self._security_axis.names,
-                _data=s,
+                data=s,
                 pos=self._security_axis.pos,
+                scalar_type=POLARS_TO_PYTHON[self.as_df().dtypes[0]],
             )
 
         start, stop, step = key.indices(len(self))
@@ -804,23 +852,32 @@ class PolarsPastView:
 
     @staticmethod
     def from_security_mappings(
-        ms: list[Mapping[SecurityName, Any]], periods: Sequence[np.datetime64]
-    ) -> PolarsPastView:
+        ms: list[Mapping[SecurityName, Any]], periods: Sequence[np.datetime64[int]]
+    ) -> Self:
         if not ms or any(not m for m in ms):
             raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
         if not len(periods) == len(ms):
-            return ValueError(
+            raise ValueError(
                 "Length of period sequence must match length of security mapping list"
             )
         first_keys = ms[0].keys()
         if not all(m.keys() == first_keys for m in ms):
-            return KeyError(
-                "All security mappings must have the same keys to create a PolarsPastView."
+            differing_keys = next(
+                (periods[i], set(m.keys()).symmetric_difference(set(first_keys)))
+                for i, m in enumerate(ms)
+                if m.keys != first_keys
             )
-        allowed_types = set(POLARS_TO_PYTHON.values())
+            raise KeyError(
+                "All security mappings must have the same keys to create a PolarsPastView.\n"
+                f"Found differing keys from first keys (period, keys): {differing_keys}"
+            )
+        allowed_types: list[type[Any] | pl.DataType] = [float, int, bool]
+        allowed_types.extend(
+            [k for k, v in POLARS_TO_PYTHON.items() if v in allowed_types]
+        )
 
         unique_passed_types = {type(v) for m in ms for v in m.values()}
-        passed_type = next(iter(unique_passed_types))
+        passed_type = next(iter(unique_passed_types), None)
         if not all(x is passed_type for x in unique_passed_types):
             raise ValueError(
                 f"All values of the mapping must be the same to create a PolarsPastView, {len(unique_passed_types)} types were passed ({unique_passed_types})"
@@ -828,12 +885,15 @@ class PolarsPastView:
         if passed_type not in allowed_types:
             raise ValueError(f"Cannot create PolarsPastView of type {passed_type}.")
 
-        df = pl.DataFrame(ms).with_columns(date=periods)
+        periods_series = (
+            periods if isinstance(periods, pl.Series) else pl.Series("date", periods)
+        )
+        df = pl.DataFrame(ms).with_columns(date=periods_series)
 
         return PolarsPastView.from_data_frame(df)
 
     @staticmethod
-    def from_data_frame(df: pl.DataFrame | pd.DataFrame) -> PolarsPastView:
+    def from_data_frame(df: pl.DataFrame | pd.DataFrame) -> Self:
         if isinstance(df, pd.DataFrame):
             df = pl.DataFrame(df)
         try:

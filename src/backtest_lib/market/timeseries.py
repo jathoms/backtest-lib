@@ -1,4 +1,7 @@
 from __future__ import annotations
+from typing import Any
+from typing import Callable
+from numpy._typing._array_like import NDArray
 
 from typing import (
     Generic,
@@ -13,15 +16,15 @@ from backtest_lib.universe.vector_ops import VectorOps, Scalar
 from abc import ABC, abstractmethod
 import numpy as np
 
-BoolLike = bool | np.bool | np.bool_
+BoolLike = bool | np.bool | np.bool_ | NDArray[np.bool_]
 
 
 @runtime_checkable
 class Comparable(Protocol):
-    def __lt__(self, other: Self) -> BoolLike: ...
-    def __le__(self, other: Self) -> BoolLike: ...
-    def __gt__(self, other: Self) -> BoolLike: ...
-    def __ge__(self, other: Self) -> BoolLike: ...
+    __lt__: Callable[[Any], Any]
+    __le__: Callable[[Any], Any]
+    __gt__: Callable[[Any], Any]
+    __ge__: Callable[[Any], Any]
 
 
 Index = TypeVar("Index", bound=Comparable, contravariant=True)  # Type used for indexing

@@ -74,8 +74,8 @@ class PastView(Protocol[S, P, Index]):
 
     @staticmethod
     def from_security_mappings(
-        ms: list[Mapping[SecurityName, Any]], periods: Sequence[PeriodIndex]
-    ): ...
+        ms: list[Mapping[SecurityName, Any]], periods: Sequence[Index]
+    ) -> Self: ...
 
 
 @runtime_checkable
@@ -99,7 +99,7 @@ class BySecurity(Protocol[S, P, Index]):
     def __getitem__(self, key: SecurityName) -> P: ...
 
     @overload
-    def __getitem__(self, key: list[SecurityName]) -> PastView[S, P, Index]: ...
+    def __getitem__(self, key: Sequence[SecurityName]) -> PastView[S, P, Index]: ...
 
     def __iter__(self) -> Iterator[S]: ...
 

@@ -51,7 +51,9 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
         )
 
 
-_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
+_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView[Any, Any, Any]]] = {
+    "polars": PolarsPastView
+}
 
 
 class Backtest:
@@ -122,7 +124,7 @@ class Backtest:
 
             output_weights.append(decision.target.holdings)
 
-            if self.market_view.tradable is not None:
+            if past_market_view.tradable is not None:
                 _check_tradable(
                     decision, past_market_view.tradable.by_period[-1], ctx.now
                 )
@@ -147,7 +149,8 @@ class Backtest:
             portfolio_after_decision = target_portfolio
             today_prices = past_market_view.prices.close.by_period[-1]
             pct_change = today_prices / yesterday_prices
-            pnl_history.append(pct_change)
+            pnl_history.append(pct_change * target_portfolio.holdings)
+
             inter_day_adjusted_portfolio, growth = _apply_inter_period_price_changes(
                 portfolio_after_decision, pct_change
             )
