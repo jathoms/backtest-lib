@@ -138,6 +138,9 @@ def get_sp500_market_view(
     close_pl = pl.from_pandas(close_df)
 
     close_prices_df = close_pl.with_columns(pl.Series("date", dates)).fill_null(0)
+    while all(x == 0 for x in close_prices_df.row(0)):
+        close_prices_df = close_prices_df.slice(1)
+        tradable_view = close_prices_df.slice(1)
     close_price_past_view = PolarsPastView.from_data_frame(close_prices_df)
 
     return MarketView(
