@@ -75,7 +75,7 @@ class Axis:
         return len(self.names)
 
 
-def _to_npdt64(x: np.datetime64 | str) -> np.datetime64[int]:
+def _to_npdt64(x: np.datetime64 | str) -> np.datetime64:
     if isinstance(x, np.datetime64):
         return x.astype("datetime64[ns]")
     if isinstance(x, str):
@@ -187,7 +187,7 @@ class PeriodAxis:
 
 
 @dataclass(frozen=True, init=False)
-class PolarsTimeseries(Timeseries[T, np.datetime64[int]], Generic[T]):
+class PolarsTimeseries(Timeseries[T, np.datetime64], Generic[T]):
     _vec: pl.Series
     _axis: "PeriodAxis"
     _name: str
@@ -206,26 +206,26 @@ class PolarsTimeseries(Timeseries[T, np.datetime64[int]], Generic[T]):
 
         final_name = _name if _name else (_vec.name or "")
         if _vec.name != final_name:
-            vec = _vec.rename(final_name)
+            _vec = _vec.rename(final_name)
 
         if _scalar_type is None:
             try:
-                st = POLARS_TO_PYTHON[vec.dtype]
+                st = POLARS_TO_PYTHON[_vec.dtype]
             except KeyError as e:
                 raise TypeError(
-                    f"Unsupported dtype for PolarsTimeseries: {vec.dtype}"
+                    f"Unsupported dtype for PolarsTimeseries: {_vec.dtype}"
                 ) from e
         else:
             st = _scalar_type
 
-        if st is float and vec.dtype != pl.Float64:
-            vec = vec.cast(pl.Float64)
-        elif st is int and vec.dtype != pl.Int64:
-            vec = vec.cast(pl.Int64)
-        elif st is bool and vec.dtype != pl.Boolean:
-            vec = vec.cast(pl.Boolean)
+        if st is float and _vec.dtype != pl.Float64:
+            _vec = _vec.cast(pl.Float64)
+        elif st is int and _vec.dtype != pl.Int64:
+            _vec = _vec.cast(pl.Int64)
+        elif st is bool and _vec.dtype != pl.Boolean:
+            _vec = _vec.cast(pl.Boolean)
 
-        object.__setattr__(self, "_vec", vec)
+        object.__setattr__(self, "_vec", _vec)
         object.__setattr__(self, "_axis", _axis)
         object.__setattr__(self, "_name", final_name)
         object.__setattr__(self, "_scalar_type", st)
@@ -850,9 +850,17 @@ class PolarsPastView:
     _security_axis: Axis
     _period_axis: PeriodAxis
 
+    @property
+    def periods(self) -> NDArray[np.datetime64]:
+        return self._period_axis.dt64
+
+    @property
+    def securities(self) -> tuple[SecurityName, ...]:
+        return self._security_axis.names
+
     @staticmethod
     def from_security_mappings(
-        ms: list[Mapping[SecurityName, Any]], periods: Sequence[np.datetime64[int]]
+        ms: list[Mapping[SecurityName, Any]], periods: Sequence[np.datetime64]
     ) -> Self:
         if not ms or any(not m for m in ms):
             raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
@@ -860,8 +868,8 @@ class PolarsPastView:
             raise ValueError(
                 "Length of period sequence must match length of security mapping list"
             )
-        first_keys = ms[0].keys()
-        if not all(m.keys() == first_keys for m in ms):
+        first_keys = set(ms[0].keys())
+        if not all(len(set(m.keys()) ^ first_keys) == 0 for m in ms):
             differing_keys = next(
                 (periods[i], set(m.keys()).symmetric_difference(set(first_keys)))
                 for i, m in enumerate(ms)

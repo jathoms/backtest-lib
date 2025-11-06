@@ -1,28 +1,27 @@
 from __future__ import annotations
-from collections.abc import Sequence, Iterator
 
-from dataclasses import dataclass, field
+import functools
+from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass, field, replace
+from enum import Enum, auto
 from typing import (
-    Protocol,
-    TypeVar,
-    runtime_checkable,
-    overload,
-    SupportsIndex,
     Any,
+    Protocol,
     Self,
+    SupportsIndex,
+    TypeVar,
+    overload,
+    runtime_checkable,
 )
 
+from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
-    UniverseVolume,
-    UniverseMask,
     PastUniversePrices,
-    SecurityName,
     PeriodIndex,
+    SecurityName,
+    UniverseMask,
+    UniverseVolume,
 )
-
-from backtest_lib.market.timeseries import Timeseries
-from backtest_lib.market.timeseries import Comparable
-from collections.abc import Mapping
 
 Index = TypeVar("Index", bound=Comparable)
 
@@ -32,6 +31,19 @@ S = TypeVar(
 P = TypeVar(
     "P", bound=Timeseries[Any, Comparable], covariant=True
 )  # mapping of periods to some data (prices, volume, is_tradable)
+
+
+class SecurityAxisPolicy(Enum):
+    STRICT = auto()
+    SUBSET_OK = auto()
+    SUPERSET_OK = auto()
+    COERCE = auto()
+
+
+class PeriodAxisPolicy(Enum):
+    STRICT = auto()
+    INTERSECT = auto()
+    FFILL = auto()
 
 
 @runtime_checkable
@@ -45,6 +57,12 @@ class PastView(Protocol[S, P, Index]):
     reduce the risk of lookahead bias while maintaining an ergonomic
     interface to access the market conditions.
     """
+
+    @property
+    def periods(self) -> Sequence[Index]: ...
+
+    @property
+    def securities(self) -> Sequence[SecurityName]: ...
 
     @property
     def by_period(self) -> ByPeriod[S, P, Index]: ...
@@ -112,6 +130,98 @@ class MarketView:
     volume: PastView[UniverseVolume, Timeseries, PeriodIndex] | None = None
     signals: dict[str, PastView] = field(default_factory=dict)
 
+    security_policy: SecurityAxisPolicy = SecurityAxisPolicy.STRICT
+    period_axis_policy: PeriodAxisPolicy = PeriodAxisPolicy.STRICT
+    reference_view_for_axis_values = "prices"
+
+    def __post_init__(self):
+        reference_period_values = self._resolve_period_axis_spec(
+            self.reference_view_for_axis_values
+        )
+        reference_security_values = self._resolve_security_axis_spec(
+            self.reference_view_for_axis_values
+        )
+        align = functools.partial(
+            self._align,
+            ref_sec=reference_security_values,
+            ref_periods=reference_period_values,
+        )
+        new_prices = replace(
+            self.prices,
+            open=align(self.prices.open),
+            close=align(self.prices.close) if self.prices.close is not None else None,
+            high=align(self.prices.high) if self.prices.high is not None else None,
+            low=align(self.prices.low) if self.prices.low is not None else None,
+        )
+        object.__setattr__(self, "prices", new_prices)
+        if self.tradable is not None:
+            object.__setattr__(self, "tradable", align(self.tradable))
+        if self.volume is not None:
+            object.__setattr__(self, "volume", align(self.volume))
+        for name, view in self.signals.items():
+            self.signals[name] = align(view)
+
+    def _align(
+        self,
+        view: PastView,
+        ref_sec: Sequence[SecurityName],
+        ref_periods: Sequence[PeriodIndex],
+    ) -> PastView:
+        sec = view.securities
+        if self.security_policy is SecurityAxisPolicy.STRICT:
+            if sec != ref_sec:
+                raise ValueError("Securities must match reference exactly.")
+            new_sec: Sequence[SecurityName] | None = None
+        elif self.security_policy is SecurityAxisPolicy.SUBSET_OK:
+            raise NotImplementedError()
+        elif self.security_policy is SecurityAxisPolicy.SUPERSET_OK:
+            raise NotImplementedError()
+        elif self.security_policy is SecurityAxisPolicy.COERCE:
+            raise NotImplementedError()
+        else:
+            raise RuntimeError("Unknown security policy")
+
+        per = view.periods
+        if self.period_axis_policy is PeriodAxisPolicy.STRICT:
+            if per != ref_periods:
+                raise ValueError("Periods must match reference exactly.")
+            new_per: Sequence[PeriodIndex] | None = None
+        elif self.period_axis_policy is PeriodAxisPolicy.INTERSECT:
+            raise NotImplementedError()
+        elif self.period_axis_policy is PeriodAxisPolicy.FFILL:
+            raise NotImplementedError()
+        else:
+            raise RuntimeError("Unknown period policy")
+
+        if new_sec is None and new_per is None:
+            return view
+
+        raise NotImplementedError()
+        # TODO: Add a reindexing method to the PastView protocol in some way
+        # return view.reindex(securities=new_sec, periods=new_per)
+
+    def _resolve_period_axis_spec(self, spec: str) -> Sequence[PeriodIndex]:
+        return self._resolve_axis_spec(spec).periods
+
+    def _resolve_security_axis_spec(self, spec: str) -> Sequence[SecurityName]:
+        return self._resolve_axis_spec(spec).securities
+
+    def _resolve_axis_spec(self, spec: str) -> PastView:
+        if spec == "prices":
+            view = self.prices.close
+        elif spec == "tradable":
+            view = self.tradable
+        elif spec == "volume":
+            view = self.volume
+        elif spec.startswith("signal:"):
+            key = spec.split(":", 1)[1]
+            view = self.signals[key]
+        else:
+            raise ValueError(f"Unknown ref string: {spec}")
+        if view is None:
+            raise ValueError(f"Reference view '{spec}' is None for this MarketView")
+        return view
+
     def truncated_to(self, n_periods: int) -> MarketView:
         return MarketView(
             prices=self.prices.truncated_to(n_periods),
@@ -123,20 +233,20 @@ class MarketView:
 
     def filter_securities(self, securities: Sequence[SecurityName]) -> MarketView:
         filtered_price = [
-            sec for sec in securities if sec in self.prices.close.by_security
+            sec for sec in securities if sec in self.prices.close.securities
         ]
         filtered_volume = (
-            [sec for sec in securities if sec in self.volume.by_security]
-            if self.volume
-            else None
+            [sec for sec in securities if sec in self.volume.securities]
+            if self.volume is not None
+            else []
         )
         filtered_tradable = (
-            [sec for sec in securities if sec in self.tradable.by_security]
-            if self.tradable
-            else None
+            [sec for sec in securities if sec in self.tradable.securities]
+            if self.tradable is not None
+            else []
         )
         filtered_signal_securities = {
-            k: [sec for sec in securities if sec in self.signals[k].by_security]
+            k: [sec for sec in securities if sec in self.signals[k].securities]
             for k in self.signals.keys()
         }
         return MarketView(
