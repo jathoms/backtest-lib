@@ -35,3 +35,11 @@ exclude = ["src/backtest_lib/examples"]
                                                              
 [tool.ruff.lint]
 exclude = ["src/backtest_lib/examples"]
+
+[tool.pyrefly]
+project-includes = ["**/*"]
+project-excludes = [
+    "**/node_modules",
+    "**/__pycache__",
+    '**/*venv/**\*',
+]
