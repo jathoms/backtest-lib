@@ -1,11 +1,13 @@
+from backtest_lib.market.polars_impl import Array1DDTView
 import polars as pl
+import numpy as np
 import pandas as pd
 import pickle as pkl
 import datetime as dt
 import yfinance as yf
 import time
 from backtest_lib.market.polars_impl import PolarsPastView
-from backtest_lib.market import MarketView, PastUniversePrices
+from backtest_lib.market import MarketView, PastUniversePrices, PastView
 from importlib.resources import files
 import backtest_lib.examples
 
@@ -51,7 +53,7 @@ def fetch_history_one(tickers, start, end=None, interval="1d"):
 
 def get_sp500_market_view(
     start: dt.datetime, end: dt.datetime | None = dt.datetime.now()
-) -> MarketView:
+) -> MarketView[np.datetime64]:
     changes = pkl.load(
         files(backtest_lib.examples).joinpath("sp500_changes.pkl").open("rb")
     )
@@ -141,11 +143,13 @@ def get_sp500_market_view(
     while all(x == 0 for x in close_prices_df.row(0)):
         close_prices_df = close_prices_df.slice(1)
         tradable_view = tradable_view.by_period[1:]
-    close_price_past_view = PolarsPastView.from_data_frame(close_prices_df)
+    close_price_past_view: PastView[float, np.datetime64] = (
+        PolarsPastView.from_data_frame(close_prices_df)
+    )
     tradable_view = tradable_view.by_security[close_price_past_view.securities]
 
     return MarketView(
         prices=PastUniversePrices(close=close_price_past_view),
         tradable=tradable_view,
-        periods=dates,
+        periods=Array1DDTView(dates),
     )
