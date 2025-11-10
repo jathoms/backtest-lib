@@ -289,7 +289,7 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
                 self._vec[key], self._axis._slice(key), self._name, self._scalar_type
             )
 
-    def before(self, end: np.datetime64 | str, *, inclusive=False) -> PolarsTimeseries:
+    def before(self, end: np.datetime64 | str, *, inclusive=False) -> Self:
         end = _to_npdt64(end)
         left, right = self._axis.bounds_before(end, inclusive=inclusive)
         return PolarsTimeseries(
@@ -299,7 +299,7 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
             self._scalar_type,
         )
 
-    def after(self, start: np.datetime64 | str, *, inclusive=True) -> PolarsTimeseries:
+    def after(self, start: np.datetime64 | str, *, inclusive=True) -> Self:
         start = _to_npdt64(start)
         left, right = self._axis.bounds_after(start, inclusive=inclusive)
         return PolarsTimeseries(
@@ -315,7 +315,7 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
         end: np.datetime64 | str,
         *,
         closed: str = "left",
-    ) -> PolarsTimeseries:
+    ) -> Self:
         start = _to_npdt64(start)
         end = _to_npdt64(end)
         left, right = self._axis.bounds_between(start, end, closed=closed)
@@ -608,7 +608,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
             raise ValueError("mean of empty series")
         return type(Scalar)(m)
 
-    def floor(self) -> SeriesUniverseMapping[int]:
+    def floor(self) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
             names=self.names, data=self._data.floor(), pos=self.pos, scalar_type=int
         )
@@ -632,7 +632,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
 
         return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
 
-    def zeroed(self) -> SeriesUniverseMapping[Scalar]:
+    def zeroed(self) -> SeriesUniverseMapping:
         return SeriesUniverseMapping.from_names_and_data(
             self.names,
             pl.zeros(len(self.names), eager=True),
@@ -692,7 +692,7 @@ class PolarsByPeriod:
             if self._row_indexer is not None:
                 s = s.gather(self._row_indexer)
             scalar_type = POLARS_TO_PYTHON[self.as_df().dtypes[0]]
-            return SeriesUniverseMapping[scalar_type](
+            return SeriesUniverseMapping(
                 names=self._security_axis.names,
                 data=s,
                 pos=self._security_axis.pos,
@@ -883,7 +883,7 @@ class PolarsPastView:
     _period_axis: PeriodAxis
 
     @property
-    def periods(self) -> Sequence[Any]:
+    def periods(self) -> Sequence[np.datetime64]:
         return Array1DDTView(self._period_axis.dt64)
 
     @property
@@ -1019,7 +1019,7 @@ class PolarsPastView:
 
 
 def _mapping_to_series[T: (float, int)](
-    mapping: SeriesUniverseMapping[T],
+    mapping: SeriesUniverseMapping,
     other_mapping: Mapping[Any, T] | VectorMapping[Any, T],
 ) -> pl.Series:
     keys_touched = len(other_mapping)

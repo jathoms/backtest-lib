@@ -13,7 +13,7 @@ from backtest_lib.market.polars_impl import PolarsPastView
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
 from backtest_lib.strategy.context import StrategyContext
-from backtest_lib.universe import Universe, UniverseMapping, UniverseMask
+from backtest_lib.universe import Universe, UniverseMapping
 
 if TYPE_CHECKING:
     from backtest_lib.universe.vector_mapping import VectorMapping
@@ -85,12 +85,13 @@ class Backtest:
         self._backend = _BACKEND_PASTVIEW_MAPPING[backend]
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
+        current_uni = None
         if ctx is None:
             ctx = StrategyContext()
         output_weights: list[VectorMapping[str, float]] = []
         pnl_history: list[VectorMapping[str, float]] = []
 
-        total_growth = 1
+        total_growth = 1.0
         self._current_portfolio = self.initial_portfolio
         yesterday_prices = self.market_view.prices.close.by_period[0]
 
@@ -106,6 +107,10 @@ class Backtest:
                 market=past_market_view,
                 ctx=ctx,
             )
+            if len(decision.target.holdings) > len(self.universe):
+                print(
+                    f"{ctx.now}: hold:{len(decision.target.holdings)}, univ:{len(self.universe)}"
+                )
             if len(decision.target.holdings) < len(self.universe):
                 # pad out the unnaccounted-for securities with 0.
                 # NOTE: this is some extra allocation we might not need
@@ -120,6 +125,13 @@ class Backtest:
                         self.market_view.prices.close.by_period[0].zeroed()
                         + decision.target.holdings
                     ),
+                )
+
+            if current_uni is not None and set(decision.target.holdings.keys()) ^ set(
+                current_uni
+            ):
+                print(
+                    f"{ctx.now}: Universe changed! len: {len(current_uni)}->{len(decision.target.holdings.keys())}, diff: {set(current_uni) ^ set(decision.target.holdings.keys())}"
                 )
 
             output_weights.append(decision.target.holdings)
@@ -159,6 +171,7 @@ class Backtest:
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
+            current_uni = list(decision.target.holdings.keys())
 
         results = BacktestResults(
             total_growth=total_growth,
@@ -192,7 +205,7 @@ def _apply_inter_period_price_changes(
 
 
 def _check_tradable(
-    decision: Decision, tradable_mapping: UniverseMask, now: dt.datetime
+    decision: Decision, tradable_mapping: UniverseMapping, now: dt.datetime
 ):
     tradable = {
         security for security, is_tradable in tradable_mapping.items() if is_tradable
