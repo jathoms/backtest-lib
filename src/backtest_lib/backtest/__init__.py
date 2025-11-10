@@ -8,12 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from backtest_lib.market import PastView, PeriodIndex
+from backtest_lib.market import PastView
 from backtest_lib.market.polars_impl import PolarsPastView
-from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
 from backtest_lib.strategy.context import StrategyContext
-from backtest_lib.universe import Universe, UniverseMapping
+from backtest_lib.universe import Universe
+
+from backtest_lib.universe import UniverseMapping
 
 if TYPE_CHECKING:
     from backtest_lib.universe.vector_mapping import VectorMapping
@@ -24,8 +25,8 @@ logger = logging.getLogger(__name__)
 @dataclass
 class BacktestResults:
     total_growth: float
-    allocation_history: PastView[UniverseMapping[float], Timeseries, PeriodIndex]
-    pnl_history: PastView[UniverseMapping[float], Timeseries, PeriodIndex]
+    allocation_history: PastView[float, Any]
+    pnl_history: PastView[float, Any]
 
 
 @dataclass
@@ -51,9 +52,7 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
         )
 
 
-_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView[Any, Any, Any]]] = {
-    "polars": PolarsPastView
-}
+_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
 
 
 class Backtest:
@@ -186,7 +185,7 @@ class Backtest:
 
 
 def _apply_inter_period_price_changes(
-    portfolio: WeightedPortfolio, pct_change: UniverseMapping
+    portfolio: WeightedPortfolio, pct_change: UniverseMapping[float]
 ) -> tuple[WeightedPortfolio, float]:
     prev_cash = portfolio.cash
     prev_hold = portfolio.holdings

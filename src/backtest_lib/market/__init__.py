@@ -7,32 +7,23 @@ from enum import Enum, auto
 from typing import (
     Any,
     Protocol,
+    Mapping,
     Self,
     SupportsIndex,
-    TypeVar,
     overload,
     runtime_checkable,
 )
 
-from backtest_lib.market.polars_impl import SecurityMappings
 from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
     PastUniversePrices,
-    PeriodIndex,
     SecurityName,
-    UniverseMapping,
-    UniverseVolume,
 )
 from backtest_lib.universe.vector_mapping import VectorMapping
 
-Index = TypeVar("Index", bound=Comparable)
-
-S = TypeVar(
-    "S", bound=VectorMapping[SecurityName, Any], covariant=True
-)  # mapping of securities to prices
-P = TypeVar(
-    "P", bound=Timeseries[Any, Comparable], covariant=True
-)  # mapping of periods to some data (prices, volume, is_tradable)
+type SecurityMappings[T: (float, int)] = (
+    Sequence[VectorMapping[SecurityName, T]] | Sequence[Mapping[SecurityName, T]]
+)
 
 
 class SecurityAxisPolicy(Enum):
@@ -49,7 +40,7 @@ class PeriodAxisPolicy(Enum):
 
 
 @runtime_checkable
-class PastView(Protocol[S, P, Index]):
+class PastView[ValueT: (float, int), Index: Comparable](Protocol):
     """
     Time-fenced read-only series up to the current decision point.
 
@@ -67,10 +58,10 @@ class PastView(Protocol[S, P, Index]):
     def securities(self) -> Sequence[SecurityName]: ...
 
     @property
-    def by_period(self) -> ByPeriod[S, P, Index]: ...
+    def by_period(self) -> ByPeriod[ValueT, Index]: ...
 
     @property
-    def by_security(self) -> BySecurity[S, P, Index]: ...
+    def by_security(self) -> BySecurity[ValueT, Index]: ...
 
     def between(
         self,
@@ -100,38 +91,40 @@ class PastView(Protocol[S, P, Index]):
 
 
 @runtime_checkable
-class ByPeriod(Protocol[S, P, Index]):
+class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
     def __len__(self) -> int: ...
 
     @overload
-    def __getitem__(self, key: SupportsIndex) -> S: ...
+    def __getitem__(
+        self, key: SupportsIndex
+    ) -> VectorMapping[SecurityName, ValueT]: ...
 
     @overload
-    def __getitem__(self, key: slice) -> PastView[S, P, Index]: ...
+    def __getitem__(self, key: slice) -> PastView[ValueT, Index]: ...
 
     def __iter__(self) -> Iterator[Index]: ...
 
 
 @runtime_checkable
-class BySecurity(Protocol[S, P, Index]):
+class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
     def __len__(self) -> int: ...
 
     @overload
-    def __getitem__(self, key: SecurityName) -> P: ...
+    def __getitem__(self, key: SecurityName) -> Timeseries[ValueT, Index]: ...
 
     @overload
-    def __getitem__(self, key: Iterable[SecurityName]) -> PastView[S, P, Index]: ...
+    def __getitem__(self, key: Iterable[SecurityName]) -> PastView[ValueT, Index]: ...
 
     def __iter__(self) -> Iterator[SecurityName]: ...
 
 
 @dataclass(frozen=True)
-class MarketView:
-    prices: PastUniversePrices
-    periods: Sequence[PeriodIndex]
-    tradable: PastView[UniverseMapping[int], Timeseries, PeriodIndex] | None = None
-    volume: PastView[UniverseVolume, Timeseries, PeriodIndex] | None = None
-    signals: dict[str, PastView] = field(default_factory=dict)
+class MarketView[Index: Comparable]:
+    prices: PastUniversePrices[Index]
+    periods: Sequence[Index]
+    tradable: PastView[int, Index] | None = None
+    volume: PastView[int, Index] | None = None
+    signals: dict[str, PastView[Any, Index]] = field(default_factory=dict)
 
     security_policy: SecurityAxisPolicy = SecurityAxisPolicy.STRICT
     period_axis_policy: PeriodAxisPolicy = PeriodAxisPolicy.STRICT
@@ -168,7 +161,7 @@ class MarketView:
         self,
         view: PastView,
         ref_sec: Sequence[SecurityName],
-        ref_periods: Sequence[PeriodIndex],
+        ref_periods: Sequence[Index],
     ) -> PastView:
         sec = view.securities
         if self.security_policy is SecurityAxisPolicy.STRICT:
@@ -199,7 +192,7 @@ class MarketView:
                 a == b for a, b in zip(periods, ref_periods)
             ):
                 raise ValueError("Periods must match reference exactly.")
-            new_per: Sequence[PeriodIndex] | None = None
+            new_per: Sequence[Index] | None = None
         elif self.period_axis_policy is PeriodAxisPolicy.INTERSECT:
             raise NotImplementedError()
         elif self.period_axis_policy is PeriodAxisPolicy.FFILL:
@@ -214,7 +207,7 @@ class MarketView:
         # TODO: Add a reindexing method to the PastView protocol in some way
         # return view.reindex(securities=new_sec, periods=new_per)
 
-    def _resolve_period_axis_spec(self, spec: str) -> Sequence[PeriodIndex]:
+    def _resolve_period_axis_spec(self, spec: str) -> Sequence[Index]:
         return self._resolve_axis_spec(spec).periods
 
     def _resolve_security_axis_spec(self, spec: str) -> Sequence[SecurityName]:
@@ -238,7 +231,7 @@ class MarketView:
             raise ValueError(f"Reference view '{spec}' is None for this MarketView")
         return view
 
-    def truncated_to(self, n_periods: int) -> MarketView:
+    def truncated_to(self, n_periods: int) -> Self:
         return MarketView(
             prices=self.prices.truncated_to(n_periods),
             volume=self.volume.by_period[:n_periods] if self.volume else None,
@@ -247,7 +240,7 @@ class MarketView:
             signals={k: v.by_period[:n_periods] for k, v in self.signals.items()},
         )
 
-    def filter_securities(self, securities: Sequence[SecurityName]) -> MarketView:
+    def filter_securities(self, securities: Sequence[SecurityName]) -> Self:
         filtered_price = [
             sec for sec in securities if sec in self.prices.close.securities
         ]

@@ -22,6 +22,7 @@ import polars as pl
 import polars.datatypes
 from numpy.typing import NDArray
 
+from backtest_lib.market import SecurityMappings
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.universe import SecurityName, Universe
 from backtest_lib.universe.vector_mapping import VectorMapping
@@ -33,9 +34,6 @@ _RHS_HANDOFF = object()
 
 Numeric = TypeVar("Numeric", int, float)
 
-type SecurityMappings[T: (float, int)] = (
-    Sequence[VectorMapping[SecurityName, T]] | Sequence[Mapping[SecurityName, T]]
-)
 
 POLARS_TO_PYTHON: dict[pl.DataType | type[Any], type[Any]] = {
     pl.Boolean: bool,

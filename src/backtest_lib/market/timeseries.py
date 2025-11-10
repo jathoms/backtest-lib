@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import (
     Any,
     Callable,
-    Generic,
     Iterator,
     Protocol,
     Self,
@@ -32,7 +31,7 @@ class Comparable(Protocol):
 Index = TypeVar("Index", bound=Comparable, contravariant=True)  # Type used for indexing
 
 
-class Timeseries(VectorOps[Scalar], Generic[Scalar, Index], ABC):
+class Timeseries(VectorOps[Scalar], Protocol[Scalar, Index]):
     @overload
     def __getitem__(self, key: int) -> Scalar: ...
 

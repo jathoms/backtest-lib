@@ -1,39 +1,37 @@
 from __future__ import annotations
+from typing import Self
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from backtest_lib.market.timeseries import Timeseries
-from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
     from backtest_lib.market import PastView
+    from backtest_lib.market.timeseries import Comparable
+    from backtest_lib.universe.vector_mapping import VectorMapping
 
-from backtest_lib.market.timeseries import Comparable
 
 SecurityName = str
 Price = float
 Volume = int
 
 
-PeriodIndex = Comparable
-
 Universe = tuple[SecurityName, ...]
 
-type UniverseMapping[T: (int, float)] = VectorMapping[SecurityName, T]
-type UniverseVolume = UniverseMapping[Volume]
-type UniversePriceView = PastView[UniverseMapping[Price], Timeseries, PeriodIndex]
+
+type UniversePriceView[TPeriod: Comparable] = PastView[Price, TPeriod]
+type UniverseMapping[ValueT: (float, int)] = VectorMapping[SecurityName, ValueT]
 
 
 @dataclass(frozen=True)
-class PastUniversePrices:
-    close: UniversePriceView
-    open: UniversePriceView | None = None
-    high: UniversePriceView | None = None
-    low: UniversePriceView | None = None
+class PastUniversePrices[Index: Comparable]:
+    close: UniversePriceView[Index]
+    open: UniversePriceView[Index] | None = None
+    high: UniversePriceView[Index] | None = None
+    low: UniversePriceView[Index] | None = None
 
-    def truncated_to(self, n_periods: int) -> PastUniversePrices:
+    def truncated_to(self, n_periods: int) -> Self:
         return PastUniversePrices(
             close=self.close.by_period[:n_periods],
             open=self.open.by_period[:n_periods] if self.open else None,
@@ -41,9 +39,7 @@ class PastUniversePrices:
             high=self.high.by_period[:n_periods] if self.high else None,
         )
 
-    def filter_securities(
-        self, securities: Sequence[SecurityName]
-    ) -> PastUniversePrices:
+    def filter_securities(self, securities: Sequence[SecurityName]) -> Self:
         return PastUniversePrices(
             close=self.close.by_security[securities],
             open=self.open.by_security[securities] if self.open else None,
