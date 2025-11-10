@@ -1,8 +1,9 @@
 from __future__ import annotations
-import polars as pl
 
 from dataclasses import dataclass, replace
 from typing import Generic, TypeVar
+
+import polars as pl
 
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
 from backtest_lib.universe import Price, UniverseMapping

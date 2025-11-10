@@ -11,7 +11,6 @@ if TYPE_CHECKING:
     from backtest_lib.market import PastView
 
 from backtest_lib.market.timeseries import Comparable
-from backtest_lib.universe.vector_mapping import SupportsFloat
 
 SecurityName = str
 Price = float
@@ -22,10 +21,8 @@ PeriodIndex = Comparable
 
 Universe = tuple[SecurityName, ...]
 
-type UniverseMapping[T: SupportsFloat] = VectorMapping[SecurityName, T]
+type UniverseMapping[T: (int, float)] = VectorMapping[SecurityName, T]
 type UniverseVolume = UniverseMapping[Volume]
-
-type UniverseMask = VectorMapping[SecurityName, bool]
 type UniversePriceView = PastView[UniverseMapping[Price], Timeseries, PeriodIndex]
 
 

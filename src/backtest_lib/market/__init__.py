@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import functools
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 from typing import (
@@ -14,19 +14,21 @@ from typing import (
     runtime_checkable,
 )
 
+from backtest_lib.market.polars_impl import SecurityMappings
 from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
     PastUniversePrices,
     PeriodIndex,
     SecurityName,
-    UniverseMask,
+    UniverseMapping,
     UniverseVolume,
 )
+from backtest_lib.universe.vector_mapping import VectorMapping
 
 Index = TypeVar("Index", bound=Comparable)
 
 S = TypeVar(
-    "S", bound=Mapping[SecurityName, Any], covariant=True
+    "S", bound=VectorMapping[SecurityName, Any], covariant=True
 )  # mapping of securities to prices
 P = TypeVar(
     "P", bound=Timeseries[Any, Comparable], covariant=True
@@ -92,7 +94,8 @@ class PastView(Protocol[S, P, Index]):
 
     @staticmethod
     def from_security_mappings(
-        ms: list[Mapping[SecurityName, Any]], periods: Sequence[Index]
+        ms: SecurityMappings[Any],
+        periods: Sequence[Index],
     ) -> Self: ...
 
 
@@ -106,7 +109,7 @@ class ByPeriod(Protocol[S, P, Index]):
     @overload
     def __getitem__(self, key: slice) -> PastView[S, P, Index]: ...
 
-    def __iter__(self) -> Iterator[P]: ...
+    def __iter__(self) -> Iterator[Index]: ...
 
 
 @runtime_checkable
@@ -117,16 +120,16 @@ class BySecurity(Protocol[S, P, Index]):
     def __getitem__(self, key: SecurityName) -> P: ...
 
     @overload
-    def __getitem__(self, key: Sequence[SecurityName]) -> PastView[S, P, Index]: ...
+    def __getitem__(self, key: Iterable[SecurityName]) -> PastView[S, P, Index]: ...
 
-    def __iter__(self) -> Iterator[S]: ...
+    def __iter__(self) -> Iterator[SecurityName]: ...
 
 
 @dataclass(frozen=True)
 class MarketView:
     prices: PastUniversePrices
     periods: Sequence[PeriodIndex]
-    tradable: PastView[UniverseMask, Timeseries, PeriodIndex] | None = None
+    tradable: PastView[UniverseMapping[int], Timeseries, PeriodIndex] | None = None
     volume: PastView[UniverseVolume, Timeseries, PeriodIndex] | None = None
     signals: dict[str, PastView] = field(default_factory=dict)
 
@@ -148,8 +151,8 @@ class MarketView:
         )
         new_prices = replace(
             self.prices,
-            open=align(self.prices.open),
-            close=align(self.prices.close) if self.prices.close is not None else None,
+            open=align(self.prices.close),
+            close=align(self.prices.open) if self.prices.open is not None else None,
             high=align(self.prices.high) if self.prices.high is not None else None,
             low=align(self.prices.low) if self.prices.low is not None else None,
         )
@@ -169,7 +172,11 @@ class MarketView:
     ) -> PastView:
         sec = view.securities
         if self.security_policy is SecurityAxisPolicy.STRICT:
-            if sec != ref_sec:
+            if len(sec) != len(ref_sec) or not all(
+                a == b for a, b in zip(sec, ref_sec)
+            ):
+                # TODO: improve this error message. will require more context in this
+                # function i.e add a string of the name of the reference sequence
                 raise ValueError("Securities must match reference exactly.")
             new_sec: Sequence[SecurityName] | None = None
         elif self.security_policy is SecurityAxisPolicy.SUBSET_OK:
@@ -181,9 +188,16 @@ class MarketView:
         else:
             raise RuntimeError("Unknown security policy")
 
-        per = view.periods
+        periods = view.periods
         if self.period_axis_policy is PeriodAxisPolicy.STRICT:
-            if per != ref_periods:
+            # TODO: would like a generalised vectorised equality check here,
+            # we can't just do !=, as per/ref_periods can be an NDArray,
+            # in which case the result is another NDArray of bools
+            # that requires a numpy-specific function (.all()) to collapse
+            # to a single bool
+            if len(periods) != len(ref_periods) or not all(
+                a == b for a, b in zip(periods, ref_periods)
+            ):
                 raise ValueError("Periods must match reference exactly.")
             new_per: Sequence[PeriodIndex] | None = None
         elif self.period_axis_policy is PeriodAxisPolicy.INTERSECT:
@@ -208,6 +222,8 @@ class MarketView:
 
     def _resolve_axis_spec(self, spec: str) -> PastView:
         if spec == "prices":
+            # a bit of a sharp edge making "prices" exclusively tied to close prices.
+            # TODO: loosen this requirement somewhat.
             view = self.prices.close
         elif spec == "tradable":
             view = self.tradable

@@ -1,20 +1,21 @@
 from __future__ import annotations
-from abc import abstractmethod, ABC
 
+from abc import abstractmethod
 from typing import (
-    Sized,
-    Generic,
+    Protocol,
     Self,
+    Sized,
     TypeVar,
-    SupportsFloat,
 )
 
+from backtest_lib.universe.vector_mapping import Other_scalar
 
 # Scalar invariant (binary operations must be well-defined between values)
-Scalar = TypeVar("Scalar", bound=SupportsFloat)
+Numeric = int | float
+Scalar = TypeVar("Scalar", float, int)
 
 
-class VectorOps(Sized, Generic[Scalar], ABC):
+class VectorOps(Sized, Protocol[Scalar]):
     # We allow `other` in this case to be a VectorOps of Any,
     # as we want to keep the flexibility of, say, adding a
     # float to a vector of ints.
@@ -23,29 +24,29 @@ class VectorOps(Sized, Generic[Scalar], ABC):
     # as adding a float to a vector of ints will produce a vector of floats,
     # which is not `Self` (a vector of ints)
     @abstractmethod
-    def __add__(self, other: VectorOps | Scalar) -> Self: ...
+    def __add__(self, other: VectorOps | Other_scalar) -> Self: ...
 
     @abstractmethod
-    def __radd__(self, other: VectorOps | Scalar) -> Self: ...
+    def __radd__(self, other: VectorOps | Other_scalar) -> Self: ...
 
     @abstractmethod
-    def __sub__(self, other: VectorOps | Scalar) -> Self: ...
+    def __sub__(self, other: VectorOps | Other_scalar) -> Self: ...
 
     @abstractmethod
-    def __rsub__(self, other: VectorOps | Scalar) -> Self: ...
+    def __rsub__(self, other: VectorOps | Other_scalar) -> Self: ...
 
     @abstractmethod
-    def __mul__(self, other: VectorOps | Scalar) -> Self: ...
+    def __mul__(self, other: VectorOps | Other_scalar) -> Self: ...
 
     @abstractmethod
-    def __rmul__(self, other: VectorOps | Scalar) -> Self: ...
+    def __rmul__(self, other: VectorOps | Other_scalar) -> Self: ...
 
     # Always widen to float on division
     @abstractmethod
-    def __truediv__(self, other: VectorOps | Scalar) -> VectorOps[float]: ...
+    def __truediv__(self, other: VectorOps | Other_scalar) -> VectorOps[float]: ...
 
     @abstractmethod
-    def __rtruediv__(self, other: VectorOps | Scalar) -> VectorOps[float]: ...
+    def __rtruediv__(self, other: VectorOps | Other_scalar) -> VectorOps[float]: ...
 
     @abstractmethod
     def sum(self) -> float: ...

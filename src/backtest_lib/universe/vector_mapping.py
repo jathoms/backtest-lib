@@ -1,17 +1,15 @@
 from __future__ import annotations
-from backtest_lib.universe.vector_ops import Scalar
-from collections.abc import Mapping
-from abc import abstractmethod, ABC
-from collections.abc import Sequence
+
+from abc import abstractmethod
+from collections.abc import ItemsView, Iterator, KeysView, Sequence, ValuesView
 from typing import (
-    Generic,
-    TypeVar,
-    SupportsFloat,
     Protocol,
+    SupportsFloat,
+    TypeVar,
     runtime_checkable,
 )
-from backtest_lib.universe.vector_ops import VectorOps
 
+from backtest_lib.universe.vector_ops import Scalar, VectorOps
 
 # K invariant (to add/sub/div/mul a mapping with another mapping, the key type must be able to be compared directly)
 K = TypeVar("K")
@@ -29,15 +27,19 @@ class VectorMappingConstructor(Protocol[M, K_contra, Scalar_contra]):
     ) -> M: ...
 
 
-class VectorMapping(Mapping[K, Scalar], VectorOps[Scalar], Generic[K, Scalar], ABC):
+Other_scalar = TypeVar("Other_scalar", int, float)
+
+
+@runtime_checkable
+class VectorMapping(VectorOps[Scalar], Protocol[K, Scalar]):
     @abstractmethod
     def __truediv__(
-        self, other: VectorOps | SupportsFloat
+        self, other: VectorOps | Other_scalar
     ) -> VectorMapping[K, float]: ...
 
     @abstractmethod
     def __rtruediv__(
-        self, other: VectorOps | SupportsFloat
+        self, other: VectorOps | Other_scalar
     ) -> VectorMapping[K, float]: ...
 
     @abstractmethod
@@ -45,3 +47,35 @@ class VectorMapping(Mapping[K, Scalar], VectorOps[Scalar], Generic[K, Scalar], A
 
     @abstractmethod
     def zeroed(self) -> VectorMapping[K, Scalar]: ...
+
+    @abstractmethod
+    def __getitem__(self, key: K) -> Scalar: ...
+
+    def keys(self) -> KeysView[K]:
+        "D.keys() -> a set-like object providing a view on D's keys"
+        return KeysView(self)
+
+    def items(self) -> ItemsView[K, Scalar]:
+        "D.items() -> a set-like object providing a view on D's items"
+        return ItemsView(self)
+
+    def values(self) -> ValuesView[Scalar]:
+        "D.values() -> an object providing a view on D's values"
+        return ValuesView(self)
+
+    def get(self, key, default=None) -> Scalar | None:
+        "D.get(k[,d]) -> D[k] if k in D, else d. d defaults to None."
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def __contains__(self, key) -> bool:
+        try:
+            self[key]
+        except KeyError:
+            return False
+        else:
+            return True
+
+    def __iter__(self) -> Iterator[K]: ...

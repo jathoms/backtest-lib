@@ -1,20 +1,22 @@
 from __future__ import annotations
-from typing import Any
-from typing import Callable
-from numpy._typing._array_like import NDArray
 
+from abc import ABC, abstractmethod
 from typing import (
+    Any,
+    Callable,
     Generic,
-    TypeVar,
-    runtime_checkable,
-    Self,
-    overload,
     Iterator,
     Protocol,
+    Self,
+    TypeVar,
+    overload,
+    runtime_checkable,
 )
-from backtest_lib.universe.vector_ops import VectorOps, Scalar
-from abc import ABC, abstractmethod
+
 import numpy as np
+from numpy.typing import NDArray
+
+from backtest_lib.universe.vector_ops import Scalar, VectorOps
 
 BoolLike = bool | np.bool | np.bool_ | NDArray[np.bool_]
 
