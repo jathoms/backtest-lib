@@ -394,7 +394,7 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
         return self._scalar_type(self._vec.sum())
 
     def mean(self) -> T:
-        return self._scalar_type(cast(T, self._vec.mean()))
+        return self._scalar_type(self._vec.mean())
 
     def floor(self) -> PolarsTimeseries[int]:
         return PolarsTimeseries(
@@ -406,11 +406,11 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
 
 
 @dataclass(frozen=True, init=False)
-class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
+class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
-    _scalar_type: type[int] | type[float]
+    _scalar_type: type[T]
 
     @staticmethod
     def from_names_and_data(
@@ -420,48 +420,46 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
     ) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
             names=names,
-            data=data,
+            _data=data,
             pos={name: i for i, name in enumerate(names)},
-            scalar_type=dtype,
+            _scalar_type=dtype,
         )
 
     def __init__(
         self,
         names: Universe,
-        data: pl.Series,
+        _data: pl.Series,
         pos: dict[SecurityName, int],
-        scalar_type: type[int] | type[float] | None = None,
+        _scalar_type: type[int] | type[float] | None = None,
     ):
         n = len(names)
-        if len(data) != n or len(pos) != n:
+        if len(_data) != n or len(pos) != n:
             raise ValueError(
-                f"Row mapping misaligned: names={n}, data={len(data)}, pos={len(pos)}"
+                f"Row mapping misaligned: names={n}, _data={len(_data)}, pos={len(pos)}"
             )
-        if scalar_type is None:
-            scalar_type = POLARS_TO_PYTHON[data.dtype]
-        if scalar_type is float and data.dtype != pl.Float64:
-            data = data.cast(pl.Float64)
-        elif scalar_type is int and data.dtype != pl.Int64:
-            data = data.cast(pl.Int64)
+        if _scalar_type is None:
+            _scalar_type = POLARS_TO_PYTHON[_data.dtype]
+        if _scalar_type is float and _data.dtype != pl.Float64:
+            _data = _data.cast(pl.Float64)
+        elif _scalar_type is int and _data.dtype != pl.Int64:
+            _data = _data.cast(pl.Int64)
         object.__setattr__(self, "names", names)
-        object.__setattr__(self, "_data", data)
+        object.__setattr__(self, "_data", _data)
         object.__setattr__(self, "pos", pos)
-        object.__setattr__(self, "_scalar_type", scalar_type)
+        object.__setattr__(self, "_scalar_type", _scalar_type)
 
     def as_series(self) -> pl.Series:
         return self._data
 
     @overload
-    def __getitem__(self, key: SecurityName) -> Scalar: ...
+    def __getitem__(self, key: SecurityName) -> T: ...
 
     @overload
     def __getitem__(self, key: Iterable[SecurityName]) -> pl.Series: ...
 
-    def __getitem__(
-        self, key: SecurityName | Iterable[SecurityName]
-    ) -> Scalar | pl.Series:
+    def __getitem__(self, key: SecurityName | Iterable[SecurityName]) -> T | pl.Series:
         if isinstance(key, SecurityName):
-            return type(Scalar)(self._data.item(self.pos[key]))
+            return self._scalar_type(self._data.item(self.pos[key]))
         elif isinstance(key, list):
             idx = np.fromiter(
                 (self.pos[k] for k in key), dtype=np.int64, count=len(key)
@@ -477,7 +475,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return len(self.names)
 
     def _rhs(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> tuple[pl.Series | float, type[Any] | None]:
         if isinstance(other, SupportsFloat):
             if not isinstance(other, int) and self._scalar_type is int:
@@ -510,7 +508,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         )
 
     def __add__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -518,7 +516,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
 
     def __radd__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -526,7 +524,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
 
     def __sub__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -537,7 +535,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
 
     def __rsub__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -545,7 +543,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
 
     def __mul__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -559,7 +557,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, self._data * rhs, self.pos, new_type)
 
     def __rmul__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -569,7 +567,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
 
     def __truediv__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         rhs, _ = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -584,7 +582,7 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
         return SeriesUniverseMapping(self.names, self._data / rhs, self.pos, float)
 
     def __rtruediv__(
-        self, other: VectorOps[Scalar] | SupportsFloat | Mapping
+        self, other: VectorOps[T] | SupportsFloat | Mapping
     ) -> SeriesUniverseMapping:
         lhs, _ = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -593,22 +591,22 @@ class SeriesUniverseMapping(VectorMapping[SecurityName, Scalar]):
             lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs / self._data, self.pos, float)
 
-    def sum(self) -> Scalar:
-        return type(Scalar)(self._data.sum())
+    def sum(self) -> T:
+        return self._scalar_type(self._data.sum())
 
-    def mean(self) -> Scalar:
+    def mean(self) -> T:
         # assert self._data.dtype == pl.Float64
         dt = self._data.dtype
         if not (dt.is_numeric()):
             raise TypeError(f"mean() only supported on numeric dtypes, got {dt!r}")
         m = self._data.mean()
         if m is None:
-            raise ValueError("mean of empty series")
-        return type(Scalar)(m)
+            raise ValueError("Mean of empty series")
+        return self._scalar_type(m)
 
     def floor(self) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
-            names=self.names, data=self._data.floor(), pos=self.pos, scalar_type=int
+            names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
         )
 
     @classmethod
@@ -692,9 +690,9 @@ class PolarsByPeriod:
             scalar_type = POLARS_TO_PYTHON[self.as_df().dtypes[0]]
             return SeriesUniverseMapping(
                 names=self._security_axis.names,
-                data=s,
+                _data=s,
                 pos=self._security_axis.pos,
-                scalar_type=scalar_type,
+                _scalar_type=scalar_type,
             )
 
         start, stop, step = key.indices(len(self))
@@ -899,6 +897,7 @@ class PolarsPastView:
             raise ValueError(
                 "Length of period sequence must match length of security mapping list"
             )
+
         first_keys = set(ms[0].keys())
         if not all(len(set(m.keys()) ^ first_keys) == 0 for m in ms):
             differing_keys = next(
@@ -927,7 +926,9 @@ class PolarsPastView:
         periods_series = (
             periods if isinstance(periods, pl.Series) else pl.Series("date", periods)
         )
-        df = pl.DataFrame(ms).with_columns(date=periods_series)
+        df = pl.DataFrame({k: [m[k] for m in ms] for k in first_keys}).with_columns(
+            date=periods_series
+        )
 
         return PolarsPastView.from_data_frame(df)
 
@@ -936,7 +937,7 @@ class PolarsPastView:
         if isinstance(df, pd.DataFrame):
             df = pl.DataFrame(df)
         try:
-            dates = df.get_column("date", default=None)
+            dates = df.get_column("date")
         except Exception as e:
             raise ValueError(
                 "Input dataframe must have column for 'date' and a column for each security"

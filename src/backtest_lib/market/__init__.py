@@ -144,8 +144,8 @@ class MarketView[Index: Comparable]:
         )
         new_prices = replace(
             self.prices,
-            open=align(self.prices.close),
-            close=align(self.prices.open) if self.prices.open is not None else None,
+            close=align(self.prices.close),
+            open=align(self.prices.open) if self.prices.open is not None else None,
             high=align(self.prices.high) if self.prices.high is not None else None,
             low=align(self.prices.low) if self.prices.low is not None else None,
         )
