@@ -42,8 +42,8 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
     elif isinstance(some_datetime, np.datetime64):
         if np.isnat(some_datetime):
             raise ValueError("Cannot convert NaT to Python datetime.")
-        ns = some_datetime.astype("datetime64[ns]").astype(np.int64)
-        return dt.datetime.fromtimestamp(ns / 1e9, dt.timezone.utc)
+        us = some_datetime.astype("datetime64[us]").astype(np.int64)
+        return dt.datetime.fromtimestamp(us / 1e6, dt.timezone.utc)
     else:
         raise TypeError(
             f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"

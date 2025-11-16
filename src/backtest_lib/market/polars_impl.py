@@ -78,6 +78,10 @@ class Array1DDTView(Sequence[np.datetime64]):
             a = a.reshape(-1)  # view when possible
         self._a: NDArray[np.datetime64] = a
 
+    @property
+    def array(self) -> NDArray[np.datetime64]:
+        return self._a
+
     def __len__(self) -> int:
         return self._a.shape[0]
 
@@ -100,6 +104,9 @@ class Array1DDTView(Sequence[np.datetime64]):
     def __repr__(self) -> str:
         return f"Array1DDTView({self._a!r})"
 
+    def __array__(self) -> NDArray[np.datetime64]:
+        return self._a.astype("datetime64[us]")
+
 
 @dataclass(frozen=True)
 class Axis:
@@ -117,9 +124,9 @@ class Axis:
 
 def _to_npdt64(x: np.datetime64 | str) -> np.datetime64:
     if isinstance(x, np.datetime64):
-        return x.astype("datetime64[ns]")
+        return x.astype("datetime64[us]")
     if isinstance(x, str):
-        return np.datetime64(x, "ns")
+        return np.datetime64(x, "us")
     raise TypeError(f"Unsupported type {type(x)}")
 
 
@@ -135,9 +142,9 @@ class PeriodAxis:
     @staticmethod
     def from_series(date_s: pl.Series, fmt: str = "%Y-%m-%d") -> PeriodAxis:
         if date_s.dtype not in (pl.Date, pl.Datetime):
-            date_s = date_s.cast(pl.Datetime("ns"))
+            date_s = date_s.cast(pl.Datetime("us"))
         labels = tuple(date_s.dt.strftime(fmt).to_list())
-        dt64 = date_s.to_numpy(allow_copy=False).astype("datetime64[ns]", copy=False)
+        dt64 = date_s.to_numpy(allow_copy=False).astype("datetime64[us]", copy=False)
         # assert np.all(dt64[1:] >= dt64[:-1])
         return PeriodAxis(dt64, labels, {lbl: i for i, lbl in enumerate(labels)})
 
@@ -554,9 +561,6 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
                 return other.__rmul__(self)
             else:
                 return NotImplemented
-        # maintain the identity, as rhs defaults to 0 for non-included keys
-        if isinstance(rhs, pl.Series):
-            rhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, self._data * rhs, self.pos, new_type)
 
     def __rmul__(
@@ -565,8 +569,6 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        if isinstance(lhs, pl.Series):
-            lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
 
     def __truediv__(
@@ -578,10 +580,6 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
                 return other.__rtruediv__(self)
             else:
                 return NotImplemented
-        # TODO: this seems like a bad idea, but helps us when we are padding stuff
-        # also true for mul/rmul/rtruediv
-        if isinstance(rhs, pl.Series):
-            rhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, self._data / rhs, self.pos, float)
 
     def __rtruediv__(
@@ -590,8 +588,6 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         lhs, _ = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        if isinstance(lhs, pl.Series):
-            lhs.replace({0: 1})
         return SeriesUniverseMapping(self.names, lhs / self._data, self.pos, float)
 
     def sum(self) -> T:
@@ -670,12 +666,15 @@ class PolarsByPeriod:
             raise IndexError(i)
         return self._period_slice_start + i
 
-    def as_df(self) -> pl.DataFrame:
+    def as_df(self, *, show_securities: bool = False) -> pl.DataFrame:
         start = self._period_slice_start
         stop = self._period_slice_start + len(self)
         df = self._period_column_df[:, start:stop]
         if self._row_indexer is not None:
             df = df.select(pl.all().gather(self._row_indexer))
+            if show_securities:
+                securities_series = pl.Series(self._security_axis.names)
+                return df.with_columns(security=securities_series)
         return df
 
     @overload
@@ -781,13 +780,16 @@ class PolarsBySecurity:
     def __len__(self) -> int:
         return len(self._security_axis)
 
-    def as_df(self) -> pl.DataFrame:
+    def as_df(self, *, show_periods: bool = False) -> pl.DataFrame:
         if self._sel_names is None:
             df = self._security_column_df
         else:
             df = self._security_column_df.select(list(self._sel_names))
         if self._period_slice_start != 0 or self._period_slice_len is not None:
             df = df.slice(self._period_slice_start, self._period_slice_len)
+        if show_periods:
+            periods_series = pl.Series(self._period_axis.dt64, dtype=pl.Datetime)
+            return df.with_columns(date=periods_series)
         return df
 
     @overload
@@ -926,8 +928,16 @@ class PolarsPastView:
         if passed_type not in allowed_types:
             raise ValueError(f"Cannot create PolarsPastView of type {passed_type}.")
 
+        print(periods)
+        print("aaa:", type(periods))
         periods_series = (
-            periods if isinstance(periods, pl.Series) else pl.Series("date", periods)
+            periods
+            if isinstance(periods, pl.Series)
+            else pl.Series(
+                "date",
+                np.asarray(periods).astype("datetime64[us]"),
+                dtype=pl.Datetime("us"),
+            )
         )
         df = pl.DataFrame({k: [m[k] for m in ms] for k in first_keys}).with_columns(
             date=periods_series
