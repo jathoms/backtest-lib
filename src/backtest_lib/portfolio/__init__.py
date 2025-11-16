@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Generic, TypeVar
+from typing import Generic, Iterable, TypeVar
 
 import polars as pl
 
@@ -101,3 +101,26 @@ class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
             return WeightedPortfolio(self.cash, new_holdings)
         else:
             raise NotImplementedError()
+
+    def indexed_over(self, full_universe: Iterable[str]) -> WeightedPortfolio:
+        return uniform_portfolio(full_universe, self.holdings)
+
+
+def uniform_portfolio(
+    full_universe: Iterable[str], tradable_universe: Iterable[str] | None = None
+) -> WeightedPortfolio:
+    if tradable_universe is None:
+        tradable_universe = full_universe
+    if not isinstance(tradable_universe, tuple):
+        tradable_universe = tuple(tradable_universe)
+    zeroed_securities = tuple(set(full_universe) - set(tradable_universe))
+    return WeightedPortfolio(
+        cash=0,
+        holdings=SeriesUniverseMapping.from_names_and_data(
+            tradable_universe + zeroed_securities,
+            pl.Series(
+                ([1 / len(tradable_universe)] * len(tradable_universe))
+                + ([0.0] * len(zeroed_securities))
+            ),
+        ),
+    )

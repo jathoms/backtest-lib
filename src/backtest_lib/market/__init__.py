@@ -1,8 +1,10 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+from backtest_lib.market.polars_impl import PolarsPastView
 
 import functools
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from enum import Enum, auto
 from typing import (
     Any,
@@ -17,9 +19,13 @@ from typing import (
 from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
     PastUniversePrices,
-    SecurityName,
 )
-from backtest_lib.universe.vector_mapping import VectorMapping
+
+if TYPE_CHECKING:
+    from backtest_lib.universe.vector_mapping import VectorMapping
+    from backtest_lib.universe import SecurityName
+
+_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
 
 type SecurityMappings[T: (float, int)] = (
     Sequence[VectorMapping[SecurityName, T]] | Sequence[Mapping[SecurityName, T]]
@@ -89,6 +95,9 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
         periods: Sequence[Index],
     ) -> Self: ...
 
+    @staticmethod
+    def from_underlying_data(data: Any) -> Self: ...
+
 
 @runtime_checkable
 class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
@@ -118,44 +127,114 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
     def __iter__(self) -> Iterator[SecurityName]: ...
 
 
-@dataclass(frozen=True)
 class MarketView[Index: Comparable]:
-    prices: PastUniversePrices[Index]
-    periods: Sequence[Index]
-    tradable: PastView[int, Index] | None = None
-    volume: PastView[int, Index] | None = None
-    signals: dict[str, PastView[Any, Index]] = field(default_factory=dict)
+    # TODO: polars has a FrameInitTypes type.
+    # we might want to copy this idea and have a MarketViewInitTypes type
+    # instead of just using Any here.
+    def __init__(
+        self,
+        prices: PastUniversePrices[Index] | PastView[float, Index] | Any,
+        periods: Sequence[Index] | None = None,
+        tradable: PastView[int, Index] | Any | None = None,
+        volume: PastView[int, Index] | Any | None = None,
+        signals: dict[str, PastView[Any, Index] | Any] | None = None,
+        security_policy: SecurityAxisPolicy = SecurityAxisPolicy.STRICT,
+        period_policy: PeriodAxisPolicy = PeriodAxisPolicy.STRICT,
+        reference_view_for_axis_values: str = "prices",
+        backend: str = "polars",
+    ):
+        backend_pastview_type = _BACKEND_PASTVIEW_MAPPING[backend]
 
-    security_policy: SecurityAxisPolicy = SecurityAxisPolicy.STRICT
-    period_axis_policy: PeriodAxisPolicy = PeriodAxisPolicy.STRICT
-    reference_view_for_axis_values = "prices"
+        if not isinstance(prices, PastUniversePrices):
+            if isinstance(prices, PastView):
+                prices = PastUniversePrices(close=prices)
+            else:
+                # assume the user passes close prices
+                prices = PastUniversePrices(
+                    close=backend_pastview_type.from_underlying_data(prices)
+                )
 
-    def __post_init__(self):
+        if tradable is not None and not isinstance(tradable, PastView):
+            tradable = backend_pastview_type.from_underlying_data(tradable)
+
+        if volume is not None and not isinstance(volume, PastView):
+            volume = backend_pastview_type.from_underlying_data(volume)
+
+        if signals is not None:
+            normalised_signals: dict[str, PastView[Any, Index]] = {
+                signal: (
+                    backend_pastview_type.from_underlying_data(data)
+                    if not isinstance(data, PastView)
+                    else data
+                )
+                for signal, data in signals.items()
+            }
+        else:
+            normalised_signals = {}
+
+        self._prices: PastUniversePrices[Index] = prices
+        self._tradable: PastView[int, Index] | None = tradable
+        self._volume: PastView[int, Index] | None = volume
+        self._signals: dict[str, PastView[Any, Index]] = normalised_signals
+
+        if periods is None:
+            periods = self._resolve_period_axis_spec(reference_view_for_axis_values)
+
+        self._periods: Sequence[Index] = periods
+        self._security_policy: SecurityAxisPolicy = security_policy
+        self._period_policy: PeriodAxisPolicy = period_policy
+        self._backend: str = backend
+
+    @property
+    def prices(self) -> PastUniversePrices[Index]:
+        return self._prices
+
+    @property
+    def periods(self) -> Sequence[Index]:
+        return self._periods
+
+    @property
+    def tradable(self) -> PastView[int, Index] | None:
+        return self._tradable
+
+    @property
+    def volume(self) -> PastView[int, Index] | None:
+        return self._volume
+
+    @property
+    def signals(self) -> dict[str, PastView[Any, Index]]:
+        return self._signals
+
+    def _check_axis_alignment(self, reference_view_for_axis_values: str) -> None:
         reference_period_values = self._resolve_period_axis_spec(
-            self.reference_view_for_axis_values
+            reference_view_for_axis_values
         )
         reference_security_values = self._resolve_security_axis_spec(
-            self.reference_view_for_axis_values
+            reference_view_for_axis_values
         )
+
         align = functools.partial(
             self._align,
             ref_sec=reference_security_values,
             ref_periods=reference_period_values,
         )
+
         new_prices = replace(
-            self.prices,
-            close=align(self.prices.close),
-            open=align(self.prices.open) if self.prices.open is not None else None,
-            high=align(self.prices.high) if self.prices.high is not None else None,
-            low=align(self.prices.low) if self.prices.low is not None else None,
+            self._prices,
+            close=align(self._prices.close),
+            open=align(self._prices.open) if self._prices.open is not None else None,
+            high=align(self._prices.high) if self._prices.high is not None else None,
+            low=align(self._prices.low) if self._prices.low is not None else None,
         )
-        object.__setattr__(self, "prices", new_prices)
-        if self.tradable is not None:
-            object.__setattr__(self, "tradable", align(self.tradable))
-        if self.volume is not None:
-            object.__setattr__(self, "volume", align(self.volume))
-        for name, view in self.signals.items():
-            self.signals[name] = align(view)
+        self._prices = new_prices
+
+        if self._tradable is not None:
+            self._tradable = align(self._tradable)
+        if self._volume is not None:
+            self._volume = align(self._volume)
+
+        for name, view in self._signals.items():
+            self._signals[name] = align(view)
 
     def _align(
         self,
@@ -164,7 +243,7 @@ class MarketView[Index: Comparable]:
         ref_periods: Sequence[Index],
     ) -> PastView:
         sec = view.securities
-        if self.security_policy is SecurityAxisPolicy.STRICT:
+        if self._security_policy is SecurityAxisPolicy.STRICT:
             if len(sec) != len(ref_sec) or not all(
                 a == b for a, b in zip(sec, ref_sec)
             ):
@@ -172,17 +251,17 @@ class MarketView[Index: Comparable]:
                 # function i.e add a string of the name of the reference sequence
                 raise ValueError("Securities must match reference exactly.")
             new_sec: Sequence[SecurityName] | None = None
-        elif self.security_policy is SecurityAxisPolicy.SUBSET_OK:
+        elif self._security_policy is SecurityAxisPolicy.SUBSET_OK:
             raise NotImplementedError()
-        elif self.security_policy is SecurityAxisPolicy.SUPERSET_OK:
+        elif self._security_policy is SecurityAxisPolicy.SUPERSET_OK:
             raise NotImplementedError()
-        elif self.security_policy is SecurityAxisPolicy.COERCE:
+        elif self._security_policy is SecurityAxisPolicy.COERCE:
             raise NotImplementedError()
         else:
             raise RuntimeError("Unknown security policy")
 
         periods = view.periods
-        if self.period_axis_policy is PeriodAxisPolicy.STRICT:
+        if self._period_policy is PeriodAxisPolicy.STRICT:
             # TODO: would like a generalised vectorised equality check here,
             # we can't just do !=, as per/ref_periods can be an NDArray,
             # in which case the result is another NDArray of bools
@@ -193,9 +272,9 @@ class MarketView[Index: Comparable]:
             ):
                 raise ValueError("Periods must match reference exactly.")
             new_per: Sequence[Index] | None = None
-        elif self.period_axis_policy is PeriodAxisPolicy.INTERSECT:
+        elif self._period_policy is PeriodAxisPolicy.INTERSECT:
             raise NotImplementedError()
-        elif self.period_axis_policy is PeriodAxisPolicy.FFILL:
+        elif self._period_policy is PeriodAxisPolicy.FFILL:
             raise NotImplementedError()
         else:
             raise RuntimeError("Unknown period policy")
@@ -217,14 +296,14 @@ class MarketView[Index: Comparable]:
         if spec == "prices":
             # a bit of a sharp edge making "prices" exclusively tied to close prices.
             # TODO: loosen this requirement somewhat.
-            view = self.prices.close
+            view = self._prices.close
         elif spec == "tradable":
-            view = self.tradable
+            view = self._tradable
         elif spec == "volume":
-            view = self.volume
+            view = self._volume
         elif spec.startswith("signal:"):
             key = spec.split(":", 1)[1]
-            view = self.signals[key]
+            view = self._signals[key]
         else:
             raise ValueError(f"Unknown ref string: {spec}")
         if view is None:

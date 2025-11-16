@@ -6,6 +6,7 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import (
+    TYPE_CHECKING,
     Any,
     Self,
     Sequence,
@@ -17,16 +18,18 @@ from typing import (
 )
 
 import numpy as np
-import pandas as pd
 import polars as pl
 import polars.datatypes
 from numpy.typing import NDArray
 
-from backtest_lib.market import SecurityMappings
 from backtest_lib.market.timeseries import Timeseries
-from backtest_lib.universe import SecurityName, Universe
+from backtest_lib.universe import SecurityName
 from backtest_lib.universe.vector_mapping import VectorMapping
-from backtest_lib.universe.vector_ops import Scalar, VectorOps
+
+if TYPE_CHECKING:
+    from backtest_lib.market import SecurityMappings
+    from backtest_lib.universe import Universe
+    from backtest_lib.universe.vector_ops import Scalar, VectorOps
 
 logger = logging.getLogger(__name__)
 
@@ -933,9 +936,14 @@ class PolarsPastView:
         return PolarsPastView.from_data_frame(df)
 
     @staticmethod
-    def from_data_frame(df: pl.DataFrame | pd.DataFrame) -> Self:
-        if isinstance(df, pd.DataFrame):
-            df = pl.DataFrame(df)
+    def from_data_frame(df: pl.DataFrame | Any) -> Self:
+        if not isinstance(df, pl.DataFrame):
+            try:
+                df = pl.DataFrame(df)
+            except Exception as e:
+                raise ValueError(
+                    f"Cannot create PolarsPastView from '{df.__name__}'. It must be able to be turned into a polars DataFrame with a 'date' column and a column for each security: {e}"
+                )
         try:
             dates = df.get_column("date")
         except Exception as e:
@@ -965,6 +973,10 @@ class PolarsPastView:
             security_axis,
             period_axis,
         )
+
+    @staticmethod
+    def from_underlying_data(data: Any) -> Self:
+        return PolarsPastView.from_data_frame(data)
 
     def _slice_period(self, left: int, right: int) -> PolarsPastView:
         cols = self.by_period._period_column_df.columns[left:right]

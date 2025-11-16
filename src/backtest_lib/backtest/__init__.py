@@ -8,15 +8,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from backtest_lib.market import PastView
-from backtest_lib.market.polars_impl import PolarsPastView
+from backtest_lib.market import _BACKEND_PASTVIEW_MAPPING
 from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
 from backtest_lib.strategy.context import StrategyContext
-from backtest_lib.universe import Universe
-
-from backtest_lib.universe import UniverseMapping
 
 if TYPE_CHECKING:
+    from backtest_lib.market import PastView
+    from backtest_lib.universe import Universe, UniverseMapping
     from backtest_lib.universe.vector_mapping import VectorMapping
 
 logger = logging.getLogger(__name__)
@@ -50,9 +48,6 @@ def _to_pydt(some_datetime: Any) -> dt.datetime:
         raise TypeError(
             f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"
         )
-
-
-_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
 
 
 class Backtest:
@@ -106,10 +101,6 @@ class Backtest:
                 market=past_market_view,
                 ctx=ctx,
             )
-            if len(decision.target.holdings) > len(self.universe):
-                print(
-                    f"{ctx.now}: hold:{len(decision.target.holdings)}, univ:{len(self.universe)}"
-                )
             if len(decision.target.holdings) < len(self.universe):
                 # pad out the unnaccounted-for securities with 0.
                 # NOTE: this is some extra allocation we might not need
@@ -117,6 +108,10 @@ class Backtest:
                 # keys are not equal.
                 # maybe a .merge() method on the VectorMapping would make
                 # more sense.
+                logger.debug(
+                    f"Incomplete universe returned by strategy (decision had {len(decision.target.holdings)}, "
+                    f"full universe has {len(self.universe)}), filling remaining securities with 0."
+                )
                 object.__setattr__(
                     decision.target,
                     "holdings",
@@ -189,7 +184,10 @@ def _apply_inter_period_price_changes(
 ) -> tuple[WeightedPortfolio, float]:
     prev_cash = portfolio.cash
     prev_hold = portfolio.holdings
-    logger.debug(f"Holdings length: {len(prev_hold)}")
+    # logger.debug(
+    #     f"Holdings length: {len(prev_hold)}, pct_change length: {len(pct_change)}, "
+    #     f"hold: {prev_hold}, pct_change: {pct_change}"
+    # )
 
     new_total_holdings_weight = prev_hold * pct_change
     new_total_weight = prev_cash + new_total_holdings_weight.sum()
