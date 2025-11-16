@@ -672,9 +672,11 @@ class PolarsByPeriod:
         df = self._period_column_df[:, start:stop]
         if self._row_indexer is not None:
             df = df.select(pl.all().gather(self._row_indexer))
-            if show_securities:
-                securities_series = pl.Series(self._security_axis.names)
-                return df.with_columns(security=securities_series)
+        if show_securities:
+            securities_series = pl.Series(self._security_axis.names)
+            return df.with_columns(security=securities_series).select(
+                "security", pl.all().exclude("security")
+            )
         return df
 
     @overload
@@ -780,7 +782,7 @@ class PolarsBySecurity:
     def __len__(self) -> int:
         return len(self._security_axis)
 
-    def as_df(self, *, show_periods: bool = False) -> pl.DataFrame:
+    def as_df(self, *, show_periods: bool = True) -> pl.DataFrame:
         if self._sel_names is None:
             df = self._security_column_df
         else:
@@ -789,7 +791,9 @@ class PolarsBySecurity:
             df = df.slice(self._period_slice_start, self._period_slice_len)
         if show_periods:
             periods_series = pl.Series(self._period_axis.dt64, dtype=pl.Datetime)
-            return df.with_columns(date=periods_series)
+            return df.with_columns(date=periods_series).select(
+                "date", pl.all().exclude("date")
+            )
         return df
 
     @overload
