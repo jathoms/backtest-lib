@@ -35,6 +35,7 @@ exclude = ["src/backtest_lib/examples"]
                                                              
 [tool.ruff.lint]
 exclude = ["src/backtest_lib/examples"]
+select  = ["I"]
 
 [tool.pyrefly]
 project-includes = ["**/*"]

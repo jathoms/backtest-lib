@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Literal
 
 import datetime as dt
 import logging
@@ -9,6 +8,7 @@ from decimal import Decimal
 from typing import (
     TYPE_CHECKING,
     Any,
+    Literal,
     Self,
     Sequence,
     SupportsFloat,
@@ -29,6 +29,7 @@ from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
     import pandas as pd
+
     from backtest_lib.market import SecurityMappings
     from backtest_lib.universe import Universe
     from backtest_lib.universe.vector_ops import Scalar, VectorOps

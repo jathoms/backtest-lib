@@ -61,7 +61,6 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
     interface to access the market conditions.
     """
 
-
     @property
     def periods(self) -> Sequence[Index]: ...
 

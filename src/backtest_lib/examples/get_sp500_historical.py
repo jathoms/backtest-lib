@@ -1,15 +1,16 @@
-from backtest_lib.market.polars_impl import Array1DDTView
-import polars as pl
+import datetime as dt
+import pickle as pkl
+import time
+from importlib.resources import files
+
 import numpy as np
 import pandas as pd
-import pickle as pkl
-import datetime as dt
+import polars as pl
 import yfinance as yf
-import time
-from backtest_lib.market.polars_impl import PolarsPastView
-from backtest_lib.market import MarketView, PastUniversePrices, PastView
-from importlib.resources import files
+
 import backtest_lib.examples
+from backtest_lib.market import MarketView, PastUniversePrices, PastView
+from backtest_lib.market.polars_impl import Array1DDTView, PolarsPastView
 
 
 def fetch_history(tickers, start, end=None, interval="1d"):

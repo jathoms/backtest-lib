@@ -1,8 +1,7 @@
 from __future__ import annotations
-from dataclasses import field
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Sequence
 
 from backtest_lib.market.polars_impl import PolarsPastView
@@ -33,7 +32,7 @@ class BacktestResults[IndexT: Comparable]:
     asset_returns: PastView[float, IndexT] = field(repr=False)
     initial_capital: float
 
-    portfolio_returns: list[float] = field(repr=False)
+    portfolio_returns: list[float]
     nav: list[float]
     drawdowns: list[float]
     gross_exposure: list[float]
