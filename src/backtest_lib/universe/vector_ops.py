@@ -59,6 +59,8 @@ class VectorOps(Sized, Protocol[Scalar]):
         if n == 0:
             raise ValueError("mean of empty VectorMapping")
         return self.sum() / n
+    
+    def abs(self) -> Self: ...
 
     @abstractmethod
     def floor(self) -> VectorOps[int]: ...

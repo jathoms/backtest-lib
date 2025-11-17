@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Literal
 
 import datetime as dt
 import logging
@@ -27,6 +28,7 @@ from backtest_lib.universe import SecurityName
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
+    import pandas as pd
     from backtest_lib.market import SecurityMappings
     from backtest_lib.universe import Universe
     from backtest_lib.universe.vector_ops import Scalar, VectorOps
@@ -406,6 +408,11 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
     def mean(self) -> T:
         return self._scalar_type(self._vec.mean())
 
+    def abs(self) -> Self:
+        return PolarsTimeseries(
+            self._vec.abs(), self._axis, self._name, self._scalar_type
+        )
+
     def floor(self) -> PolarsTimeseries[int]:
         return PolarsTimeseries(
             _vec=self._vec.floor(),
@@ -603,6 +610,11 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
             raise ValueError("Mean of empty series")
         return self._scalar_type(m)
 
+    def abs(self) -> Self:
+        return SeriesUniverseMapping(
+            self.names, self._data.abs(), self.pos, self._scalar_type
+        )
+
     def floor(self) -> SeriesUniverseMapping:
         return SeriesUniverseMapping(
             names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
@@ -627,12 +639,6 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
 
         return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
 
-    def zeroed(self) -> SeriesUniverseMapping:
-        return SeriesUniverseMapping.from_names_and_data(
-            self.names,
-            pl.zeros(len(self.names), eager=True),
-        )
-
 
 @dataclass(frozen=True)
 class PolarsByPeriod:
@@ -641,10 +647,10 @@ class PolarsByPeriod:
     _security_axis: Axis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
-    _period_slice_start: int = 0
-    _period_slice_len: int | None = None  # None => to end
+    _period_slice_start: int = field(repr=False, default=0)
+    _period_slice_len: int | None = field(repr=False, default=None)  # None => to end
 
-    _row_indexer: np.ndarray | None = None
+    _row_indexer: np.ndarray | None = field(repr=False, default=None)
 
     _col_names_cache: tuple[str, ...] = field(init=False, repr=False)
 
@@ -767,6 +773,33 @@ class PolarsByPeriod:
         for period in self._period_axis.dt64:
             yield period
 
+    @overload
+    def to_dataframe(self) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(self, show_securities: bool) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_securities: bool, backend: Literal["polars"]
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_securities: bool, backend: Literal["pandas"]
+    ) -> pd.DataFrame: ...
+
+    def to_dataframe(
+        self,
+        show_securities: bool = False,
+        backend: Literal["polars"] | Literal["pandas"] = "polars",
+    ) -> pl.DataFrame | pd.DataFrame:
+        if backend == "polars":
+            return self.as_df(show_securities=show_securities)
+        elif backend == "pandas":
+            return self.as_df(show_securities=show_securities).to_pandas()
+        raise ValueError(f"'{backend}' is not a valid DataFrame backend.")
+
 
 @dataclass(frozen=True)
 class PolarsBySecurity:
@@ -775,9 +808,9 @@ class PolarsBySecurity:
     _security_axis: Axis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
-    _period_slice_start: int = 0
-    _period_slice_len: int | None = None
-    _sel_names: tuple[str, ...] | None = None
+    _period_slice_start: int = field(repr=False, default=0)
+    _period_slice_len: int | None = field(repr=False, default=None)
+    _sel_names: tuple[str, ...] | None = field(repr=False, default=None)
 
     def __len__(self) -> int:
         return len(self._security_axis)
@@ -879,13 +912,40 @@ class PolarsBySecurity:
         for sec in self._security_axis.names:
             yield sec
 
+    @overload
+    def to_dataframe(self) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(self, show_periods: bool) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_periods: bool, backend: Literal["polars"]
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_periods: bool, backend: Literal["pandas"]
+    ) -> pd.DataFrame: ...
+
+    def to_dataframe(
+        self,
+        show_periods: bool = True,
+        backend: Literal["polars"] | Literal["pandas"] = "polars",
+    ) -> pl.DataFrame | pd.DataFrame:
+        if backend == "polars":
+            return self.as_df(show_periods=show_periods)
+        elif backend == "pandas":
+            return self.as_df(show_periods=show_periods).to_pandas()
+        raise ValueError(f"'{backend}' is not a valid DataFrame backend.")
+
 
 @dataclass(frozen=True)
 class PolarsPastView:
-    by_period: PolarsByPeriod
+    by_period: PolarsByPeriod = field(repr=False)
     by_security: PolarsBySecurity
-    _security_axis: Axis
-    _period_axis: PeriodAxis
+    _security_axis: Axis = field(repr=False)
+    _period_axis: PeriodAxis = field(repr=False)
 
     @property
     def periods(self) -> Sequence[np.datetime64]:
@@ -932,8 +992,6 @@ class PolarsPastView:
         if passed_type not in allowed_types:
             raise ValueError(f"Cannot create PolarsPastView of type {passed_type}.")
 
-        print(periods)
-        print("aaa:", type(periods))
         periods_series = (
             periods
             if isinstance(periods, pl.Series)
@@ -947,10 +1005,10 @@ class PolarsPastView:
             date=periods_series
         )
 
-        return PolarsPastView.from_data_frame(df)
+        return PolarsPastView.from_dataframe(df)
 
     @staticmethod
-    def from_data_frame(df: pl.DataFrame | Any) -> Self:
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
         if not isinstance(df, pl.DataFrame):
             try:
                 df = pl.DataFrame(df)
@@ -987,10 +1045,6 @@ class PolarsPastView:
             security_axis,
             period_axis,
         )
-
-    @staticmethod
-    def from_underlying_data(data: Any) -> Self:
-        return PolarsPastView.from_data_frame(data)
 
     def _slice_period(self, left: int, right: int) -> PolarsPastView:
         cols = self.by_period._period_column_df.columns[left:right]

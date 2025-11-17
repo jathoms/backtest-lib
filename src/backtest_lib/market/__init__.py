@@ -1,29 +1,33 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
-from backtest_lib.market.polars_impl import PolarsPastView
 
 import functools
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
 from enum import Enum, auto
 from typing import (
+    TYPE_CHECKING,
     Any,
-    Protocol,
+    Literal,
     Mapping,
+    Protocol,
     Self,
     SupportsIndex,
     overload,
     runtime_checkable,
 )
 
+import pandas as pd
+import polars as pl
+
+from backtest_lib.market.polars_impl import PolarsPastView
 from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
     PastUniversePrices,
 )
 
 if TYPE_CHECKING:
-    from backtest_lib.universe.vector_mapping import VectorMapping
     from backtest_lib.universe import SecurityName
+    from backtest_lib.universe.vector_mapping import VectorMapping
 
 _BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
 
@@ -56,6 +60,7 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
     reduce the risk of lookahead bias while maintaining an ergonomic
     interface to access the market conditions.
     """
+
 
     @property
     def periods(self) -> Sequence[Index]: ...
@@ -96,7 +101,7 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
     ) -> Self: ...
 
     @staticmethod
-    def from_underlying_data(data: Any) -> Self: ...
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self: ...
 
 
 @runtime_checkable
@@ -113,6 +118,28 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
 
     def __iter__(self) -> Iterator[Index]: ...
 
+    @overload
+    def to_dataframe(self) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(self, show_securities: bool) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_securities: bool, backend: Literal["polars"]
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_securities: bool, backend: Literal["pandas"]
+    ) -> pd.DataFrame: ...
+
+    def to_dataframe(
+        self,
+        show_securities: bool = False,
+        backend: Literal["polars", "pandas"] = "polars",
+    ) -> pl.DataFrame | pd.DataFrame: ...
+
 
 @runtime_checkable
 class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
@@ -125,6 +152,28 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
     def __getitem__(self, key: Iterable[SecurityName]) -> PastView[ValueT, Index]: ...
 
     def __iter__(self) -> Iterator[SecurityName]: ...
+
+    @overload
+    def to_dataframe(self) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(self, show_periods: bool) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_periods: bool, backend: Literal["polars"]
+    ) -> pl.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self, show_periods: bool, backend: Literal["pandas"]
+    ) -> pd.DataFrame: ...
+
+    def to_dataframe(
+        self,
+        show_periods: bool = True,
+        backend: Literal["polars", "pandas"] = "polars",
+    ) -> pl.DataFrame | pd.DataFrame: ...
 
 
 class MarketView[Index: Comparable]:
@@ -151,19 +200,19 @@ class MarketView[Index: Comparable]:
             else:
                 # assume the user passes close prices
                 prices = PastUniversePrices(
-                    close=backend_pastview_type.from_underlying_data(prices)
+                    close=backend_pastview_type.from_dataframe(prices)
                 )
 
         if tradable is not None and not isinstance(tradable, PastView):
-            tradable = backend_pastview_type.from_underlying_data(tradable)
+            tradable = backend_pastview_type.from_dataframe(tradable)
 
         if volume is not None and not isinstance(volume, PastView):
-            volume = backend_pastview_type.from_underlying_data(volume)
+            volume = backend_pastview_type.from_dataframe(volume)
 
         if signals is not None:
             normalised_signals: dict[str, PastView[Any, Index]] = {
                 signal: (
-                    backend_pastview_type.from_underlying_data(data)
+                    backend_pastview_type.from_dataframe(data)
                     if not isinstance(data, PastView)
                     else data
                 )

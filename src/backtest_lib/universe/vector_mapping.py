@@ -46,9 +46,6 @@ class VectorMapping(VectorOps[Scalar], Protocol[K, Scalar]):
     def floor(self) -> VectorMapping[K, int]: ...
 
     @abstractmethod
-    def zeroed(self) -> VectorMapping[K, Scalar]: ...
-
-    @abstractmethod
     def __getitem__(self, key: K) -> Scalar: ...
 
     def keys(self) -> KeysView[K]:

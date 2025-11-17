@@ -120,7 +120,7 @@ def get_sp500_market_view(
             if action == "r":
                 tradeable_df.loc[tradeable_df["date"] >= date, ticker] = False
 
-    tradable_view = PolarsPastView.from_data_frame(tradeable_df)
+    tradable_view = PolarsPastView.from_dataframe(tradeable_df)
 
     tickers_to_fetch = [
         ticker
@@ -144,7 +144,7 @@ def get_sp500_market_view(
         close_prices_df = close_prices_df.slice(1)
         tradable_view = tradable_view.by_period[1:]
     close_price_past_view: PastView[float, np.datetime64] = (
-        PolarsPastView.from_data_frame(close_prices_df)
+        PolarsPastView.from_dataframe(close_prices_df)
     )
     tradable_view = tradable_view.by_security[close_price_past_view.securities]
 

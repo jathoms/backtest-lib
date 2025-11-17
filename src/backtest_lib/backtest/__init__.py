@@ -3,11 +3,12 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import warnings
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from backtest_lib.backtest.results import BacktestResults
+from backtest_lib.backtest.settings import BacktestSettings
 from backtest_lib.market import _BACKEND_PASTVIEW_MAPPING
 from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
 from backtest_lib.strategy.context import StrategyContext
@@ -18,22 +19,6 @@ if TYPE_CHECKING:
     from backtest_lib.universe.vector_mapping import VectorMapping
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class BacktestResults:
-    total_growth: float
-    allocation_history: PastView[float, Any]
-    pnl_history: PastView[float, Any]
-
-
-@dataclass
-class BacktestSettings:
-    allow_short: bool
-
-    @staticmethod
-    def default() -> BacktestSettings:
-        return BacktestSettings(allow_short=False)
 
 
 def _to_pydt(some_datetime: Any) -> dt.datetime:
@@ -83,7 +68,7 @@ class Backtest:
         if ctx is None:
             ctx = StrategyContext()
         output_weights: list[VectorMapping[str, float]] = []
-        pnl_history: list[VectorMapping[str, float]] = []
+        returns_contribution: list[VectorMapping[str, float]] = []
 
         total_growth = 1.0
         self._current_portfolio = self.initial_portfolio
@@ -104,7 +89,7 @@ class Backtest:
             if len(decision.target.holdings) < len(self.universe):
                 # pad out the unnaccounted-for securities with 0.
                 # NOTE: this is some extra allocation we might not need
-                # as zeroed allocates, and so does + in the case where
+                # as * 0 allocates, and so does + in the case where
                 # keys are not equal.
                 # maybe a .merge() method on the VectorMapping would make
                 # more sense.
@@ -116,7 +101,7 @@ class Backtest:
                     decision.target,
                     "holdings",
                     (
-                        self.market_view.prices.close.by_period[0].zeroed()
+                        (self.market_view.prices.close.by_period[0] * 0)
                         + decision.target.holdings
                     ),
                 )
@@ -155,7 +140,7 @@ class Backtest:
             portfolio_after_decision = target_portfolio
             today_prices = past_market_view.prices.close.by_period[-1]
             pct_change = today_prices / yesterday_prices
-            pnl_history.append(pct_change * target_portfolio.holdings)
+            returns_contribution.append(pct_change * target_portfolio.holdings)
 
             inter_day_adjusted_portfolio, growth = _apply_inter_period_price_changes(
                 portfolio_after_decision, pct_change
@@ -167,14 +152,12 @@ class Backtest:
             yesterday_prices = today_prices
             current_uni = list(decision.target.holdings.keys())
 
-        results = BacktestResults(
-            total_growth=total_growth,
-            allocation_history=self._backend.from_security_mappings(
-                output_weights, self.market_view.periods
-            ),
-            pnl_history=self._backend.from_security_mappings(
-                pnl_history, self.market_view.periods
-            ),
+        allocation_history = self._backend.from_security_mappings(
+            output_weights, self.market_view.periods
+        )
+        results = BacktestResults.from_weights_market_initial_capital(
+            weights=allocation_history,
+            market=self.market_view,
         )
         return results
 
