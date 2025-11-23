@@ -23,8 +23,15 @@ import polars as pl
 import polars.datatypes
 from numpy.typing import NDArray
 
+from backtest_lib.market.plotting import (
+    ByPeriodPlotAccessor,
+    BySecurityPlotAccessor,
+    TimeseriesPlotAccessor,
+    UniverseMappingPlotAccessor,
+)
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.universe import SecurityName
+from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
@@ -237,7 +244,7 @@ class PeriodAxis:
 
 
 @dataclass(frozen=True, init=False)
-class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
+class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     _vec: pl.Series
     _axis: PeriodAxis
     _name: str
@@ -422,6 +429,10 @@ class PolarsTimeseries[T: int | float](Timeseries[T, np.datetime64]):
             _scalar_type=int,
         )
 
+    @property
+    def plot(self) -> TimeseriesPlotAccessor:
+        return TimeseriesPlotAccessor(self)
+
 
 @dataclass(frozen=True, init=False)
 class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
@@ -435,7 +446,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         names: Universe,
         data: pl.Series,
         dtype: type[int] | type[float] | None = None,
-    ) -> SeriesUniverseMapping:
+    ) -> Self:
         return SeriesUniverseMapping(
             names=names,
             _data=data,
@@ -621,6 +632,10 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
             names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
         )
 
+    @property
+    def plot(self) -> UniverseMappingPlotAccessor:
+        return UniverseMappingPlotAccessor(self)
+
     @classmethod
     def from_vectors(
         cls, keys: Sequence[str], values: Sequence[float]
@@ -654,6 +669,10 @@ class PolarsByPeriod:
     _row_indexer: np.ndarray | None = field(repr=False, default=None)
 
     _col_names_cache: tuple[str, ...] = field(init=False, repr=False)
+
+    @property
+    def plot(self) -> ByPeriodPlotAccessor:
+        return ByPeriodPlotAccessor(self)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -912,6 +931,10 @@ class PolarsBySecurity:
     def __iter__(self) -> Iterator[str]:
         for sec in self._security_axis.names:
             yield sec
+
+    @property
+    def plot(self) -> BySecurityPlotAccessor:
+        return BySecurityPlotAccessor(self)
 
     @overload
     def to_dataframe(self) -> pl.DataFrame: ...

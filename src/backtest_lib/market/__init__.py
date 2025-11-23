@@ -19,10 +19,12 @@ from typing import (
 import pandas as pd
 import polars as pl
 
+from backtest_lib.market.plotting import ByPeriodPlotAccessor, BySecurityPlotAccessor
 from backtest_lib.market.polars_impl import PolarsPastView
 from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
     PastUniversePrices,
+    UniverseMapping,
 )
 
 if TYPE_CHECKING:
@@ -108,14 +110,15 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
     def __len__(self) -> int: ...
 
     @overload
-    def __getitem__(
-        self, key: SupportsIndex
-    ) -> VectorMapping[SecurityName, ValueT]: ...
+    def __getitem__(self, key: SupportsIndex) -> UniverseMapping[ValueT]: ...
 
     @overload
     def __getitem__(self, key: slice) -> PastView[ValueT, Index]: ...
 
     def __iter__(self) -> Iterator[Index]: ...
+
+    @property
+    def plot(self) -> ByPeriodPlotAccessor: ...
 
     @overload
     def to_dataframe(self) -> pl.DataFrame: ...
@@ -151,6 +154,9 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
     def __getitem__(self, key: Iterable[SecurityName]) -> PastView[ValueT, Index]: ...
 
     def __iter__(self) -> Iterator[SecurityName]: ...
+
+    @property
+    def plot(self) -> BySecurityPlotAccessor: ...
 
     @overload
     def to_dataframe(self) -> pl.DataFrame: ...
