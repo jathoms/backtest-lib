@@ -16,3 +16,5 @@ wheels/
 !sp500_const.pkl
 !sp500_changes.pkl
 !fx_spot.pkl
+
+**/test.py
