@@ -4,7 +4,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Sequence
 
-from backtest_lib.market.polars_impl import PolarsPastView
+from backtest_lib.market import _BACKEND_PASTVIEW_MAPPING
 from backtest_lib.market.timeseries import Comparable
 from backtest_lib.strategy import MarketView
 from backtest_lib.universe import SecurityName
@@ -186,7 +186,7 @@ class BacktestResults[IndexT: Comparable]:
         initial_capital: float = 1.0,
         periods_per_year: float = 252.0,
         risk_free_annual: float | None = 0.02,
-        backend: type[PastView] = PolarsPastView,
+        backend: type[PastView] = _BACKEND_PASTVIEW_MAPPING["polars"],
     ) -> BacktestResults[Any]:
         """
         Convenience constructor that derives per-security returns from

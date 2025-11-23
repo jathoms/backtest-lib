@@ -1,26 +1,28 @@
+from __future__ import annotations
+
 from typing import (
     TYPE_CHECKING,
     Iterable,
     Literal,
     Sequence,
-    SupportsIndex,
     TypeVar,
 )
 
-from backtest_lib.market.timeseries import Index, Timeseries
-from backtest_lib.universe import SecurityName
-from backtest_lib.universe.vector_mapping import VectorMapping
-
 if TYPE_CHECKING:
     from backtest_lib.market import ByPeriod, BySecurity
+    from backtest_lib.market.timeseries import Index, Timeseries
+    from backtest_lib.universe import SecurityName
+    from backtest_lib.universe.vector_mapping import VectorMapping
 
 BP = TypeVar("BP", bound="ByPeriod")
 BS = TypeVar("BS", bound="BySecurity")
+TS = TypeVar("TS", bound="Timeseries")
+VM = TypeVar("VM", bound="VectorMapping")
 
 
 class UniverseMappingPlotAccessor:
-    def __init__(self, obj: VectorMapping):
-        self._obj = obj
+    def __init__(self, obj: VM):
+        self._obj: VectorMapping = obj
 
     def __call__(
         self,
@@ -59,8 +61,8 @@ class UniverseMappingPlotAccessor:
 
 
 class TimeseriesPlotAccessor:
-    def __init__(self, obj: Timeseries):
-        self._obj = obj
+    def __init__(self, obj: TS):
+        self._obj: Timeseries = obj
 
     def __call__(self, **style):
         return self.line(**style)

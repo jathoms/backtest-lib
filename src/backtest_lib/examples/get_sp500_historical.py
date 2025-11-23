@@ -10,7 +10,8 @@ import yfinance as yf
 
 import backtest_lib.examples
 from backtest_lib.market import MarketView, PastUniversePrices, PastView
-from backtest_lib.market.polars_impl import Array1DDTView, PolarsPastView
+from backtest_lib.market.polars_impl import PolarsPastView
+from backtest_lib.market.polars_impl._helpers import Array1DDTView
 
 
 def fetch_history(tickers, start, end=None, interval="1d"):

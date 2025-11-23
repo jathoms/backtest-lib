@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Protocol, TypeVar, abstractmethod, runtime_checkable
 
 from backtest_lib.market.plotting import UniverseMappingPlotAccessor

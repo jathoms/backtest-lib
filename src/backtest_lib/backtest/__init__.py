@@ -15,7 +15,8 @@ from backtest_lib.strategy.context import StrategyContext
 
 if TYPE_CHECKING:
     from backtest_lib.market import PastView
-    from backtest_lib.universe import Universe, UniverseMapping
+    from backtest_lib.universe import Universe
+    from backtest_lib.universe.universe_mapping import UniverseMapping
     from backtest_lib.universe.vector_mapping import VectorMapping
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
 from backtest_lib.market import MarketView
-from backtest_lib.universe import Universe, UniverseMapping
+from backtest_lib.universe import Universe
+from backtest_lib.universe.universe_mapping import UniverseMapping
 
 if TYPE_CHECKING:
     from backtest_lib.strategy.context import StrategyContext
@@ -15,7 +16,7 @@ from backtest_lib.portfolio import WeightedPortfolio
 @dataclass(frozen=True)
 class Decision:
     target: WeightedPortfolio
-    notes = UniverseMapping[Any] | None
+    notes: UniverseMapping[Any] | None = None
 
 
 class Strategy(Protocol):

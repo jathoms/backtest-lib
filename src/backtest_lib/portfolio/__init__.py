@@ -6,7 +6,8 @@ from typing import Generic, Iterable, TypeVar
 import polars as pl
 
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
-from backtest_lib.universe import Price, UniverseMapping
+from backtest_lib.universe import Price
+from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 Quantity = int
