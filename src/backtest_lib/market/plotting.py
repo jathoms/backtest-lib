@@ -1,18 +1,17 @@
 from typing import (
     TYPE_CHECKING,
-    Any,
     Literal,
     TypeVar,
 )
 
-from backtest_lib.market import ByPeriod, BySecurity
-from backtest_lib.market.timeseries import Comparable, Timeseries
+from backtest_lib.market.timeseries import Timeseries
+from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
-    from backtest_lib.universe.vector_mapping import VectorMapping
+    from backtest_lib.market import ByPeriod, BySecurity
 
-BP = TypeVar("BP", bound=ByPeriod)
-BS = TypeVar("BS", bound=BySecurity)
+BP = TypeVar("BP", bound="ByPeriod")
+BS = TypeVar("BS", bound="BySecurity")
 
 
 class UniverseMappingPlotAccessor:

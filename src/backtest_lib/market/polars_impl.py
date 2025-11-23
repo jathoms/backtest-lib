@@ -20,7 +20,6 @@ from typing import (
 
 import numpy as np
 import polars as pl
-import polars.datatypes
 from numpy.typing import NDArray
 
 from backtest_lib.market.plotting import (
@@ -31,7 +30,6 @@ from backtest_lib.market.plotting import (
 )
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.universe import SecurityName
-from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 if TYPE_CHECKING:
@@ -44,9 +42,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _RHS_HANDOFF = object()
-
-Numeric = TypeVar("Numeric", int, float)
-
 
 POLARS_TO_PYTHON: dict[pl.DataType | type[Any], type[Any]] = {
     pl.Boolean: bool,

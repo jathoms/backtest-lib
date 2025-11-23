@@ -19,16 +19,21 @@ from typing import (
 import pandas as pd
 import polars as pl
 
-from backtest_lib.market.plotting import ByPeriodPlotAccessor, BySecurityPlotAccessor
 from backtest_lib.market.polars_impl import PolarsPastView
-from backtest_lib.market.timeseries import Comparable, Timeseries
 from backtest_lib.universe import (
     PastUniversePrices,
-    UniverseMapping,
 )
 
 if TYPE_CHECKING:
-    from backtest_lib.universe import SecurityName
+    from backtest_lib.market.plotting import (
+        ByPeriodPlotAccessor,
+        BySecurityPlotAccessor,
+    )
+    from backtest_lib.market.timeseries import Comparable, Timeseries
+    from backtest_lib.universe import (
+        SecurityName,
+        UniverseMapping,
+    )
     from backtest_lib.universe.vector_mapping import VectorMapping
 
 _BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
