@@ -32,8 +32,8 @@ if TYPE_CHECKING:
     from backtest_lib.market.timeseries import Comparable, Timeseries
     from backtest_lib.universe import (
         SecurityName,
-        UniverseMapping,
     )
+    from backtest_lib.universe.universe_mapping import UniverseMapping
     from backtest_lib.universe.vector_mapping import VectorMapping
 
 _BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}

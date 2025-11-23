@@ -19,7 +19,6 @@ Universe = tuple[SecurityName, ...]
 
 
 type UniversePriceView[TPeriod: Comparable] = PastView[Price, TPeriod]
-type UniverseMapping[ValueT: (float, int)] = VectorMapping[SecurityName, ValueT]
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from abc import abstractmethod
 from typing import (
     Any,
@@ -15,6 +13,7 @@ from typing import (
 import numpy as np
 from numpy.typing import NDArray
 
+from backtest_lib.market.plotting import TimeseriesPlotAccessor
 from backtest_lib.universe.vector_ops import Scalar, VectorOps
 
 BoolLike = bool | np.bool | np.bool_ | NDArray[np.bool_]
@@ -73,3 +72,6 @@ class Timeseries(VectorOps[Scalar], Protocol[Scalar, Index]):
 
     @abstractmethod
     def __len__(self) -> int: ...
+
+    @property
+    def plot(self) -> TimeseriesPlotAccessor: ...
