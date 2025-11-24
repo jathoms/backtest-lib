@@ -4,25 +4,21 @@ from typing import (
     TYPE_CHECKING,
     Iterable,
     Literal,
-    Protocol,
     Sequence,
-    TypeVar,
 )
 
+from backtest_lib.market.polars_impl._past_view import PolarsByPeriod, PolarsBySecurity
+from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
+from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
+
 if TYPE_CHECKING:
-    from backtest_lib.market import ByPeriod, BySecurity
-    from backtest_lib.market.timeseries import Index, Timeseries
+    from backtest_lib.market.timeseries import Index
     from backtest_lib.universe import SecurityName
-    from backtest_lib.universe.vector_mapping import VectorMapping
-
-BP = TypeVar("BP", bound="ByPeriod")
-BS = TypeVar("BS", bound="BySecurity")
-TS = TypeVar("TS", bound="Timeseries")
-VM = TypeVar("VM", bound="VectorMapping")
 
 
-class UniverseMappingPlotAccessor(Protocol):
-    def __init__(self, obj: VM): ...
+class SeriesUniverseMappingPlotAccessor:
+    def __init__(self, obj: SeriesUniverseMapping):
+        self._obj = obj
 
     def __call__(
         self,
@@ -60,8 +56,9 @@ class UniverseMappingPlotAccessor(Protocol):
     ): ...
 
 
-class TimeseriesPlotAccessor(Protocol):
-    def __init__(self, obj: TS): ...
+class PolarsTimeseriesPlotAccessor:
+    def __init__(self, obj: PolarsTimeseries):
+        self._obj = obj
 
     def __call__(self, **style):
         return self.line(**style)
@@ -83,8 +80,9 @@ class TimeseriesPlotAccessor(Protocol):
         ...
 
 
-class ByPeriodPlotAccessor(Protocol):
-    def __init__(self, obj: BP): ...
+class PolarsByPeriodPlotAccessor:
+    def __init__(self, obj: PolarsByPeriod):
+        self._obj = obj
 
     def __call__(self, **kwargs):
         return self.heatmap(**kwargs)
@@ -113,8 +111,9 @@ class ByPeriodPlotAccessor(Protocol):
     ): ...
 
 
-class BySecurityPlotAccessor(Protocol):
-    def __init__(self, obj: BS): ...
+class PolarsBySecurityPlotAccessor:
+    def __init__(self, obj: PolarsBySecurity):
+        self._obj = obj
 
     def __call__(self, **kwargs):
         return self.line(**kwargs)

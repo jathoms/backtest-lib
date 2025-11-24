@@ -20,6 +20,7 @@ from backtest_lib.market.plotting import (
     UniverseMappingPlotAccessor,
 )
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON
+from backtest_lib.market.polars_impl._plotting import SeriesUniverseMappingPlotAccessor
 from backtest_lib.universe import SecurityName, Universe
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
@@ -228,7 +229,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
 
     @property
     def plot(self) -> UniverseMappingPlotAccessor:
-        return UniverseMappingPlotAccessor(self)
+        return SeriesUniverseMappingPlotAccessor(self)
 
     @classmethod
     def from_vectors(

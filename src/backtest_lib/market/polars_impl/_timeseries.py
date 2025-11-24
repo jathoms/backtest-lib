@@ -16,6 +16,7 @@ from backtest_lib.market.plotting import (
 )
 from backtest_lib.market.polars_impl._axis import PeriodAxis
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON, _to_npdt64
+from backtest_lib.market.polars_impl._plotting import PolarsTimeseriesPlotAccessor
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.universe.vector_ops import Scalar, VectorOps
 
@@ -210,4 +211,4 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
 
     @property
     def plot(self) -> TimeseriesPlotAccessor:
-        return TimeseriesPlotAccessor(self)
+        return PolarsTimeseriesPlotAccessor(self)

@@ -26,6 +26,10 @@ from backtest_lib.market.polars_impl._helpers import (
     Array1DDTView,
     _to_npdt64,
 )
+from backtest_lib.market.polars_impl._plotting import (
+    PolarsByPeriodPlotAccessor,
+    PolarsBySecurityPlotAccessor,
+)
 from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
 from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
 from backtest_lib.universe import SecurityName
@@ -54,7 +58,7 @@ class PolarsByPeriod:
 
     @property
     def plot(self) -> ByPeriodPlotAccessor:
-        return ByPeriodPlotAccessor(self)
+        return PolarsByPeriodPlotAccessor(self)
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -316,7 +320,7 @@ class PolarsBySecurity:
 
     @property
     def plot(self) -> BySecurityPlotAccessor:
-        return BySecurityPlotAccessor(self)
+        return PolarsBySecurityPlotAccessor(self)
 
     @overload
     def to_dataframe(self) -> pl.DataFrame: ...
