@@ -24,7 +24,7 @@ from backtest_lib.market.polars_impl._axis import PeriodAxis, SecurityAxis
 from backtest_lib.market.polars_impl._helpers import (
     POLARS_TO_PYTHON,
     Array1DDTView,
-    _to_npdt64,
+    to_npdt64,
 )
 from backtest_lib.market.polars_impl._plotting import (
     PolarsByPeriodPlotAccessor,
@@ -78,10 +78,27 @@ class PolarsByPeriod:
             raise IndexError(i)
         return self._period_slice_start + i
 
-    def as_df(self, *, show_securities: bool = False) -> pl.DataFrame:
+    @overload
+    def as_df(
+        self, show_securities: bool = ..., lazy: Literal[True] = ...
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def as_df(
+        self, show_securities: bool = ..., lazy: Literal[False] = False
+    ) -> pl.DataFrame: ...
+
+    def as_df(
+        self, show_securities: bool = False, lazy: bool = False
+    ) -> pl.DataFrame | pl.LazyFrame:
         start = self._period_slice_start
         stop = self._period_slice_start + len(self)
-        df = self._period_column_df[:, start:stop]
+        df = (
+            self._period_column_df[:, start:stop].lazy()
+            if lazy
+            else self._period_column_df[:, start:stop]
+        )
+
         if self._row_indexer is not None:
             df = df.select(pl.all().gather(self._row_indexer))
         if show_securities:
@@ -103,12 +120,10 @@ class PolarsByPeriod:
             s = self._period_column_df.get_column(col_name)
             if self._row_indexer is not None:
                 s = s.gather(self._row_indexer)
-            scalar_type = POLARS_TO_PYTHON[self.as_df().dtypes[0]]
             return SeriesUniverseMapping(
                 names=self._security_axis.names,
                 _data=s,
                 pos=self._security_axis.pos,
-                _scalar_type=scalar_type,
             )
 
         start, stop, step = key.indices(len(self))
@@ -180,30 +195,52 @@ class PolarsByPeriod:
             yield period
 
     @overload
-    def to_dataframe(self) -> pl.DataFrame: ...
-
-    @overload
-    def to_dataframe(self, show_securities: bool) -> pl.DataFrame: ...
-
-    @overload
     def to_dataframe(
-        self, show_securities: bool, backend: Literal["polars"]
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["polars"] = "polars",
     ) -> pl.DataFrame: ...
 
     @overload
     def to_dataframe(
-        self, show_securities: bool, backend: Literal["pandas"]
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["pandas"],
+    ) -> pd.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: Literal[True],
+        backend: Literal["polars"],
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: bool = ...,
+        backend: Literal["pandas"],
     ) -> pd.DataFrame: ...
 
     def to_dataframe(
         self,
+        *,
         show_securities: bool = False,
-        backend: Literal["polars"] | Literal["pandas"] = "polars",
-    ) -> pl.DataFrame | pd.DataFrame:
+        lazy: bool = False,
+        backend: Literal["polars", "pandas"] = "polars",
+    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame:
         if backend == "polars":
-            return self.as_df(show_securities=show_securities)
+            return self.as_df(show_securities=show_securities, lazy=lazy)
         elif backend == "pandas":
-            return self.as_df(show_securities=show_securities).to_pandas()
+            return self.as_df(show_securities=show_securities, lazy=False).to_pandas()
         raise ValueError(f"'{backend}' is not a valid DataFrame backend.")
 
 
@@ -221,11 +258,22 @@ class PolarsBySecurity:
     def __len__(self) -> int:
         return len(self._security_axis)
 
-    def as_df(self, *, show_periods: bool = True) -> pl.DataFrame:
-        if self._sel_names is None:
-            df = self._security_column_df
-        else:
-            df = self._security_column_df.select(list(self._sel_names))
+    @overload
+    def as_df(
+        self, *, show_periods: bool = ..., lazy: Literal[True]
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def as_df(
+        self, *, show_periods: bool = ..., lazy: Literal[False] = False
+    ) -> pl.DataFrame: ...
+
+    def as_df(
+        self, *, show_periods: bool = True, lazy: bool = False
+    ) -> pl.DataFrame | pl.LazyFrame:
+        df = self._security_column_df.lazy() if lazy else self._security_column_df
+        if self._sel_names is not None:
+            df = df.select(list(self._sel_names))
         if self._period_slice_start != 0 or self._period_slice_len is not None:
             df = df.slice(self._period_slice_start, self._period_slice_len)
         if show_periods:
@@ -323,30 +371,52 @@ class PolarsBySecurity:
         return PolarsBySecurityPlotAccessor(self)
 
     @overload
-    def to_dataframe(self) -> pl.DataFrame: ...
-
-    @overload
-    def to_dataframe(self, show_periods: bool) -> pl.DataFrame: ...
-
-    @overload
     def to_dataframe(
-        self, show_periods: bool, backend: Literal["polars"]
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["polars"] = "polars",
     ) -> pl.DataFrame: ...
 
     @overload
     def to_dataframe(
-        self, show_periods: bool, backend: Literal["pandas"]
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["pandas"],
+    ) -> pd.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: Literal[True],
+        backend: Literal["polars"],
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: bool = ...,
+        backend: Literal["pandas"],
     ) -> pd.DataFrame: ...
 
     def to_dataframe(
         self,
+        *,
         show_periods: bool = True,
-        backend: Literal["polars"] | Literal["pandas"] = "polars",
-    ) -> pl.DataFrame | pd.DataFrame:
+        lazy: bool = False,
+        backend: Literal["polars", "pandas"] = "polars",
+    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame:
         if backend == "polars":
-            return self.as_df(show_periods=show_periods)
+            return self.as_df(show_periods=show_periods, lazy=lazy)
         elif backend == "pandas":
-            return self.as_df(show_periods=show_periods).to_pandas()
+            return self.as_df(show_periods=show_periods, lazy=False).to_pandas()
         raise ValueError(f"'{backend}' is not a valid DataFrame backend.")
 
 
@@ -482,7 +552,7 @@ class PolarsPastView:
         self, start: np.datetime64 | str, *, inclusive: bool = True
     ) -> PolarsPastView:
         left, right = self._period_axis.bounds_after(
-            _to_npdt64(start), inclusive=inclusive
+            to_npdt64(start), inclusive=inclusive
         )
         return self._slice_period(left, right)
 
@@ -490,7 +560,7 @@ class PolarsPastView:
         self, end: np.datetime64 | str, *, inclusive: bool = False
     ) -> PolarsPastView:
         left, right = self._period_axis.bounds_before(
-            _to_npdt64(end), inclusive=inclusive
+            to_npdt64(end), inclusive=inclusive
         )
         return self._slice_period(left, right)
 
@@ -502,6 +572,6 @@ class PolarsPastView:
         closed: str = "left",
     ) -> PolarsPastView:
         left, right = self._period_axis.bounds_between(
-            _to_npdt64(start), _to_npdt64(end), closed=closed
+            to_npdt64(start), to_npdt64(end), closed=closed
         )
         return self._slice_period(left, right)

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import (
     TYPE_CHECKING,
+    Any,
     Iterable,
     Literal,
     Protocol,
     Sequence,
     TypeVar,
+    runtime_checkable,
 )
 
 if TYPE_CHECKING:
@@ -21,6 +23,7 @@ TS = TypeVar("TS", bound="Timeseries")
 VM = TypeVar("VM", bound="VectorMapping")
 
 
+@runtime_checkable
 class UniverseMappingPlotAccessor(Protocol):
     def __init__(self, obj: VM): ...
 
@@ -29,64 +32,54 @@ class UniverseMappingPlotAccessor(Protocol):
         *,
         kind: Literal["bar", "barh"] = "bar",
         **kwargs,
-    ):
-        if kind == "bar":
-            return self.bar(**kwargs)
-        elif kind == "barh":
-            return self.barh(**kwargs)
-        raise ValueError(kind)
+    ) -> Any: ...
 
     def bar(
         self,
         select: int | slice | None = None,
         sort_by: Literal["value", "name"] = "value",
         ascending: bool = False,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
     def barh(
         self,
         select: int | slice | None = None,
         sort_by: Literal["value", "name"] = "value",
         ascending: bool = False,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
     def hist(
         self,
         bins: int | Iterable[float] = 20,
         select: int | slice | None = None,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
 
 class TimeseriesPlotAccessor(Protocol):
     def __init__(self, obj: TS): ...
 
-    def __call__(self, **style):
-        return self.line(**style)
+    def __call__(self, **kwargs) -> Any: ...
 
-    def line(self, **style):
+    def line(
+        self,
+        y_padding: float = 0.01,
+        color: str = "steelblue",
+        smoothing: int = 1,
+        **kwargs,
+    ) -> Any:
         """Plot the series as a line chart."""
         ...
 
-    def bar(self, **style):
-        """Plot the series as a bar chart (e.g. returns)."""
-        ...
-
-    def hist(self, bins: int | Sequence[float] = 20, **style):
-        """Histogram of the values."""
-        ...
-
-    def accum_line(self, **style):
-        """Cumulative version (if that's a common semantic op)."""
-        ...
+    def kde(self, color="steelblue", **kwargs) -> Any: ...
 
 
 class ByPeriodPlotAccessor(Protocol):
     def __init__(self, obj: BP): ...
 
-    def __call__(self, **kwargs):
+    def __call__(self, **kwargs) -> Any:
         return self.heatmap(**kwargs)
 
     def heatmap(
@@ -94,29 +87,29 @@ class ByPeriodPlotAccessor(Protocol):
         *,
         periods: slice | Sequence[Index] | None = None,
         securities: Sequence[SecurityName] | None = None,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
     def line(
         self,
         *,
         agg: Literal["mean", "median", "sum"],
         periods: slice | Sequence[Index] | None = None,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
     def box(
         self,
         *,
         periods: slice | Sequence[Index] | None = None,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
 
 class BySecurityPlotAccessor(Protocol):
     def __init__(self, obj: BS): ...
 
-    def __call__(self, **kwargs):
+    def __call__(self, **kwargs) -> Any:
         return self.line(**kwargs)
 
     def line(
@@ -126,8 +119,8 @@ class BySecurityPlotAccessor(Protocol):
         agg: Literal["none", "mean", "median", "sum"] = "none",
         facet: bool = False,
         max_securities: int | None = None,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...
 
     # - agg != "none": single aggregated line
     # - facet=True: one subplot per security (if small N)
@@ -137,5 +130,5 @@ class BySecurityPlotAccessor(Protocol):
         *,
         securities: Sequence[SecurityName] | None = None,
         periods: slice | Sequence[Index] | None = None,
-        **style,
-    ): ...
+        **kwargs,
+    ) -> Any: ...

@@ -31,7 +31,7 @@ Other_scalar = TypeVar("Other_scalar", int, float)
 
 
 @runtime_checkable
-class VectorMapping(VectorOps[Scalar], Protocol[K, Scalar]):
+class VectorMapping[K, V: (float, int)](VectorOps[V], Protocol):
     @abstractmethod
     def __truediv__(
         self, other: VectorOps | Other_scalar
@@ -46,21 +46,21 @@ class VectorMapping(VectorOps[Scalar], Protocol[K, Scalar]):
     def floor(self) -> VectorMapping[K, int]: ...
 
     @abstractmethod
-    def __getitem__(self, key: K) -> Scalar: ...
+    def __getitem__(self, key: K) -> V: ...
 
     def keys(self) -> KeysView[K]:
         "D.keys() -> a set-like object providing a view on D's keys"
         return KeysView(self)
 
-    def items(self) -> ItemsView[K, Scalar]:
+    def items(self) -> ItemsView[K, V]:
         "D.items() -> a set-like object providing a view on D's items"
         return ItemsView(self)
 
-    def values(self) -> ValuesView[Scalar]:
+    def values(self) -> ValuesView[V]:
         "D.values() -> an object providing a view on D's values"
         return ValuesView(self)
 
-    def get(self, key, default=None) -> Scalar | None:
+    def get(self, key, default=None) -> V | None:
         "D.get(k[,d]) -> D[k] if k in D, else d. d defaults to None."
         try:
             return self[key]

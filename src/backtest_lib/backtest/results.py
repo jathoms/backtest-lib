@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import TYPE_CHECKING, Any, Sequence
 
-from backtest_lib.market import _BACKEND_PASTVIEW_MAPPING
 from backtest_lib.market.timeseries import Comparable
 from backtest_lib.strategy import MarketView
 from backtest_lib.universe import SecurityName
@@ -46,16 +46,19 @@ class BacktestResults[IndexT: Comparable]:
     max_drawdown: float
     avg_turnover: float
 
-    market: MarketView[IndexT] | None = field(repr=False, default=None)
+    market: MarketView[IndexT]
+    _backend: type[PastView]
 
     @staticmethod
     def from_weights_and_returns(
         weights: PastView[float, Any],
         returns: PastView[float, Any],
+        market: MarketView[IndexT],
         *,
         initial_capital: float = 1.0,
         periods_per_year: float = 252.0,
         risk_free_annual: float | None = None,
+        backend: type[PastView],
     ) -> BacktestResults[Any]:
         """
         Build results from pre-computed per-security simple returns.
@@ -176,6 +179,8 @@ class BacktestResults[IndexT: Comparable]:
             sharpe=sharpe,
             max_drawdown=max_drawdown,
             avg_turnover=avg_turnover,
+            market=market,
+            _backend=backend,
         )
 
     @staticmethod
@@ -186,7 +191,7 @@ class BacktestResults[IndexT: Comparable]:
         initial_capital: float = 1.0,
         periods_per_year: float = 252.0,
         risk_free_annual: float | None = 0.02,
-        backend: type[PastView] = _BACKEND_PASTVIEW_MAPPING["polars"],
+        backend: type[PastView],
     ) -> BacktestResults[Any]:
         """
         Convenience constructor that derives per-security returns from
@@ -234,11 +239,9 @@ class BacktestResults[IndexT: Comparable]:
                 ]
             )
             .drop("idx")
-            # .with_columns(pl.col(col).alias(col) - 1 for col in numeric_cols)
             .select("date", pl.all().exclude("date"))
             .collect()
         )
-        logger.debug(f"ended up at: {asset_returns_df.columns}")
 
         asset_returns = backend.from_dataframe(asset_returns_df)
 
@@ -248,7 +251,29 @@ class BacktestResults[IndexT: Comparable]:
             initial_capital=initial_capital,
             periods_per_year=periods_per_year,
             risk_free_annual=risk_free_annual,
+            market=market,
+            backend=backend,
         )
 
-        results.market = market
         return results
+
+    @cached_property
+    def holdings(self) -> PastView[float, IndexT]:
+        weights = self.weights.by_security.to_dataframe(lazy=True)
+        prices = self.market.prices.close.by_security.to_dataframe(lazy=True)
+
+        joined = weights.join(prices, on="date", suffix="_p")
+
+        weights_schema = weights.collect_schema()
+        numeric_cols = [
+            name
+            for name, dtype in zip(weights_schema.names(), weights_schema.dtypes())
+            if dtype.is_numeric()
+        ]
+
+        result = joined.select(
+            "date",
+            *[(pl.col(c) * pl.col(f"{c}_p")).alias(c) for c in numeric_cols],
+        )
+
+        return self._backend.from_dataframe(result.collect())

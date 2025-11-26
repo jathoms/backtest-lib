@@ -126,26 +126,48 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
     def plot(self) -> ByPeriodPlotAccessor: ...
 
     @overload
-    def to_dataframe(self) -> pl.DataFrame: ...
-
-    @overload
-    def to_dataframe(self, show_securities: bool) -> pl.DataFrame: ...
-
-    @overload
     def to_dataframe(
-        self, show_securities: bool, backend: Literal["polars"]
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["polars"] = ...,
     ) -> pl.DataFrame: ...
 
     @overload
     def to_dataframe(
-        self, show_securities: bool, backend: Literal["pandas"]
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["pandas"],
+    ) -> pd.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: Literal[True],
+        backend: Literal["polars"],
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_securities: bool = ...,
+        lazy: bool = ...,
+        backend: Literal["pandas"],
     ) -> pd.DataFrame: ...
 
     def to_dataframe(
         self,
+        *,
         show_securities: bool = False,
+        lazy: bool = False,
         backend: Literal["polars", "pandas"] = "polars",
-    ) -> pl.DataFrame | pd.DataFrame: ...
+    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame: ...
 
 
 @runtime_checkable
@@ -164,26 +186,48 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
     def plot(self) -> BySecurityPlotAccessor: ...
 
     @overload
-    def to_dataframe(self) -> pl.DataFrame: ...
-
-    @overload
-    def to_dataframe(self, show_periods: bool) -> pl.DataFrame: ...
-
-    @overload
     def to_dataframe(
-        self, show_periods: bool, backend: Literal["polars"]
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["polars"] = ...,
     ) -> pl.DataFrame: ...
 
     @overload
     def to_dataframe(
-        self, show_periods: bool, backend: Literal["pandas"]
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: Literal[False] = False,
+        backend: Literal["pandas"],
+    ) -> pd.DataFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: Literal[True],
+        backend: Literal["polars"] = ...,
+    ) -> pl.LazyFrame: ...
+
+    @overload
+    def to_dataframe(
+        self,
+        *,
+        show_periods: bool = ...,
+        lazy: bool = ...,
+        backend: Literal["pandas"],
     ) -> pd.DataFrame: ...
 
     def to_dataframe(
         self,
+        *,
         show_periods: bool = True,
+        lazy: bool = False,
         backend: Literal["polars", "pandas"] = "polars",
-    ) -> pl.DataFrame | pd.DataFrame: ...
+    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame: ...
 
 
 class MarketView[Index: Comparable]:

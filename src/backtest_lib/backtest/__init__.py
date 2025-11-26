@@ -157,8 +157,7 @@ class Backtest:
             output_weights, self.market_view.periods
         )
         results = BacktestResults.from_weights_market_initial_capital(
-            weights=allocation_history,
-            market=self.market_view,
+            weights=allocation_history, market=self.market_view, backend=self._backend
         )
         return results
 

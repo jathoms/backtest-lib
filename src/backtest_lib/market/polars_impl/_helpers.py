@@ -78,7 +78,7 @@ class Array1DDTView(Sequence[np.datetime64]):
         return self._a.astype("datetime64[us]")
 
 
-def _to_npdt64(x: np.datetime64 | str) -> np.datetime64:
+def to_npdt64(x: np.datetime64 | str) -> np.datetime64:
     if isinstance(x, np.datetime64):
         return x.astype("datetime64[us]")
     if isinstance(x, str):
