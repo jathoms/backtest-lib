@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import (
     Self,
+    TypeVar,
     overload,
 )
 
@@ -18,9 +19,13 @@ from backtest_lib.market.polars_impl._axis import PeriodAxis
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON, to_npdt64
 from backtest_lib.market.polars_impl._plotting import PolarsTimeseriesPlotAccessor
 from backtest_lib.market.timeseries import Timeseries
-from backtest_lib.universe.vector_ops import Scalar, VectorOps
+from backtest_lib.universe.vector_ops import VectorOps
 
 logger = logging.getLogger(__name__)
+
+
+Scalar = TypeVar("Scalar", float, int)
+ScalarU = float | int
 
 
 @dataclass(frozen=True, init=False)
@@ -133,7 +138,7 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     def as_series(self) -> pl.Series:
         return self._vec
 
-    def _rhs(self, other: VectorOps[Scalar] | Scalar) -> pl.Series | T:
+    def _rhs(self, other: VectorOps[Scalar] | ScalarU) -> pl.Series | T:
         if isinstance(other, (int, float)):
             return self._scalar_type(other)
         if isinstance(other, PolarsTimeseries):
@@ -142,49 +147,49 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             raise ValueError("Axis mismatch: operations require identical PeriodAxis.")
         raise TypeError("Only scalars or same-axis PolarsTimeseries are supported.")
 
-    def __add__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __add__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec + rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __radd__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __radd__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs + self._vec, self._axis, self._name, self._scalar_type
         )
 
-    def __sub__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __sub__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec - rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __rsub__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __rsub__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs - self._vec, self._axis, self._name, self._scalar_type
         )
 
-    def __mul__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __mul__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec * rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __rmul__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __rmul__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs * self._vec, self._axis, self._name, self._scalar_type
         )
 
-    def __truediv__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __truediv__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec / rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __rtruediv__(self, other: VectorOps[Scalar] | Scalar) -> PolarsTimeseries:
+    def __rtruediv__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs / self._vec, self._axis, self._name, self._scalar_type

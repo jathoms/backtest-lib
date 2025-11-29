@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import (
     Any,
     Callable,
@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from backtest_lib.market.plotting import TimeseriesPlotAccessor
-from backtest_lib.universe.vector_ops import Scalar, VectorOps
+from backtest_lib.universe.vector_ops import VectorOps
 
 BoolLike = bool | np.bool | np.bool_ | NDArray[np.bool_]
 
@@ -30,7 +30,7 @@ class Comparable(Protocol):
 Index = TypeVar("Index", bound=Comparable, contravariant=True)  # Type used for indexing
 
 
-class Timeseries(VectorOps[Scalar], Protocol[Scalar, Index]):
+class Timeseries[Scalar: (float, int), Index](VectorOps[Scalar], ABC):
     @overload
     def __getitem__(self, key: int) -> Scalar: ...
 

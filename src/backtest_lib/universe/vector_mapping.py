@@ -1,22 +1,17 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import ItemsView, Iterator, KeysView, Sequence, ValuesView
-from typing import (
-    Protocol,
-    SupportsFloat,
-    TypeVar,
-    runtime_checkable,
-)
+from typing import Mapping, Protocol, TypeVar, runtime_checkable
 
-from backtest_lib.universe.vector_ops import Scalar, VectorOps
+from backtest_lib.universe.vector_ops import VectorOps
 
 # K invariant (to add/sub/div/mul a mapping with another mapping, the key type must be able to be compared directly)
 K = TypeVar("K")
 M = TypeVar("M", bound="VectorMapping", covariant=True)
 
 K_contra = TypeVar("K_contra", contravariant=True)
-Scalar_contra = TypeVar("Scalar_contra", bound=SupportsFloat, contravariant=True)
+Scalar_contra = TypeVar("Scalar_contra", float, int, contravariant=True)
 
 
 @runtime_checkable
@@ -27,19 +22,15 @@ class VectorMappingConstructor(Protocol[M, K_contra, Scalar_contra]):
     ) -> M: ...
 
 
-Other_scalar = TypeVar("Other_scalar", int, float)
-
-
-@runtime_checkable
-class VectorMapping[K, V: (float, int)](VectorOps[V], Protocol):
+class VectorMapping[K, V: (float, int)](VectorOps[V], Mapping[K, V], ABC):
     @abstractmethod
     def __truediv__(
-        self, other: VectorOps | Other_scalar
+        self, other: VectorOps | float | int
     ) -> VectorMapping[K, float]: ...
 
     @abstractmethod
     def __rtruediv__(
-        self, other: VectorOps | Other_scalar
+        self, other: VectorOps | float | int
     ) -> VectorMapping[K, float]: ...
 
     @abstractmethod
@@ -48,31 +39,5 @@ class VectorMapping[K, V: (float, int)](VectorOps[V], Protocol):
     @abstractmethod
     def __getitem__(self, key: K) -> V: ...
 
-    def keys(self) -> KeysView[K]:
-        "D.keys() -> a set-like object providing a view on D's keys"
-        return KeysView(self)
-
-    def items(self) -> ItemsView[K, V]:
-        "D.items() -> a set-like object providing a view on D's items"
-        return ItemsView(self)
-
-    def values(self) -> ValuesView[V]:
-        "D.values() -> an object providing a view on D's values"
-        return ValuesView(self)
-
-    def get(self, key, default=None) -> V | None:
-        "D.get(k[,d]) -> D[k] if k in D, else d. d defaults to None."
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-    def __contains__(self, key) -> bool:
-        try:
-            self[key]
-        except KeyError:
-            return False
-        else:
-            return True
-
+    @abstractmethod
     def __iter__(self) -> Iterator[K]: ...

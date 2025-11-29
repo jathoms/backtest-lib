@@ -13,6 +13,13 @@ import altair as alt
 
 alt.data_transformers.enable("vegafusion")
 
+from backtest_lib.market.plotting import (
+    ByPeriodPlotAccessor,
+    BySecurityPlotAccessor,
+    TimeseriesPlotAccessor,
+    UniverseMappingPlotAccessor,
+)
+
 if TYPE_CHECKING:
     from backtest_lib.market.polars_impl._past_view import (
         PolarsByPeriod,
@@ -24,7 +31,7 @@ if TYPE_CHECKING:
     from backtest_lib.universe import SecurityName
 
 
-class SeriesUniverseMappingPlotAccessor:
+class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
     def __init__(self, obj: "SeriesUniverseMapping"):
         self._obj = obj
         self._series = obj.as_series()
@@ -65,7 +72,7 @@ class SeriesUniverseMappingPlotAccessor:
     ) -> Any: ...
 
 
-class PolarsTimeseriesPlotAccessor:
+class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
     def __init__(self, obj: "PolarsTimeseries"):
         self._obj = obj
         self._series = obj.as_series()
@@ -147,7 +154,7 @@ class PolarsTimeseriesPlotAccessor:
         )
 
 
-class PolarsByPeriodPlotAccessor:
+class PolarsByPeriodPlotAccessor(ByPeriodPlotAccessor):
     def __init__(self, obj: "PolarsByPeriod"):
         self._obj = obj
         self._df = self._obj.as_df()
@@ -179,7 +186,7 @@ class PolarsByPeriodPlotAccessor:
     ): ...
 
 
-class PolarsBySecurityPlotAccessor:
+class PolarsBySecurityPlotAccessor(BySecurityPlotAccessor):
     def __init__(self, obj: "PolarsBySecurity"):
         self._obj = obj
         self._df = self._obj.as_df()

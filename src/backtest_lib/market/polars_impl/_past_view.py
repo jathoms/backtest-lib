@@ -10,12 +10,14 @@ from typing import (
     Self,
     Sequence,
     SupportsIndex,
+    TypeVar,
     overload,
 )
 
 import numpy as np
 import polars as pl
 
+from backtest_lib.market import ByPeriod, BySecurity, PastView
 from backtest_lib.market.plotting import (
     ByPeriodPlotAccessor,
     BySecurityPlotAccessor,
@@ -41,9 +43,11 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+Scalar = TypeVar("Scalar", int, float)
+
 
 @dataclass(frozen=True)
-class PolarsByPeriod:
+class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
     _period_column_df: pl.DataFrame
     _security_column_df: pl.DataFrame = field(repr=False)
     _security_axis: SecurityAxis = field(repr=False)
@@ -80,16 +84,21 @@ class PolarsByPeriod:
 
     @overload
     def as_df(
-        self, show_securities: bool = ..., lazy: Literal[True] = ...
+        self, *, show_securities: bool = ..., lazy: Literal[True] = ...
     ) -> pl.LazyFrame: ...
 
     @overload
     def as_df(
-        self, show_securities: bool = ..., lazy: Literal[False] = False
+        self, *, show_securities: bool = ..., lazy: Literal[False] = ...
     ) -> pl.DataFrame: ...
 
+    @overload
     def as_df(
-        self, show_securities: bool = False, lazy: bool = False
+        self, *, show_securities: bool = ..., lazy: bool = ...
+    ) -> pl.DataFrame | pl.LazyFrame: ...
+
+    def as_df(
+        self, *, show_securities: bool = False, lazy: bool = False
     ) -> pl.DataFrame | pl.LazyFrame:
         start = self._period_slice_start
         stop = self._period_slice_start + len(self)
@@ -159,8 +168,8 @@ class PolarsByPeriod:
             )
 
             return PolarsPastView(
-                by_period=by_period_view,
-                by_security=by_security_view,
+                _by_period=by_period_view,
+                _by_security=by_security_view,
                 _period_axis=new_period_axis,
                 _security_axis=self._security_axis,
             )
@@ -182,8 +191,8 @@ class PolarsByPeriod:
         )
 
         return PolarsPastView(
-            by_period=PolarsByPeriod(period_df, sec_df, self._security_axis, new_pax),
-            by_security=PolarsBySecurity(
+            _by_period=PolarsByPeriod(period_df, sec_df, self._security_axis, new_pax),
+            _by_security=PolarsBySecurity(
                 sec_df, period_df, self._security_axis, new_pax
             ),
             _period_axis=new_pax,
@@ -200,7 +209,7 @@ class PolarsByPeriod:
         *,
         show_securities: bool = ...,
         lazy: Literal[False] = False,
-        backend: Literal["polars"] = "polars",
+        backend: Literal["polars"],
     ) -> pl.DataFrame: ...
 
     @overload
@@ -245,7 +254,7 @@ class PolarsByPeriod:
 
 
 @dataclass(frozen=True)
-class PolarsBySecurity:
+class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
     _security_column_df: pl.DataFrame
     _period_column_df: pl.DataFrame = field(repr=False)
     _security_axis: SecurityAxis = field(repr=False)
@@ -260,13 +269,18 @@ class PolarsBySecurity:
 
     @overload
     def as_df(
-        self, *, show_periods: bool = ..., lazy: Literal[True]
+        self, *, show_periods: bool = ..., lazy: Literal[True] = ...
     ) -> pl.LazyFrame: ...
 
     @overload
     def as_df(
-        self, *, show_periods: bool = ..., lazy: Literal[False] = False
+        self, *, show_periods: bool = ..., lazy: Literal[False] = ...
     ) -> pl.DataFrame: ...
+
+    @overload
+    def as_df(
+        self, *, show_periods: bool = ..., lazy: bool = ...
+    ) -> pl.DataFrame | pl.LazyFrame: ...
 
     def as_df(
         self, *, show_periods: bool = True, lazy: bool = False
@@ -356,8 +370,8 @@ class PolarsBySecurity:
         )
 
         return PolarsPastView(
-            by_period=by_period_view,
-            by_security=by_security_view,
+            _by_period=by_period_view,
+            _by_security=by_security_view,
             _period_axis=pax,
             _security_axis=new_security_axis,
         )
@@ -375,8 +389,8 @@ class PolarsBySecurity:
         self,
         *,
         show_periods: bool = ...,
-        lazy: Literal[False] = False,
-        backend: Literal["polars"] = "polars",
+        lazy: Literal[False] = ...,
+        backend: Literal["polars"] = ...,
     ) -> pl.DataFrame: ...
 
     @overload
@@ -384,17 +398,8 @@ class PolarsBySecurity:
         self,
         *,
         show_periods: bool = ...,
-        lazy: Literal[False] = False,
-        backend: Literal["pandas"],
-    ) -> pd.DataFrame: ...
-
-    @overload
-    def to_dataframe(
-        self,
-        *,
-        show_periods: bool = ...,
         lazy: Literal[True],
-        backend: Literal["polars"],
+        backend: Literal["polars"] = ...,
     ) -> pl.LazyFrame: ...
 
     @overload
@@ -421,11 +426,19 @@ class PolarsBySecurity:
 
 
 @dataclass(frozen=True)
-class PolarsPastView:
-    by_period: PolarsByPeriod = field(repr=False)
-    by_security: PolarsBySecurity
+class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
+    _by_period: PolarsByPeriod = field(repr=False)
+    _by_security: PolarsBySecurity = field()
     _security_axis: SecurityAxis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
+
+    @property
+    def by_period(self) -> PolarsByPeriod[ValueT]:
+        return self._by_period
+
+    @property
+    def by_security(self) -> PolarsBySecurity[ValueT]:
+        return self._by_security
 
     @property
     def periods(self) -> Sequence[np.datetime64]:

@@ -44,9 +44,7 @@ class Array1DDTView(Sequence[np.datetime64]):
     """
 
     def __init__(self, a: NDArray[np.datetime64]):
-        if a.ndim != 1:
-            a = a.reshape(-1)  # view when possible
-        self._a: NDArray[np.datetime64] = a
+        self._a = np.asarray(a.reshape(-1), copy=False) if a.ndim != 1 else a
 
     @property
     def array(self) -> NDArray[np.datetime64]:

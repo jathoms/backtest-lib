@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -23,10 +24,11 @@ TS = TypeVar("TS", bound="Timeseries")
 VM = TypeVar("VM", bound="VectorMapping")
 
 
-@runtime_checkable
-class UniverseMappingPlotAccessor(Protocol):
+class UniverseMappingPlotAccessor(ABC):
+    @abstractmethod
     def __init__(self, obj: VM): ...
 
+    @abstractmethod
     def __call__(
         self,
         *,
@@ -34,6 +36,7 @@ class UniverseMappingPlotAccessor(Protocol):
         **kwargs,
     ) -> Any: ...
 
+    @abstractmethod
     def bar(
         self,
         select: int | slice | None = None,
@@ -42,6 +45,7 @@ class UniverseMappingPlotAccessor(Protocol):
         **kwargs,
     ) -> Any: ...
 
+    @abstractmethod
     def barh(
         self,
         select: int | slice | None = None,
@@ -50,6 +54,7 @@ class UniverseMappingPlotAccessor(Protocol):
         **kwargs,
     ) -> Any: ...
 
+    @abstractmethod
     def hist(
         self,
         bins: int | Iterable[float] = 20,
@@ -58,11 +63,14 @@ class UniverseMappingPlotAccessor(Protocol):
     ) -> Any: ...
 
 
-class TimeseriesPlotAccessor(Protocol):
+class TimeseriesPlotAccessor(ABC):
+    @abstractmethod
     def __init__(self, obj: TS): ...
 
+    @abstractmethod
     def __call__(self, **kwargs) -> Any: ...
 
+    @abstractmethod
     def line(
         self,
         y_padding: float = 0.01,
@@ -73,15 +81,19 @@ class TimeseriesPlotAccessor(Protocol):
         """Plot the series as a line chart."""
         ...
 
+    @abstractmethod
     def kde(self, color="steelblue", **kwargs) -> Any: ...
 
 
-class ByPeriodPlotAccessor(Protocol):
+class ByPeriodPlotAccessor(ABC):
+    @abstractmethod
     def __init__(self, obj: BP): ...
 
+    @abstractmethod
     def __call__(self, **kwargs) -> Any:
         return self.heatmap(**kwargs)
 
+    @abstractmethod
     def heatmap(
         self,
         *,
@@ -90,6 +102,7 @@ class ByPeriodPlotAccessor(Protocol):
         **kwargs,
     ) -> Any: ...
 
+    @abstractmethod
     def line(
         self,
         *,
@@ -98,6 +111,7 @@ class ByPeriodPlotAccessor(Protocol):
         **kwargs,
     ) -> Any: ...
 
+    @abstractmethod
     def box(
         self,
         *,
@@ -106,12 +120,15 @@ class ByPeriodPlotAccessor(Protocol):
     ) -> Any: ...
 
 
-class BySecurityPlotAccessor(Protocol):
+class BySecurityPlotAccessor(ABC):
+    @abstractmethod
     def __init__(self, obj: BS): ...
 
+    @abstractmethod
     def __call__(self, **kwargs) -> Any:
         return self.line(**kwargs)
 
+    @abstractmethod
     def line(
         self,
         *,
@@ -125,6 +142,7 @@ class BySecurityPlotAccessor(Protocol):
     # - agg != "none": single aggregated line
     # - facet=True: one subplot per security (if small N)
 
+    @abstractmethod
     def heatmap(
         self,
         *,

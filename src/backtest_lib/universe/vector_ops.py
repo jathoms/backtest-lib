@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import (
-    Protocol,
     Self,
     Sized,
     TypeVar,
 )
 
-_Other_scalar = TypeVar("_Other_scalar", int, float)
+_Other_scalar = TypeVar("_Other_scalar", int, float, contravariant=True)
 
 
-# Scalar invariant (binary operations must be well-defined between values)
-Numeric = int | float
-Scalar = TypeVar("Scalar", float, int)
-
-
-class VectorOps(Sized, Protocol[Scalar]):
+class VectorOps[Scalar: (float, int)](Sized, ABC):
     # We allow `other` in this case to be a VectorOps of Any,
     # as we want to keep the flexibility of, say, adding a
     # float to a vector of ints.

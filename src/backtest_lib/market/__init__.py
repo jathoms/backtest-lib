@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
 from enum import Enum, auto
@@ -9,17 +10,14 @@ from typing import (
     Any,
     Literal,
     Mapping,
-    Protocol,
     Self,
     SupportsIndex,
     overload,
-    runtime_checkable,
 )
 
 import pandas as pd
 import polars as pl
 
-from backtest_lib.market.polars_impl import PolarsPastView
 from backtest_lib.universe import (
     PastUniversePrices,
 )
@@ -36,7 +34,15 @@ if TYPE_CHECKING:
     from backtest_lib.universe.universe_mapping import UniverseMapping
     from backtest_lib.universe.vector_mapping import VectorMapping
 
-_BACKEND_PASTVIEW_MAPPING: dict[str, type[PastView]] = {"polars": PolarsPastView}
+
+def get_pastview_from_mapping(backend: str) -> type[PastView]:
+    if backend == "polars":
+        from backtest_lib.market.polars_impl import PolarsPastView
+
+        return PolarsPastView
+    else:
+        raise ValueError(f"Could not find data backend {backend}")
+
 
 type SecurityMappings[T: (float, int)] = (
     Sequence[VectorMapping[SecurityName, T]] | Sequence[Mapping[SecurityName, T]]
@@ -56,8 +62,7 @@ class PeriodAxisPolicy(Enum):
     FFILL = auto()
 
 
-@runtime_checkable
-class PastView[ValueT: (float, int), Index: Comparable](Protocol):
+class PastView[ValueT: (float, int), Index: Comparable](ABC):
     """
     Time-fenced read-only series up to the current decision point.
 
@@ -69,23 +74,29 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
     """
 
     @property
+    @abstractmethod
     def periods(self) -> Sequence[Index]: ...
 
     @property
+    @abstractmethod
     def securities(self) -> Sequence[SecurityName]: ...
 
     @property
+    @abstractmethod
     def by_period(self) -> ByPeriod[ValueT, Index]: ...
 
     @property
+    @abstractmethod
     def by_security(self) -> BySecurity[ValueT, Index]: ...
 
+    @abstractmethod
     def between(
         self,
         start: Index | str,
         end: Index | str,
     ) -> Self: ...  # will not clone data, must be contiguous, performs a binary search
 
+    @abstractmethod
     def after(
         self,
         start: Index | str,
@@ -93,6 +104,7 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
         inclusive: bool = True,  # common expectation: include the start tick
     ) -> Self: ...
 
+    @abstractmethod
     def before(
         self,
         end: Index | str,
@@ -101,17 +113,19 @@ class PastView[ValueT: (float, int), Index: Comparable](Protocol):
     ) -> Self: ...
 
     @staticmethod
+    @abstractmethod
     def from_security_mappings(
         ms: SecurityMappings[Any],
         periods: Sequence[Index],
     ) -> Self: ...
 
     @staticmethod
+    @abstractmethod
     def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self: ...
 
 
-@runtime_checkable
-class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
+class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
+    @abstractmethod
     def __len__(self) -> int: ...
 
     @overload
@@ -120,9 +134,16 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
     @overload
     def __getitem__(self, key: slice) -> PastView[ValueT, Index]: ...
 
+    @abstractmethod
+    def __getitem__(
+        self, key: SupportsIndex | slice
+    ) -> UniverseMapping[ValueT] | PastView[ValueT, Index]: ...
+
+    @abstractmethod
     def __iter__(self) -> Iterator[Index]: ...
 
     @property
+    @abstractmethod
     def plot(self) -> ByPeriodPlotAccessor: ...
 
     @overload
@@ -131,7 +152,7 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
         *,
         show_securities: bool = ...,
         lazy: Literal[False] = False,
-        backend: Literal["polars"] = ...,
+        backend: Literal["polars"],
     ) -> pl.DataFrame: ...
 
     @overload
@@ -161,6 +182,7 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
         backend: Literal["pandas"],
     ) -> pd.DataFrame: ...
 
+    @abstractmethod
     def to_dataframe(
         self,
         *,
@@ -170,8 +192,8 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](Protocol):
     ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame: ...
 
 
-@runtime_checkable
-class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
+class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
+    @abstractmethod
     def __len__(self) -> int: ...
 
     @overload
@@ -180,9 +202,15 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
     @overload
     def __getitem__(self, key: Iterable[SecurityName]) -> PastView[ValueT, Index]: ...
 
+    @abstractmethod
+    def __getitem__(
+        self, key: SecurityName | Iterable[SecurityName]
+    ) -> Timeseries[ValueT, Index] | PastView[ValueT, Index]: ...
+
     def __iter__(self) -> Iterator[SecurityName]: ...
 
     @property
+    @abstractmethod
     def plot(self) -> BySecurityPlotAccessor: ...
 
     @overload
@@ -190,18 +218,9 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
         self,
         *,
         show_periods: bool = ...,
-        lazy: Literal[False] = False,
+        lazy: Literal[False] = ...,
         backend: Literal["polars"] = ...,
     ) -> pl.DataFrame: ...
-
-    @overload
-    def to_dataframe(
-        self,
-        *,
-        show_periods: bool = ...,
-        lazy: Literal[False] = False,
-        backend: Literal["pandas"],
-    ) -> pd.DataFrame: ...
 
     @overload
     def to_dataframe(
@@ -221,6 +240,7 @@ class BySecurity[ValueT: (float, int), Index: Comparable](Protocol):
         backend: Literal["pandas"],
     ) -> pd.DataFrame: ...
 
+    @abstractmethod
     def to_dataframe(
         self,
         *,
@@ -246,7 +266,7 @@ class MarketView[Index: Comparable]:
         reference_view_for_axis_values: str = "prices",
         backend: str = "polars",
     ):
-        backend_pastview_type = _BACKEND_PASTVIEW_MAPPING[backend]
+        backend_pastview_type = get_pastview_from_mapping(backend)
 
         if not isinstance(prices, PastUniversePrices):
             if isinstance(prices, PastView):

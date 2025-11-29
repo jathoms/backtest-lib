@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from typing import Mapping, Protocol, TypeVar, abstractmethod, runtime_checkable
+from abc import ABC
+from typing import (
+    Mapping,
+    TypeVar,
+    abstractmethod,
+)
 
 from backtest_lib.market.plotting import UniverseMappingPlotAccessor
 from backtest_lib.universe.vector_mapping import VectorMapping
@@ -10,8 +15,7 @@ Scalar = TypeVar("Scalar", float, int)
 Other_scalar = TypeVar("Other_scalar", float, int)
 
 
-@runtime_checkable
-class UniverseMapping[Scalar: (float, int)](VectorMapping[str, Scalar], Protocol):
+class UniverseMapping[Scalar: (float, int)](VectorMapping[str, Scalar], ABC):
     @property
     def plot(self) -> UniverseMappingPlotAccessor: ...
 

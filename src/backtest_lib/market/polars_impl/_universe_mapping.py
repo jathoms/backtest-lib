@@ -5,7 +5,6 @@ import logging
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import (
-    TYPE_CHECKING,
     Any,
     Self,
     Sequence,
@@ -24,20 +23,19 @@ from backtest_lib.market.plotting import (
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON
 from backtest_lib.market.polars_impl._plotting import SeriesUniverseMappingPlotAccessor
 from backtest_lib.universe import SecurityName, Universe
+from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
-
-if TYPE_CHECKING:
-    from backtest_lib.universe.universe_mapping import UniverseMapping
 
 _RHS_HANDOFF = object()
 logger = logging.getLogger(__name__)
 
 Other_scalar = TypeVar("Other_scalar", float, int)
+ScalarU = float | int
 
 
 @dataclass(frozen=True, init=False)
-class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
+class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
     names: Universe
     _data: pl.Series
     pos: dict[SecurityName, int] = field(repr=False)
@@ -106,7 +104,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         return len(self.names)
 
     def _rhs(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> tuple[pl.Series | float, type[float] | type[int]]:
         if isinstance(other, SupportsFloat):
             if not isinstance(other, int) and self._scalar_type is int:
@@ -139,7 +137,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         )
 
     def __add__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -147,7 +145,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         return SeriesUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
 
     def __radd__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -155,7 +153,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         return SeriesUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
 
     def __sub__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -166,7 +164,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         return SeriesUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
 
     def __rsub__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -174,7 +172,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         return SeriesUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
 
     def __mul__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -187,7 +185,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         )
 
     def __rmul__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
@@ -195,7 +193,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
 
     def __truediv__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping[float]:
         rhs, _ = self._rhs(other)
         if rhs is _RHS_HANDOFF:
@@ -208,7 +206,7 @@ class SeriesUniverseMapping[T: (float, int)](VectorMapping[SecurityName, T]):
         )
 
     def __rtruediv__(
-        self, other: VectorOps[Other_scalar] | Other_scalar | Mapping
+        self, other: VectorOps[Other_scalar] | ScalarU | Mapping
     ) -> SeriesUniverseMapping[float]:
         lhs, _ = self._rhs(other)
         if lhs is _RHS_HANDOFF:

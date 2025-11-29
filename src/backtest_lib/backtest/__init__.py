@@ -9,7 +9,7 @@ import numpy as np
 
 from backtest_lib.backtest.results import BacktestResults
 from backtest_lib.backtest.settings import BacktestSettings
-from backtest_lib.market import _BACKEND_PASTVIEW_MAPPING
+from backtest_lib.market import get_pastview_from_mapping
 from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
 from backtest_lib.strategy.context import StrategyContext
 
@@ -60,9 +60,7 @@ class Backtest:
         self.market_view = market_view
         self.initial_portfolio = initial_portfolio
         self.settings = settings
-        if backend not in _BACKEND_PASTVIEW_MAPPING:
-            raise ValueError(f"Backtest backend '{backend}' not found.")
-        self._backend = _BACKEND_PASTVIEW_MAPPING[backend]
+        self._backend = get_pastview_from_mapping(backend)
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         current_uni = None
