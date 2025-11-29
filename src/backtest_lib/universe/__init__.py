@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Self
 if TYPE_CHECKING:
     from backtest_lib.market import PastView
     from backtest_lib.market.timeseries import Comparable
-    from backtest_lib.universe.vector_mapping import VectorMapping
 
 
 SecurityName = str

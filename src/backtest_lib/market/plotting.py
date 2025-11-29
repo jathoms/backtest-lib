@@ -6,10 +6,8 @@ from typing import (
     Any,
     Iterable,
     Literal,
-    Protocol,
     Sequence,
     TypeVar,
-    runtime_checkable,
 )
 
 if TYPE_CHECKING:
