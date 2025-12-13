@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator, Sequence
+from collections.abc import ItemsView, Iterator, KeysView, Sequence, ValuesView
 from typing import Mapping, Protocol, TypeVar, runtime_checkable
 
 from backtest_lib.universe.vector_ops import VectorOps

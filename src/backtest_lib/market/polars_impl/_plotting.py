@@ -2,14 +2,13 @@ from __future__ import annotations
 
 from typing import (
     TYPE_CHECKING,
-    Any,
-    Iterable,
     Literal,
     Sequence,
     cast,
 )
 
 import altair as alt
+import polars as pl
 
 alt.data_transformers.enable("vegafusion")
 
@@ -41,7 +40,7 @@ class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
         *,
         kind: Literal["bar", "barh"] = "bar",
         **kwargs,
-    ) -> Any:
+    ) -> alt.Chart:
         if kind == "bar":
             return self.bar(**kwargs)
         elif kind == "barh":
@@ -50,26 +49,90 @@ class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
 
     def bar(
         self,
-        select: int | slice | None = None,
-        sort_by: Literal["value", "name"] = "value",
-        ascending: bool = False,
+        top: int | None = None,
+        sort_by: Literal["value", "name", "none"] = "value",
+        descending: bool = True,
+        color: str = "steelblue",
         **kwargs,
-    ) -> Any: ...
+    ) -> alt.Chart:
+        frame = self._series.to_frame("value").with_columns(
+            name=pl.Series(self._obj.names)
+        )
+
+        if sort_by != "none":
+            sort = alt.SortField(
+                field=sort_by, order="descending" if descending else "ascending"
+            )
+            frame = frame.sort(sort_by, descending=descending)
+        else:
+            sort = None
+
+        if top is not None:
+            frame = frame.slice(0, top)
+
+        return (
+            alt.Chart(frame)
+            .mark_bar(tooltip=True, color=color)
+            .encode(x=alt.X("name:N", sort=sort), y="value:Q", **kwargs)
+        )
 
     def barh(
         self,
-        select: int | slice | None = None,
-        sort_by: Literal["value", "name"] = "value",
-        ascending: bool = False,
+        top: int | None = None,
+        sort_by: Literal["value", "name", "none"] = "value",
+        descending: bool = True,
+        color: str = "steelblue",
         **kwargs,
-    ) -> Any: ...
+    ) -> alt.Chart:
+        frame = self._series.to_frame("value").with_columns(
+            name=pl.Series(self._obj.names)
+        )
 
-    def hist(
+        if sort_by != "none":
+            sort = alt.SortField(
+                field=sort_by, order="descending" if descending else "ascending"
+            )
+            frame = frame.sort(sort_by, descending=descending)
+        else:
+            sort = None
+
+        if top is not None:
+            frame = frame.slice(0, top)
+
+        return (
+            alt.Chart(frame)
+            .mark_bar(tooltip=True, color=color)
+            .encode(x="value:Q", y=alt.Y("name:N", sort=sort), **kwargs)
+        )
+
+    def stacked_bar(
         self,
-        bins: int | Iterable[float] = 20,
-        select: int | slice | None = None,
+        top: int | None = None,
+        sort_by: Literal["value", "name", "none"] = "value",
+        descending: bool = True,
+        bar_label: str = "",
         **kwargs,
-    ) -> Any: ...
+    ) -> alt.Chart:
+        frame = self._series.to_frame("value").with_columns(
+            name=pl.Series(self._obj.names), bar_label=pl.lit(bar_label)
+        )
+
+        if sort_by != "none":
+            frame = frame.sort(sort_by, descending=descending)
+
+        if top is not None:
+            frame = frame.slice(0, top)
+
+        return (
+            alt.Chart(frame)
+            .mark_bar(tooltip=True)
+            .encode(
+                x=alt.X("bar_label:N"),
+                y=alt.Y("value:Q", stack="zero"),
+                color="name:N",
+                **kwargs,
+            )
+        )
 
 
 class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):

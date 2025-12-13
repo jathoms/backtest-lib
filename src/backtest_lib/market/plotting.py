@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from typing import (
     TYPE_CHECKING,
     Any,
-    Iterable,
     Literal,
     Sequence,
     TypeVar,
@@ -37,26 +36,30 @@ class UniverseMappingPlotAccessor(ABC):
     @abstractmethod
     def bar(
         self,
-        select: int | slice | None = None,
-        sort_by: Literal["value", "name"] = "value",
-        ascending: bool = False,
+        top: int | None = None,
+        sort_by: Literal["value", "name", "none"] = "value",
+        descending: bool = True,
+        color: str = "steelblue",
         **kwargs,
     ) -> Any: ...
 
     @abstractmethod
     def barh(
         self,
-        select: int | slice | None = None,
-        sort_by: Literal["value", "name"] = "value",
-        ascending: bool = False,
+        top: int | None = None,
+        sort_by: Literal["value", "name", "none"] = "value",
+        descending: bool = True,
+        color: str = "steelblue",
         **kwargs,
     ) -> Any: ...
 
     @abstractmethod
-    def hist(
+    def stacked_bar(
         self,
-        bins: int | Iterable[float] = 20,
-        select: int | slice | None = None,
+        top: int | None = None,
+        sort_by: Literal["value", "name", "none"] = "value",
+        descending: bool = True,
+        bar_label: str = "",
         **kwargs,
     ) -> Any: ...
 
