@@ -200,7 +200,9 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
         )
 
     def __iter__(self) -> Iterator[np.datetime64]:
-        for period in self._period_axis.dt64:
+        for period in self._period_axis.dt64[
+            self._period_slice_start : self._period_slice_start + len(self)
+        ]:
             yield period
 
     @overload
@@ -377,7 +379,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
         )
 
     def __iter__(self) -> Iterator[str]:
-        for sec in self._security_axis.names:
+        for sec in self._sel_names or self._security_axis.names:
             yield sec
 
     @property
