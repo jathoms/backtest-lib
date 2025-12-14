@@ -21,6 +21,7 @@ from backtest_lib.market import ByPeriod, BySecurity, PastView
 from backtest_lib.market.plotting import (
     ByPeriodPlotAccessor,
     BySecurityPlotAccessor,
+    PastViewPlotAccessor,
 )
 from backtest_lib.market.polars_impl._axis import PeriodAxis, SecurityAxis
 from backtest_lib.market.polars_impl._helpers import (
@@ -31,6 +32,7 @@ from backtest_lib.market.polars_impl._helpers import (
 from backtest_lib.market.polars_impl._plotting import (
     PolarsByPeriodPlotAccessor,
     PolarsBySecurityPlotAccessor,
+    PolarsPastViewPlotAccessor,
 )
 from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
 from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
@@ -590,3 +592,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
             to_npdt64(start), to_npdt64(end), closed=closed
         )
         return self._slice_period(left, right)
+
+    @property
+    def plot(self) -> PastViewPlotAccessor:
+        return PolarsPastViewPlotAccessor(self)

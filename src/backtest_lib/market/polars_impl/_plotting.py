@@ -15,6 +15,7 @@ alt.data_transformers.enable("vegafusion")
 from backtest_lib.market.plotting import (
     ByPeriodPlotAccessor,
     BySecurityPlotAccessor,
+    PastViewPlotAccessor,
     TimeseriesPlotAccessor,
     UniverseMappingPlotAccessor,
 )
@@ -23,11 +24,40 @@ if TYPE_CHECKING:
     from backtest_lib.market.polars_impl._past_view import (
         PolarsByPeriod,
         PolarsBySecurity,
+        PolarsPastView,
     )
     from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
     from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
     from backtest_lib.market.timeseries import Index
     from backtest_lib.universe import SecurityName
+
+
+class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
+    def __init__(self, obj: "PolarsPastView"):
+        self._obj = obj
+
+    def __call__(self, *, kind: Literal["bar", "line"] = "line", **kwargs):
+        if kind == "bar":
+            return self.bar(**kwargs)
+        elif kind == "line":
+            return self.line(**kwargs)
+        else:
+            raise ValueError(kind)
+
+    def bar(
+        self,
+        **kwargs,
+    ) -> alt.LayerChart:
+        return self._obj.by_period.plot.bar()
+
+    def line(
+        self,
+        agg: Literal["none", "mean", "sum"] = "none",
+        y_padding: float = 0.01,
+        smoothing: int = 1,
+        **kwargs,
+    ) -> alt.LayerChart:
+        return self._obj.by_security.plot.line(agg, y_padding, smoothing)
 
 
 class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):

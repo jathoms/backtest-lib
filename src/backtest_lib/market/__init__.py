@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from backtest_lib.market.plotting import (
         ByPeriodPlotAccessor,
         BySecurityPlotAccessor,
+        PastViewPlotAccessor,
     )
     from backtest_lib.market.timeseries import Comparable, Timeseries
     from backtest_lib.universe import (
@@ -122,6 +123,10 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
     @staticmethod
     @abstractmethod
     def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self: ...
+
+    @property
+    @abstractmethod
+    def plot(self) -> PastViewPlotAccessor: ...
 
 
 class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
