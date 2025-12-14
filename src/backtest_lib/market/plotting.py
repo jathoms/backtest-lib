@@ -92,31 +92,10 @@ class ByPeriodPlotAccessor(ABC):
 
     @abstractmethod
     def __call__(self, **kwargs) -> Any:
-        return self.heatmap(**kwargs)
+        return self.bar(**kwargs)
 
-    @abstractmethod
-    def heatmap(
+    def bar(
         self,
-        *,
-        periods: slice | Sequence[Index] | None = None,
-        securities: Sequence[SecurityName] | None = None,
-        **kwargs,
-    ) -> Any: ...
-
-    @abstractmethod
-    def line(
-        self,
-        *,
-        agg: Literal["mean", "median", "sum"],
-        periods: slice | Sequence[Index] | None = None,
-        **kwargs,
-    ) -> Any: ...
-
-    @abstractmethod
-    def box(
-        self,
-        *,
-        periods: slice | Sequence[Index] | None = None,
         **kwargs,
     ) -> Any: ...
 
@@ -132,22 +111,8 @@ class BySecurityPlotAccessor(ABC):
     @abstractmethod
     def line(
         self,
-        *,
-        securities: Sequence[SecurityName] | None = None,
-        agg: Literal["none", "mean", "median", "sum"] = "none",
-        facet: bool = False,
-        max_securities: int | None = None,
-        **kwargs,
-    ) -> Any: ...
-
-    # - agg != "none": single aggregated line
-    # - facet=True: one subplot per security (if small N)
-
-    @abstractmethod
-    def heatmap(
-        self,
-        *,
-        securities: Sequence[SecurityName] | None = None,
-        periods: slice | Sequence[Index] | None = None,
+        agg: Literal["none", "mean", "sum"] = "none",
+        y_padding: float = 0.01,
+        smoothing: int = 1,
         **kwargs,
     ) -> Any: ...

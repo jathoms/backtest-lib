@@ -111,6 +111,7 @@ class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
         sort_by: Literal["value", "name", "none"] = "value",
         descending: bool = True,
         bar_label: str = "",
+        bar_label_encoding_type: str = "N",
         **kwargs,
     ) -> alt.Chart:
         frame = self._series.to_frame("value").with_columns(
@@ -127,7 +128,7 @@ class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
             alt.Chart(frame)
             .mark_bar(tooltip=True)
             .encode(
-                x=alt.X("bar_label:N"),
+                x=alt.X(f"bar_label:{bar_label_encoding_type}"),
                 y=alt.Y("value:Q", stack="zero"),
                 color="name:N",
                 **kwargs,
@@ -163,7 +164,7 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
             )
             .mark_line(tooltip=True, color=color)
             .encode(
-                x="date",
+                x="date:T",
                 y=alt.Y(
                     "value",
                     scale=alt.Scale(
@@ -182,7 +183,7 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
                 self._series.to_frame("value").with_columns(date=self._obj._axis.dt64)
             )
             .mark_bar(tooltip=True)
-            .encode(x="date", y="value", **kwargs)
+            .encode(x="date:T", y="value", **kwargs)
         )
 
     def hist(self, bins: int = 20, **kwargs) -> alt.Chart:
@@ -220,60 +221,97 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
 class PolarsByPeriodPlotAccessor(ByPeriodPlotAccessor):
     def __init__(self, obj: "PolarsByPeriod"):
         self._obj = obj
-        self._df = self._obj.as_df()
 
     def __call__(self, **kwargs):
-        return self.heatmap(**kwargs)
+        return self.bar(**kwargs)
 
-    def heatmap(
+    def bar(
         self,
-        *,
-        periods: slice | Sequence[Index] | None = None,
-        securities: Sequence[SecurityName] | None = None,
         **kwargs,
-    ): ...
-
-    def line(
-        self,
-        *,
-        agg: Literal["mean", "median", "sum"],
-        periods: slice | Sequence[Index] | None = None,
-        **kwargs,
-    ): ...
-
-    def box(
-        self,
-        *,
-        periods: slice | Sequence[Index] | None = None,
-        **kwargs,
-    ): ...
+    ) -> alt.LayerChart:
+        charts = [
+            self._obj[idx].plot.stacked_bar(
+                bar_label=period, bar_label_encoding_type="T"
+            )
+            for idx, period in enumerate(self._obj)
+        ]
+        return alt.layer(*charts, **kwargs)
 
 
 class PolarsBySecurityPlotAccessor(BySecurityPlotAccessor):
     def __init__(self, obj: "PolarsBySecurity"):
         self._obj = obj
-        self._df = self._obj.as_df()
+        self._df = obj.as_df(show_periods=True, lazy=False)
 
     def __call__(self, **kwargs):
         return self.line(**kwargs)
 
     def line(
         self,
-        *,
-        securities: Sequence[SecurityName] | None = None,
-        agg: Literal["none", "mean", "median", "sum"] = "none",
-        facet: bool = False,
-        max_securities: int | None = None,
+        agg: Literal["none", "mean", "sum"] = "none",
+        y_padding: float = 0.01,
+        smoothing: int = 1,
         **kwargs,
-    ): ...
+    ):
+        value_cols = [
+            c
+            for c, dt in zip(self._df.columns, self._df.dtypes)
+            if dt.is_numeric() and c != "date"
+        ]
+        df = self._df.select(
+            "date", pl.all().exclude("date").rolling_mean(window_size=smoothing)
+        )
+        if agg == "none":
+            df_long = df.unpivot(
+                index=["date"],
+                on=value_cols,
+                variable_name="series",
+                value_name="value",
+            )
 
-    # - agg != "none": single aggregated line
-    # - facet=True: one subplot per security (if small N)
+            chart = (
+                alt.Chart(df_long)
+                .mark_line()
+                .encode(
+                    x=alt.X("date:T"),
+                    y=alt.Y("value:Q"),
+                    color=alt.Color("series:N"),
+                    tooltip=[
+                        alt.Tooltip("series:N"),
+                        alt.Tooltip("value:Q"),
+                        alt.Tooltip("date:T"),
+                    ],
+                )
+            )
+            return chart
 
-    def heatmap(
-        self,
-        *,
-        securities: Sequence[SecurityName] | None = None,
-        periods: slice | Sequence[Index] | None = None,
-        **kwargs,
-    ): ...
+        if agg == "mean":
+            agg_expr = pl.mean_horizontal()
+        elif agg == "sum":
+            agg_expr = pl.sum_horizontal()
+        else:
+            raise ValueError(f"Unknown agg type '{agg}'")
+
+        agg_df = (
+            df.lazy()
+            .with_columns(agg_expr.alias(agg))
+            .select(pl.col("date"), pl.col(agg))
+            .collect()
+        )
+        max_y = cast(float, agg_df[agg].max()) * (1 + y_padding)
+        min_y = cast(float, agg_df[agg].min()) * (1 - y_padding)
+        return (
+            alt.Chart(agg_df)
+            .mark_line(tooltip=True)
+            .encode(
+                x="date:T",
+                y=alt.Y(
+                    f"{agg}:Q",
+                    scale=alt.Scale(
+                        domain=[min_y, max_y],
+                        clamp=True,
+                    ),
+                ),
+                **kwargs,
+            )
+        )
