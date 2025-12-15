@@ -25,7 +25,7 @@ class PastViewPlotAccessor(ABC):
     def __init__(self, obj): ...
 
     @abstractmethod
-    def __call__(self, *, kind: Literal["bar", "line"] = "line", **kwargs): ...
+    def __call__(self, kind: Literal["bar", "line"] = "line", **kwargs): ...
 
     @abstractmethod
     def bar(
@@ -50,7 +50,6 @@ class UniverseMappingPlotAccessor(ABC):
     @abstractmethod
     def __call__(
         self,
-        *,
         kind: Literal["bar", "barh"] = "bar",
         **kwargs,
     ) -> Any: ...

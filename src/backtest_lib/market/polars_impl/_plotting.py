@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import (
     TYPE_CHECKING,
     Literal,
-    Sequence,
     cast,
 )
 
@@ -28,15 +27,13 @@ if TYPE_CHECKING:
     )
     from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
     from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
-    from backtest_lib.market.timeseries import Index
-    from backtest_lib.universe import SecurityName
 
 
 class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
     def __init__(self, obj: "PolarsPastView"):
         self._obj = obj
 
-    def __call__(self, *, kind: Literal["bar", "line"] = "line", **kwargs):
+    def __call__(self, kind: Literal["bar", "line"] = "line", **kwargs):
         if kind == "bar":
             return self.bar(**kwargs)
         elif kind == "line":
@@ -67,7 +64,6 @@ class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
 
     def __call__(
         self,
-        *,
         kind: Literal["bar", "barh"] = "bar",
         **kwargs,
     ) -> alt.Chart:
