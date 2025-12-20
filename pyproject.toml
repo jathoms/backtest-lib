@@ -7,8 +7,10 @@ requires-python = ">=3.13"
 authors = [{ name = "jathoms", email = "james@getkbm.io" }]
 dependencies = [
   "altair>=5.5.0",
+  "croniter>=6.0.0",
   "numpy>=2.3.2",
   "polars>=1.32.3",
+  "python-dateutil>=2.9.0.post0",
   "vegafusion>=2.0.3",
   "vl-convert-python>=1.8.0",
 ]

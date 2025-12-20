@@ -3,11 +3,14 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import warnings
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 
+from backtest_lib.backtest._helpers import _to_pydt
 from backtest_lib.backtest.results import BacktestResults
+from backtest_lib.backtest.schedule import DecisionSchedule
+from backtest_lib.backtest.schedule import decision_schedule as make_decision_schedule
 from backtest_lib.backtest.settings import BacktestSettings
 from backtest_lib.market import get_pastview_from_mapping
 from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
@@ -22,18 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _to_pydt(some_datetime: Any) -> dt.datetime:
-    if isinstance(some_datetime, dt.datetime):
-        return some_datetime
-    elif isinstance(some_datetime, np.datetime64):
-        if np.isnat(some_datetime):
-            raise ValueError("Cannot convert NaT to Python datetime.")
-        us = some_datetime.astype("datetime64[us]").astype(np.int64)
-        return dt.datetime.fromtimestamp(us / 1e6, dt.timezone.utc)
-    else:
-        raise TypeError(
-            f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"
-        )
+def infer_schedule_from_market(schedule: DecisionSchedule, market: MarketView): ...
 
 
 class Backtest:
@@ -43,6 +35,7 @@ class Backtest:
     initial_portfolio: WeightedPortfolio
     _current_portfolio: WeightedPortfolio
     settings: BacktestSettings
+    _schedule: DecisionSchedule
     _backend: type[PastView]
 
     def __init__(
@@ -53,6 +46,7 @@ class Backtest:
         initial_portfolio: WeightedPortfolio,
         settings: BacktestSettings = BacktestSettings.default(),
         *,
+        decision_schedule: str | DecisionSchedule | None = None,
         backend="polars",
     ):
         self.strategy = strategy
@@ -60,9 +54,21 @@ class Backtest:
         self.market_view = market_view
         self.initial_portfolio = initial_portfolio
         self.settings = settings
+        if isinstance(decision_schedule, str):
+            self._schedule = make_decision_schedule(
+                decision_schedule,
+                start=market_view.periods[0],
+                end=market_view.periods[-1],
+            )
+        elif decision_schedule is None:
+            self._schedule = make_decision_schedule(market_view.periods)
+        else:
+            self._schedule = decision_schedule
         self._backend = get_pastview_from_mapping(backend)
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
+        schedule_it = iter(self._schedule)
+        next_decision_period = next(schedule_it)
         current_uni = None
         if ctx is None:
             ctx = StrategyContext()
@@ -79,67 +85,78 @@ class Backtest:
             logger.debug(
                 f"Starting period {i} ({ctx.now}). Current total growth: {total_growth}"
             )
-            decision = self.strategy(
-                universe=self.universe,
-                current_portfolio=self._current_portfolio,
-                market=past_market_view,
-                ctx=ctx,
-            )
-            if len(decision.target.holdings) < len(self.universe):
-                # pad out the unnaccounted-for securities with 0.
-                # NOTE: this is some extra allocation we might not need
-                # as * 0 allocates, and so does + in the case where
-                # keys are not equal.
-                # maybe a .merge() method on the VectorMapping would make
-                # more sense.
-                logger.debug(
-                    f"Incomplete universe returned by strategy (decision had {len(decision.target.holdings)}, "
-                    f"full universe has {len(self.universe)}), filling remaining securities with 0."
+            if ctx.now >= _to_pydt(next_decision_period):
+                try:
+                    next_decision_period = next(schedule_it)
+                except StopIteration:
+                    logger.debug(
+                        f"Reached end of decision schedule, breaking from backtest loop at {ctx.now} (period {i})."
+                    )
+                    break
+
+                decision = self.strategy(
+                    universe=self.universe,
+                    current_portfolio=self._current_portfolio,
+                    market=past_market_view,
+                    ctx=ctx,
                 )
-                object.__setattr__(
-                    decision.target,
-                    "holdings",
-                    (
-                        (self.market_view.prices.close.by_period[0] * 0)
-                        + decision.target.holdings
-                    ),
+                if len(decision.target.holdings) < len(self.universe):
+                    # pad out the unnaccounted-for securities with 0.
+                    # NOTE: this is some extra allocation we might not need
+                    # as * 0 allocates, and so does + in the case where
+                    # keys are not equal.
+                    # maybe a .merge() method on the VectorMapping would make
+                    # more sense.
+                    logger.debug(
+                        f"Incomplete universe returned by strategy (decision had {len(decision.target.holdings)}, "
+                        f"full universe has {len(self.universe)}), filling remaining securities with 0."
+                    )
+                    object.__setattr__(
+                        decision.target,
+                        "holdings",
+                        (
+                            (self.market_view.prices.close.by_period[0] * 0)
+                            + decision.target.holdings
+                        ),
+                    )
+
+                if current_uni is not None and set(
+                    decision.target.holdings.keys()
+                ) ^ set(current_uni):
+                    print(
+                        f"{ctx.now}: Universe changed! len: {len(current_uni)}->{len(decision.target.holdings.keys())}, diff: {set(current_uni) ^ set(decision.target.holdings.keys())}"
+                    )
+
+                if past_market_view.tradable is not None:
+                    _check_tradable(
+                        decision, past_market_view.tradable.by_period[-1], ctx.now
+                    )
+
+                target_portfolio = decision.target
+                if not isinstance(target_portfolio, WeightedPortfolio):
+                    target_portfolio = target_portfolio.into_weighted()
+                total_weight_after_decision = (
+                    decision.target.holdings.sum() + decision.target.cash
                 )
 
-            if current_uni is not None and set(decision.target.holdings.keys()) ^ set(
-                current_uni
-            ):
-                print(
-                    f"{ctx.now}: Universe changed! len: {len(current_uni)}->{len(decision.target.holdings.keys())}, diff: {set(current_uni) ^ set(decision.target.holdings.keys())}"
+                assert np.isclose(total_weight_after_decision, 1.0), (
+                    f"Total weight after making a decision cannot exceed 1.0, weight on period {i} was {total_weight_after_decision}"
                 )
 
-            output_weights.append(decision.target.holdings)
+                if not self.settings.allow_short and any(
+                    x < 0 for x in target_portfolio.holdings.values()
+                ):
+                    target_portfolio = target_portfolio.into_long_only()
 
-            if past_market_view.tradable is not None:
-                _check_tradable(
-                    decision, past_market_view.tradable.by_period[-1], ctx.now
-                )
+                # assume we can perfectly track the target portfolio for now
+                portfolio_after_decision = target_portfolio
+            else:
+                portfolio_after_decision = self._current_portfolio
+            output_weights.append(portfolio_after_decision.holdings)
 
-            target_portfolio = decision.target
-            if not isinstance(target_portfolio, WeightedPortfolio):
-                target_portfolio = target_portfolio.into_weighted()
-            total_weight_after_decision = (
-                decision.target.holdings.sum() + decision.target.cash
-            )
-
-            assert np.isclose(total_weight_after_decision, 1.0), (
-                f"Total weight after making a decision cannot exceed 1.0, weight on period {i} was {total_weight_after_decision}"
-            )
-
-            if not self.settings.allow_short and any(
-                x < 0 for x in target_portfolio.holdings.values()
-            ):
-                target_portfolio = target_portfolio.into_long_only()
-
-            # assume we can perfectly track the target portfolio for now
-            portfolio_after_decision = target_portfolio
             today_prices = past_market_view.prices.close.by_period[-1]
             pct_change = today_prices / yesterday_prices
-            returns_contribution.append(pct_change * target_portfolio.holdings)
+            returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 
             inter_day_adjusted_portfolio, growth = _apply_inter_period_price_changes(
                 portfolio_after_decision, pct_change
@@ -149,13 +166,15 @@ class Backtest:
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
-            current_uni = list(decision.target.holdings.keys())
+            current_uni = list(portfolio_after_decision.holdings.keys())
 
         allocation_history = self._backend.from_security_mappings(
-            output_weights, self.market_view.periods
+            output_weights, self.market_view.periods[: i - 1]
         )
         results = BacktestResults.from_weights_market_initial_capital(
-            weights=allocation_history, market=self.market_view, backend=self._backend
+            weights=allocation_history,
+            market=self.market_view.truncated_to(i - 1),
+            backend=self._backend,
         )
         return results
 

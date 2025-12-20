@@ -461,7 +461,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
             raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
         if not len(periods) == len(ms):
             raise ValueError(
-                "Length of period sequence must match length of security mapping list"
+                f"Length of period sequence must match length of security mapping list, lengths were {len(periods)} and {len(ms)} respectively."
             )
 
         first_keys = set(ms[0].keys())

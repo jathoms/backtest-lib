@@ -205,13 +205,13 @@ class BacktestResults[IndexT: Comparable]:
         if sorted(list(weights.securities)) != sorted(list(close_prices.securities)):
             raise ValueError(
                 "weights.securities must match market.prices.close.securities "
-                "for BacktestResults construction"
+                f"for BacktestResults construction (lengths were {len(weights.securities)} and {len(close_prices.securities)} respectively)"
             )
 
         if list(weights.periods) != list(market.periods):
             raise ValueError(
                 "weights.periods must match market.periods for BacktestResults "
-                "(slice / align before calling)"
+                f"(slice / align before calling, lengths were {len(weights.periods)} and {len(market.periods)} respectively)"
             )
 
         # TODO: big fat polars logic in here, review if this

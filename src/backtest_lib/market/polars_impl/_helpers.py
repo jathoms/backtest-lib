@@ -79,6 +79,6 @@ class Array1DDTView(Sequence[np.datetime64]):
 def to_npdt64(x: np.datetime64 | str) -> np.datetime64:
     if isinstance(x, np.datetime64):
         return x.astype("datetime64[us]")
-    if isinstance(x, str):
+    if isinstance(x, (str, dt.datetime, dt.date)):
         return np.datetime64(x, "us")
     raise TypeError(f"Unsupported type {type(x)}")
