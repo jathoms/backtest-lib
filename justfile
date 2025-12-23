@@ -23,3 +23,9 @@ pyrefly:
 
 ruffcheck:
 	uv run ruff check --fix
+
+docs:
+  uv run sphinx-build -b html -W --keep-going docs/source docs/_build/html
+
+doctest:
+  uv run sphinx-build -b doctest -W --keep-going docs/source docs/_build/doctest

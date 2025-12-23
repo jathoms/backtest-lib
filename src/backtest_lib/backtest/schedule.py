@@ -22,7 +22,6 @@ _MONTHS_STRS = ("mo", "mon", "mons", "month", "months")
 _QUARTERS_STRS = ("q", "qtr", "qtrs", "quarter", "quarters")
 _YEARS_STRS = ("y", "yr", "yrs", "year", "years")
 
-
 _INTERVAL_RE = re.compile(r"^\s*(\d+)\s*([a-zA-Z]+)\s*$")
 _PLAIN_INTERVAL_MAPPING = {
     "hourly": _HOURS_STRS[0],

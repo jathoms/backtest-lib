@@ -18,3 +18,7 @@ wheels/
 !fx_spot.pkl
 
 **/test.py
+
+docs/_build/
+docs/build/
+docs/source/_*
