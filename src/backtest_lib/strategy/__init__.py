@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from backtest_lib.market import MarketView
 from backtest_lib.universe import Universe
@@ -19,12 +19,12 @@ class Decision:
     notes: UniverseMapping[Any] | None = None
 
 
+@runtime_checkable
 class Strategy(Protocol):
     def __call__(
         self,
         universe: Universe,
         current_portfolio: WeightedPortfolio,
         market: MarketView,
-        # schedule: Schedule, # for seeing where we are in the rebalance schedule
         ctx: StrategyContext | None,
     ) -> Decision: ...

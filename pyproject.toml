@@ -30,8 +30,8 @@ dev = [
   "altair>=5.5.0",
 ]
 docs = [
-    "furo>=2025.12.19",
-    "myst-parser>=4.0.1",
+    "pydata-sphinx-theme>=0.16.1",
+    "sphinx>=8.2.3",
 ]
 
 [build-system]
@@ -44,7 +44,11 @@ exclude = ["src/backtest_lib/examples"]
                                                              
 [tool.ruff.lint]
 exclude = ["src/backtest_lib/examples"]
-select  = ["I"]
+select  = ["ALL"]
+ignore = ["EM101"]
+
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.pyrefly]
 project-includes = ["**/*"]

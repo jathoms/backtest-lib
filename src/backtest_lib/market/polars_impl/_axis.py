@@ -40,7 +40,7 @@ class PeriodAxis:
         if date_s.dtype not in (pl.Date, pl.Datetime):
             date_s = date_s.cast(pl.Datetime("us"))
         labels = tuple(date_s.dt.strftime(fmt).to_list())
-        dt64 = date_s.to_numpy(allow_copy=False).astype("datetime64[us]", copy=False)
+        dt64 = date_s.to_numpy().astype("datetime64[us]", copy=False)
         # assert np.all(dt64[1:] >= dt64[:-1])
         return PeriodAxis(dt64, labels, {lbl: i for i, lbl in enumerate(labels)})
 

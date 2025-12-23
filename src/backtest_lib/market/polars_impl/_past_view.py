@@ -521,7 +521,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
             ) from e
 
         if dates.dtype not in (pl.Date, pl.Datetime):
-            dates = dates.cast(pl.Datetime("ms"))
+            dates = dates.cast(pl.Datetime("us"))
 
         period_names = dates.dt.to_string()
         non_date_cols = [x for x in df.columns if x != "date"]

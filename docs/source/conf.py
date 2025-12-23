@@ -8,7 +8,6 @@ copyright = f"{date.today().year}, {author}"
 release = "0.0.0"
 
 extensions = [
-    "myst_parser",
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
@@ -39,4 +38,4 @@ doctest_default_flags = (
     | 2  # NORMALIZE_WHITESPACE: ignore whitespace-only differences
 )
 
-html_theme = "furo"
+html_theme = "pydata_sphinx_theme"

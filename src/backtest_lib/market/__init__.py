@@ -263,6 +263,7 @@ class MarketView[Index: Comparable]:
         self,
         prices: PastUniversePrices[Index] | PastView[float, Index] | Any,
         periods: Sequence[Index] | None = None,
+        securities: Sequence[str] | None = None,
         tradable: PastView[int, Index] | Any | None = None,
         volume: PastView[int, Index] | Any | None = None,
         signals: dict[str, PastView[Any, Index] | Any] | None = None,
@@ -308,10 +309,18 @@ class MarketView[Index: Comparable]:
         if periods is None:
             periods = self._resolve_period_axis_spec(reference_view_for_axis_values)
 
+        if securities is None:
+            securities = self._resolve_security_axis_spec(
+                reference_view_for_axis_values
+            )
+
         self._periods: Sequence[Index] = periods
+        self._securities: Sequence[str] = securities
         self._security_policy: SecurityAxisPolicy = security_policy
         self._period_policy: PeriodAxisPolicy = period_policy
         self._backend: str = backend
+
+        self._check_axis_alignment(reference_view_for_axis_values)
 
     @property
     def prices(self) -> PastUniversePrices[Index]:
@@ -320,6 +329,10 @@ class MarketView[Index: Comparable]:
     @property
     def periods(self) -> Sequence[Index]:
         return self._periods
+
+    @property
+    def securities(self) -> Sequence[str]:
+        return self._securities
 
     @property
     def tradable(self) -> PastView[int, Index] | None:
