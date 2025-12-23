@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import doctest
+
+doctest_default_flags = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
+
 from datetime import date
 
 project = "backtest-lib"
@@ -33,9 +37,6 @@ doctest_global_setup = r"""
 import backtest_lib
 """
 
-doctest_default_flags = (
-    1  # ELLIPSIS: allow ... in expected output
-    | 2  # NORMALIZE_WHITESPACE: ignore whitespace-only differences
-)
+doctest_default_flags = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
 
 html_theme = "pydata_sphinx_theme"

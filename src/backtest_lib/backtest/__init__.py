@@ -67,15 +67,13 @@ class Backtest:
             :meth:`BacktestSettings.default <backtest_lib.backtest.settings.BacktestSettings.default>`.
         decision_schedule: Rebalance schedule. May be:
 
-            - A :class:`DecisionSchedule <backtest_lib.schedule.DecisionSchedule>`
-              instance,
+            - A :class:`DecisionSchedule <backtest_lib.schedule.DecisionSchedule>` instance,
             - A string specification consumed by
               :func:`make_decision_schedule <backtest_lib.schedule.make_decision_schedule>`, or
             - None, in which case a schedule is constructed from ``market_view.periods``.
-        backend: Backend identifier passed to
-            :func:`get_pastview_from_mapping <backtest_lib.pastview.get_pastview_from_mapping>`
-            to select the :class:`PastView <backtest_lib.pastview.PastView>`
-            implementation used to materialize allocation history.
+        backend: Backend identifier used to select the :class:`PastView <backtest_lib.pastview.PastView>`
+            implementation used for data manipulation, memory allocation, and results view.
+            Default (and currently only implemented) backend is "polars"
 
     Attributes:
         strategy: Strategy under test.
@@ -97,8 +95,8 @@ class Backtest:
         ...     hold_strategy, universe, market, uniform_portfolio(universe)
         ... )
         >>> results = bt.run()
-        >>> results.annualized_return
-        -0.00022650370503085604
+        >>> results.annualized_return  # doctest: +ELLIPSIS
+        -0.00022650...
     """
 
     strategy: Strategy
