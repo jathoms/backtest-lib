@@ -44,7 +44,7 @@ exclude = ["src/backtest_lib/examples"]
                                                              
 [tool.ruff.lint]
 exclude = ["src/backtest_lib/examples"]
-select  = ["ALL"]
+select  = ["I"]
 ignore = ["EM101"]
 
 [tool.ruff.format]
