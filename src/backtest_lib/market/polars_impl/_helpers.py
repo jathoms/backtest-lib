@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Iterator, Sequence
 from decimal import Decimal
-from typing import Any, Iterator, Self, Sequence, overload
+from typing import Any, Self, overload
 
 import numpy as np
 import polars as pl

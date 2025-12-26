@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 
 class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
-    def __init__(self, obj: "PolarsPastView"):
+    def __init__(self, obj: PolarsPastView):
         self._obj = obj
 
     def __call__(self, kind: Literal["bar", "line"] = "line", **kwargs):
@@ -58,7 +58,7 @@ class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
 
 
 class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
-    def __init__(self, obj: "SeriesUniverseMapping"):
+    def __init__(self, obj: SeriesUniverseMapping):
         self._obj = obj
         self._series = obj.as_series()
 
@@ -163,7 +163,7 @@ class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
 
 
 class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
-    def __init__(self, obj: "PolarsTimeseries"):
+    def __init__(self, obj: PolarsTimeseries):
         self._obj = obj
         self._series = obj.as_series()
 
@@ -245,7 +245,7 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
 
 
 class PolarsByPeriodPlotAccessor(ByPeriodPlotAccessor):
-    def __init__(self, obj: "PolarsByPeriod"):
+    def __init__(self, obj: PolarsByPeriod):
         self._obj = obj
 
     def __call__(self, **kwargs):
@@ -265,7 +265,7 @@ class PolarsByPeriodPlotAccessor(ByPeriodPlotAccessor):
 
 
 class PolarsBySecurityPlotAccessor(BySecurityPlotAccessor):
-    def __init__(self, obj: "PolarsBySecurity"):
+    def __init__(self, obj: PolarsBySecurity):
         self._obj = obj
         self._df = obj.as_df(show_periods=True, lazy=False)
 

@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import functools
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import replace
 from enum import Enum, auto
 from typing import (
     TYPE_CHECKING,
     Any,
     Literal,
-    Mapping,
     Self,
     SupportsIndex,
     overload,
@@ -41,6 +40,24 @@ def get_pastview_from_mapping(backend: str) -> type[PastView]:
         from backtest_lib.market.polars_impl import PolarsPastView
 
         return PolarsPastView
+    else:
+        raise ValueError(f"Could not find data backend {backend}")
+
+
+def get_mapping_type_from_mapping(backend: str) -> type[UniverseMapping]:
+    if backend == "polars":
+        from backtest_lib.market.polars_impl import SeriesUniverseMapping
+
+        return SeriesUniverseMapping
+    else:
+        raise ValueError(f"Could not find data backend {backend}")
+
+
+def get_timeseries_type_from_mapping(backend: str) -> type[Timeseries]:
+    if backend == "polars":
+        from backtest_lib.market.polars_impl import PolarsTimeseries
+
+        return PolarsTimeseries
     else:
         raise ValueError(f"Could not find data backend {backend}")
 
@@ -392,11 +409,7 @@ class MarketView[Index: Comparable]:
                 # function i.e add a string of the name of the reference sequence
                 raise ValueError("Securities must match reference exactly.")
             new_sec: Sequence[SecurityName] | None = None
-        elif self._security_policy is SecurityAxisPolicy.SUBSET_OK:
-            raise NotImplementedError()
-        elif self._security_policy is SecurityAxisPolicy.SUPERSET_OK:
-            raise NotImplementedError()
-        elif self._security_policy is SecurityAxisPolicy.COERCE:
+        elif self._security_policy is SecurityAxisPolicy.SUBSET_OK or self._security_policy is SecurityAxisPolicy.SUPERSET_OK or self._security_policy is SecurityAxisPolicy.COERCE:
             raise NotImplementedError()
         else:
             raise RuntimeError("Unknown security policy")
@@ -413,9 +426,7 @@ class MarketView[Index: Comparable]:
             ):
                 raise ValueError("Periods must match reference exactly.")
             new_per: Sequence[Index] | None = None
-        elif self._period_policy is PeriodAxisPolicy.INTERSECT:
-            raise NotImplementedError()
-        elif self._period_policy is PeriodAxisPolicy.FFILL:
+        elif self._period_policy is PeriodAxisPolicy.INTERSECT or self._period_policy is PeriodAxisPolicy.FFILL:
             raise NotImplementedError()
         else:
             raise RuntimeError("Unknown period policy")

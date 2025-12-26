@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Sized
 from typing import (
     Self,
-    Sized,
     TypeVar,
 )
 

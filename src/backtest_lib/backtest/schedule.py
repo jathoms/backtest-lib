@@ -1,9 +1,8 @@
 import re
+from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timedelta
 from typing import (
-    Callable,
-    Iterable,
-    Iterator,
+    cast,
     overload,
 )
 
@@ -106,27 +105,24 @@ class DecisionSchedule[I: Comparable]:
         for i, x in enumerate(self._schedule):
             if prev is not None and x < prev:
                 raise ValueError(
-                    f"Decision schedule is not non-decreasing, value {x} (idx:{i}) < {prev} (idx:{i - 1})"
+                    "Decision schedule is not non-decreasing, "
+                    f"value {x} (idx:{i}) < {prev} (idx:{i - 1})"
                 )
             if start is not None and x < start:
                 continue
-            if end is not None:
-                if not self._inclusive_end and x >= end:
-                    break
-                elif x > end:
-                    break
+            if end is not None and not self._inclusive_end and x >= end or x > end:
+                break
 
             yield x
 
 
-def _step_datetime_iter(
-    step: timedelta | relativedelta, start: datetime
-) -> Iterable[datetime]:
+def _step_datetime_iter(step: timedelta | relativedelta, start: datetime) -> Iterable[datetime]:
     def _it() -> Iterator[datetime]:
         cur = start
         while True:
             yield cur
-            cur = cur + step
+            # TODO investigate the soundness of this cast
+            cur = cast(datetime, cur + step)
 
     return _IterFactoryIterable(_it)
 
@@ -137,7 +133,8 @@ def _cron_datetime_iter(cron: str, start: datetime) -> Iterable[datetime]:
 
 class _IterFactoryIterable[T]:
     """
-    Wrap an iterator factory as an Iterable, so the inner schedule can always be Iterable[T].
+    Wrap an iterator factory as an Iterable,
+    so the inner schedule can always be Iterable[T].
     Each iteration produces a fresh iterator.
     """
 
@@ -152,7 +149,8 @@ def _raise_iterator_input_error(schedule: object) -> None:
     raise TypeError(
         "decision_schedule(...) requires a re-iterable schedule (e.g., list/tuple/range), "
         f"not passed type {type(schedule)}. If you need to stream non-materialized values, use "
-        "decision_schedule_factory(f) where `f` is a function that yields the values of your schedule "
+        "decision_schedule_factory(f) where `f` is a function that yields the values of your "
+        "schedule "
     )
 
 
@@ -217,7 +215,7 @@ def decision_schedule[I: Comparable](
         try:
             start = next(it)
         except StopIteration:
-            raise ValueError("Cannot infer start from an empty schedule.")
+            raise ValueError("Cannot infer start from an empty schedule.") from None
 
     return DecisionSchedule(
         schedule,
@@ -241,7 +239,7 @@ def decision_schedule_factory[I: Comparable](
         try:
             start = next(it)
         except StopIteration:
-            raise ValueError("Cannot infer start from an empty schedule.")
+            raise ValueError("Cannot infer start from an empty schedule.") from None
 
     assert start is not None
 

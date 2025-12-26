@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Generic, Iterable, TypeVar
+from collections.abc import Iterable, Mapping
+from dataclasses import replace
+from typing import Generic, TypeVar, cast
 
 import polars as pl
 
+from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
 from backtest_lib.universe import Price
 from backtest_lib.universe.universe_mapping import UniverseMapping
@@ -14,14 +16,33 @@ Quantity = int
 FractionalQuantity = float
 Weight = float
 
-H = TypeVar("H", int, float)
+H = TypeVar("H", float, int)
 MappingType = TypeVar("MappingType", bound=VectorMapping)
 
 
-@dataclass(frozen=True)
 class Portfolio(Generic[H, MappingType]):
     holdings: UniverseMapping[H]
     cash: float = 0
+
+    def __init__(
+        self,
+        holdings: UniverseMapping[H] | Mapping[str, H],
+        cash: float = 0,
+        constructor_backend="polars",
+    ):
+        self.cash = cash
+
+        if not isinstance(holdings, UniverseMapping) and isinstance(holdings, Mapping):
+            backend_mapping_type = get_mapping_type_from_mapping(constructor_backend)
+            native_mapping = backend_mapping_type.from_vectors(
+                # TODO: not sure what's going on with the typechecker here,
+                # just manually casting .values() for now.
+                tuple(holdings.keys()),
+                tuple(cast(Iterable, holdings.values())),
+            )
+            self.holdings = native_mapping
+        else:
+            self.holdings = holdings
 
 
 class QuantityPortfolio(Portfolio[Quantity, MappingType], Generic[MappingType]):
@@ -99,7 +120,7 @@ class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
                 )
             )["norm_redist_w"]
             new_holdings = replace(self.holdings, _data=redistributed_weights)
-            return WeightedPortfolio(self.cash, new_holdings)
+            return WeightedPortfolio(cash=self.cash, holdings=new_holdings)
         else:
             raise NotImplementedError()
 
@@ -122,10 +143,10 @@ def uniform_portfolio(
         holdings=SeriesUniverseMapping.from_names_and_data(
             tuple(full_universe),
             pl.Series(
-                (
+                
                     uniform_allocation_weight if sec in tradable_universe else 0.0
                     for sec in full_universe
-                )
+                
             ),
         ),
     )

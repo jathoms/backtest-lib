@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import (
     Any,
     Self,
-    Sequence,
     SupportsFloat,
     TypeVar,
     cast,
@@ -243,20 +242,14 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
 
     @classmethod
     def from_vectors(
-        cls, keys: Sequence[str], values: Sequence[float]
-    ) -> SeriesUniverseMapping:
-        if not isinstance(keys, tuple):
-            keys_tuple = tuple(keys)
-        else:
-            keys_tuple = keys
-        keys_tuple = cast(tuple[str, ...], keys_tuple)
+        cls, keys: Sequence[str], values: Sequence[T]
+    ) -> SeriesUniverseMapping[T]:
+        keys_tuple = tuple(keys)
 
         if not isinstance(values, pl.Series):
-            values_series = pl.Series(values, dtype=pl.Float64)
+            values_series = pl.Series(values)
         else:
             values_series = values
-        if values_series.dtype != pl.Float64:
-            values_series = values_series.cast(pl.Float64)
 
         return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
 

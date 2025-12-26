@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
 
 import numpy as np
@@ -13,7 +13,7 @@ def _to_pydt(some_datetime: Any) -> datetime:
         if np.isnat(some_datetime):
             raise ValueError("Cannot convert NaT to Python datetime.")
         us = some_datetime.astype("datetime64[us]").astype(np.int64)
-        return datetime.fromtimestamp(us / 1e6, timezone.utc)
+        return datetime.fromtimestamp(us / 1e6, UTC)
     else:
         raise TypeError(
             f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"

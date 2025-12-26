@@ -1,8 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterator
 from typing import (
     Any,
-    Callable,
-    Iterator,
     Protocol,
     Self,
     TypeVar,

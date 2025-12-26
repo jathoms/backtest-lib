@@ -1,25 +1,23 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator, Sequence
-from typing import Mapping, Protocol, TypeVar, runtime_checkable
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Self, TypeVar
 
 from backtest_lib.universe.vector_ops import VectorOps
 
 # K invariant (to add/sub/div/mul a mapping with another mapping, the key type must be able to be compared directly)
-K = TypeVar("K")
 M = TypeVar("M", bound="VectorMapping", covariant=True)
 
-K_contra = TypeVar("K_contra", contravariant=True)
-Scalar_contra = TypeVar("Scalar_contra", float, int, contravariant=True)
-
-
-@runtime_checkable
-class VectorMappingConstructor(Protocol[M, K_contra, Scalar_contra]):
-    @classmethod
-    def from_vectors(
-        cls, keys: Sequence[K_contra], values: Sequence[Scalar_contra]
-    ) -> M: ...
+K_contra = TypeVar(
+    "K_contra",
+    bound=str,
+)
+Scalar_contra = TypeVar(
+    "Scalar_contra",
+    float,
+    int,
+)
 
 
 class VectorMapping[K, V: (float, int)](VectorOps[V], Mapping[K, V], ABC):
@@ -41,3 +39,7 @@ class VectorMapping[K, V: (float, int)](VectorOps[V], Mapping[K, V], ABC):
 
     @abstractmethod
     def __iter__(self) -> Iterator[K]: ...
+
+    @classmethod
+    @abstractmethod
+    def from_vectors(cls, keys: Sequence[K_contra], values: Sequence[V]) -> Self: ...

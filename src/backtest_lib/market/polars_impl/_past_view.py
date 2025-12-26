@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
     Literal,
     Self,
-    Sequence,
     SupportsIndex,
     TypeVar,
     overload,
