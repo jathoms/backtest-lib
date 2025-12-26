@@ -51,7 +51,7 @@ class VectorOps[Scalar: (float, int)](Sized, ABC):
     def mean(self) -> float:
         n = len(self)
         if n == 0:
-            raise ValueError("mean of empty VectorMapping")
+            raise ValueError(f"mean of empty {type(self)}")
         return self.sum() / n
 
     def abs(self) -> Self: ...

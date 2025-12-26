@@ -20,8 +20,8 @@ MappingType = TypeVar("MappingType", bound=VectorMapping)
 
 @dataclass(frozen=True)
 class Portfolio(Generic[H, MappingType]):
-    cash: float
     holdings: UniverseMapping[H]
+    cash: float = 0
 
 
 class QuantityPortfolio(Portfolio[Quantity, MappingType], Generic[MappingType]):
@@ -104,7 +104,7 @@ class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
             raise NotImplementedError()
 
     def indexed_over(self, full_universe: Iterable[str]) -> WeightedPortfolio:
-        return uniform_portfolio(full_universe, self.holdings)
+        return uniform_portfolio(full_universe, self.holdings.keys())
 
 
 def uniform_portfolio(
@@ -112,16 +112,20 @@ def uniform_portfolio(
 ) -> WeightedPortfolio:
     if tradable_universe is None:
         tradable_universe = full_universe
-    if not isinstance(tradable_universe, tuple):
-        tradable_universe = tuple(tradable_universe)
-    zeroed_securities = tuple(set(full_universe) - set(tradable_universe))
+    if not isinstance(tradable_universe, set):
+        tradable_universe = set(tradable_universe)
+    uniform_allocation_weight = 1.0 / min(
+        len(tradable_universe), len(list(full_universe))
+    )
     return WeightedPortfolio(
         cash=0,
         holdings=SeriesUniverseMapping.from_names_and_data(
-            tradable_universe + zeroed_securities,
+            tuple(full_universe),
             pl.Series(
-                ([1 / len(tradable_universe)] * len(tradable_universe))
-                + ([0.0] * len(zeroed_securities))
+                (
+                    uniform_allocation_weight if sec in tradable_universe else 0.0
+                    for sec in full_universe
+                )
             ),
         ),
     )
