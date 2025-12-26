@@ -6,17 +6,9 @@ from typing import Self, TypeVar
 
 from backtest_lib.universe.vector_ops import VectorOps
 
-# K invariant (to add/sub/div/mul a mapping with another mapping, the key type must be able to be compared directly)
-M = TypeVar("M", bound="VectorMapping", covariant=True)
-
 K_contra = TypeVar(
     "K_contra",
     bound=str,
-)
-Scalar_contra = TypeVar(
-    "Scalar_contra",
-    float,
-    int,
 )
 
 

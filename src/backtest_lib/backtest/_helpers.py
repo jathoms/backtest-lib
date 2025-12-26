@@ -16,5 +16,6 @@ def _to_pydt(some_datetime: Any) -> datetime:
         return datetime.fromtimestamp(us / 1e6, UTC)
     else:
         raise TypeError(
-            f"Cannot convert {some_datetime} with type {type(some_datetime)} to python datetime"
+            f"Cannot convert {some_datetime} with type {type(some_datetime)} to python"
+            " datetime"
         )

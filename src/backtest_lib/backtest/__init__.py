@@ -24,9 +24,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_BACKTEST_SETTINGS = BacktestSettings.default()
+
 
 class Backtest:
-    """Runs a historical simulation of a :class:`Strategy <backtest_lib.strategy.Strategy>`
+    """Runs a historical simulation of a :class:`Strategy
+    <backtest_lib.strategy.Strategy>`
     over a :class:`MarketView <backtest_lib.market.MarketView>` and a
     :class:`Universe <backtest_lib.universe.Universe>`.
 
@@ -47,7 +50,8 @@ class Backtest:
       incorporated elsewhere).
     - Strategies may return an incomplete set of holdings; missing securities
       are padded with zero weight to match the full universe.
-    - If :attr:`BacktestSettings.allow_short <backtest_lib.backtest.settings.BacktestSettings.allow_short>`
+    - If :attr:`BacktestSettings.allow_short
+      <backtest_lib.backtest.settings.BacktestSettings.allow_short>`
       is False and the target contains negative weights, the target is coerced into
       a long-only portfolio.
 
@@ -64,15 +68,21 @@ class Backtest:
             :class:`WeightedPortfolio <backtest_lib.portfolio.WeightedPortfolio>`
             used to initialize the simulation state.
         settings: Controls simulation constraints (e.g., shorting). Defaults to
-            :meth:`BacktestSettings.default <backtest_lib.backtest.settings.BacktestSettings.default>`.
+            :meth:`BacktestSettings.default
+            <backtest_lib.backtest.settings.BacktestSettings.default>`.
         decision_schedule: Rebalance schedule. May be:
 
-            - A :class:`DecisionSchedule <backtest_lib.schedule.DecisionSchedule>` instance,
+            - A :class:`DecisionSchedule
+              <backtest_lib.schedule.DecisionSchedule>` instance,
             - A string specification consumed by
-              :func:`make_decision_schedule <backtest_lib.schedule.make_decision_schedule>`, or
-            - None, in which case a schedule is constructed from ``market_view.periods``.
-        backend: Backend identifier used to select the :class:`PastView <backtest_lib.pastview.PastView>`
-            implementation used for data manipulation, memory allocation, and results view.
+              :func:`make_decision_schedule
+              <backtest_lib.schedule.make_decision_schedule>`, or
+            - None, in which case a schedule is constructed from
+              ``market_view.periods``.
+        backend: Backend identifier used to select the
+        :class:`PastView <backtest_lib.pastview.PastView>`
+            implementation used for data manipulation, memory allocation,
+            and results view.
             Default (and currently only implemented) backend is "polars"
 
     Attributes:
@@ -114,7 +124,7 @@ class Backtest:
         universe: Universe,
         market_view: MarketView,
         initial_portfolio: WeightedPortfolio,
-        settings: BacktestSettings = BacktestSettings.default(),
+        settings: BacktestSettings = _DEFAULT_BACKTEST_SETTINGS,
         *,
         decision_schedule: str | DecisionSchedule | None = None,
         backend="polars",
@@ -153,14 +163,16 @@ class Backtest:
             past_market_view = self.market_view.truncated_to(i)
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
             logger.debug(
-                f"Starting period {i} ({ctx.now}). Current total growth: {total_growth}",
+                f"Starting period {i} ({ctx.now}). Current total growth:"
+                f" {total_growth}",
             )
             if ctx.now >= _to_pydt(next_decision_period):
                 try:
                     next_decision_period = next(schedule_it)
                 except StopIteration:
                     logger.debug(
-                        f"Reached end of decision schedule, breaking from backtest loop at {ctx.now} (period {i}).",
+                        "Reached end of decision schedule, breaking from backtest loop"
+                        f" at {ctx.now} (period {i}).",
                     )
                     break
 
@@ -178,8 +190,9 @@ class Backtest:
                     # maybe a .merge() method on the VectorMapping would make
                     # more sense.
                     logger.debug(
-                        f"Incomplete universe returned by strategy (decision had {len(decision.target.holdings)}, "
-                        f"full universe has {len(self.universe)}), filling remaining securities with 0.",
+                        "Incomplete universe returned by strategy (decision had"
+                        f" {len(decision.target.holdings)}, full universe has"
+                        f" {len(self.universe)}), filling remaining securities with 0.",
                     )
                     object.__setattr__(
                         decision.target,
@@ -193,8 +206,11 @@ class Backtest:
                 if current_uni is not None and set(
                     decision.target.holdings.keys(),
                 ) ^ set(current_uni):
-                    print(
-                        f"{ctx.now}: Universe changed! len: {len(current_uni)}->{len(decision.target.holdings.keys())}, diff: {set(current_uni) ^ set(decision.target.holdings.keys())}",
+                    logger.debug(
+                        f"{ctx.now}: Universe changed! len:"
+                        f" {len(current_uni)}->{len(decision.target.holdings.keys())},"
+                        " diff:"
+                        f" {set(current_uni) ^ set(decision.target.holdings.keys())}",
                     )
 
                 if past_market_view.tradable is not None:
@@ -212,7 +228,8 @@ class Backtest:
                 )
 
                 assert np.isclose(total_weight_after_decision, 1.0), (
-                    f"Total weight after making a decision cannot exceed 1.0, weight on period {i} was {total_weight_after_decision}"
+                    "Total weight after making a decision cannot exceed 1.0, "
+                    f"weight on period {i} was {total_weight_after_decision}"
                 )
 
                 if not self.settings.allow_short and any(
@@ -270,10 +287,13 @@ def _apply_inter_period_price_changes(
     new_cash = prev_cash / new_total_weight
     new_holdings = new_total_holdings_weight / new_total_weight
 
-    return WeightedPortfolio(
-        cash=new_cash,
-        holdings=new_holdings,
-    ), new_total_weight
+    return (
+        WeightedPortfolio(
+            cash=new_cash,
+            holdings=new_holdings,
+        ),
+        new_total_weight,
+    )
 
 
 def _check_tradable(
@@ -287,9 +307,10 @@ def _check_tradable(
     logger.debug(f"Tradable len: {len(tradable)}")
     logger.debug(f"Decision weights len: {len(decision.target.holdings.keys())}")
     msgs = [
-        f"Security '{sec}' is marked as non-tradable on period {now} but is given a value of {val}."
+        f"Security '{sec}' is marked as non-tradable on period {now} but is given a"
+        f" value of {val}."
         for sec, val in decision.target.holdings.items()
         if val > 0 and sec not in tradable
     ]
     if msgs:
-        warnings.warn("\n".join(msgs))
+        warnings.warn("\n".join(msgs), stacklevel=2)

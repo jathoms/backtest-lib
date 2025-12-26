@@ -116,7 +116,9 @@ class DecisionSchedule[I: Comparable]:
             yield x
 
 
-def _step_datetime_iter(step: timedelta | relativedelta, start: datetime) -> Iterable[datetime]:
+def _step_datetime_iter(
+    step: timedelta | relativedelta, start: datetime
+) -> Iterable[datetime]:
     def _it() -> Iterator[datetime]:
         cur = start
         while True:
@@ -147,10 +149,10 @@ class _IterFactoryIterable[T]:
 
 def _raise_iterator_input_error(schedule: object) -> None:
     raise TypeError(
-        "decision_schedule(...) requires a re-iterable schedule (e.g., list/tuple/range), "
-        f"not passed type {type(schedule)}. If you need to stream non-materialized values, use "
-        "decision_schedule_factory(f) where `f` is a function that yields the values of your "
-        "schedule "
+        "decision_schedule(...) requires a re-iterable schedule (e.g.,"
+        f" list/tuple/range), not passed type {type(schedule)}. If you need to stream"
+        " non-materialized values, use decision_schedule_factory(f) where `f` is a"
+        " function that yields the values of your schedule "
     )
 
 

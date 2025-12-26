@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import doctest
+from datetime import date
 
 doctest_default_flags = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
 
-from datetime import date
 
 project = "backtest-lib"
 author = "jathoms"

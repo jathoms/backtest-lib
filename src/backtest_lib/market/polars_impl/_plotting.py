@@ -9,8 +9,6 @@ from typing import (
 import altair as alt
 import polars as pl
 
-alt.data_transformers.enable("vegafusion")
-
 from backtest_lib.market.plotting import (
     ByPeriodPlotAccessor,
     BySecurityPlotAccessor,
@@ -18,6 +16,8 @@ from backtest_lib.market.plotting import (
     TimeseriesPlotAccessor,
     UniverseMappingPlotAccessor,
 )
+
+alt.data_transformers.enable("vegafusion")
 
 if TYPE_CHECKING:
     from backtest_lib.market.polars_impl._past_view import (
@@ -281,7 +281,7 @@ class PolarsBySecurityPlotAccessor(BySecurityPlotAccessor):
     ):
         value_cols = [
             c
-            for c, dt in zip(self._df.columns, self._df.dtypes)
+            for c, dt in zip(self._df.columns, self._df.dtypes, strict=True)
             if dt.is_numeric() and c != "date"
         ]
         df = self._df.select(

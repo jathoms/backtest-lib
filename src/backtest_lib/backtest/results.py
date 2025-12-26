@@ -158,7 +158,8 @@ class BacktestResults[IndexT: Comparable]:
             sharpe = None
         else:
             logger.debug(
-                f"Calculating sharpe using an annual risk-free-rate of {risk_free_annual * 100}% "
+                "Calculating sharpe using an annual risk-free-rate of"
+                f" {risk_free_annual * 100}% "
             )
             sharpe = (annualized_return - risk_free_annual) / annualized_volatility
 
@@ -205,14 +206,16 @@ class BacktestResults[IndexT: Comparable]:
 
         if sorted(list(weights.securities)) != sorted(list(close_prices.securities)):
             raise ValueError(
-                "weights.securities must match market.prices.close.securities "
-                f"for BacktestResults construction (lengths were {len(weights.securities)} and {len(close_prices.securities)} respectively)"
+                "weights.securities must match market.prices.close.securities for"
+                f" BacktestResults construction (lengths were {len(weights.securities)}"
+                f" and {len(close_prices.securities)} respectively)"
             )
 
         if list(weights.periods) != list(market.periods):
             raise ValueError(
                 "weights.periods must match market.periods for BacktestResults "
-                f"(slice / align before calling, lengths were {len(weights.periods)} and {len(market.periods)} respectively)"
+                "(slice / align before calling, lengths were "
+                f"{len(weights.periods)} and {len(market.periods)} respectively)"
             )
 
         # TODO: big fat polars logic in here, review if this
@@ -226,7 +229,9 @@ class BacktestResults[IndexT: Comparable]:
 
         numeric_cols = [
             name
-            for name, dtype in zip(close_prices_df.columns, close_prices_df.dtypes)
+            for name, dtype in zip(
+                close_prices_df.columns, close_prices_df.dtypes, strict=True
+            )
             if dtype.is_numeric()
         ]
         asset_returns_df = (
@@ -268,7 +273,9 @@ class BacktestResults[IndexT: Comparable]:
         weights_schema = weights.collect_schema()
         numeric_cols = [
             name
-            for name, dtype in zip(weights_schema.names(), weights_schema.dtypes())
+            for name, dtype in zip(
+                weights_schema.names(), weights_schema.dtypes(), strict=True
+            )
             if dtype.is_numeric()
         ]
 

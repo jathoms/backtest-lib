@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import replace
-from typing import Generic, TypeVar, cast
+from typing import TypeVar, cast
 
 import polars as pl
 
@@ -20,7 +20,7 @@ H = TypeVar("H", float, int)
 MappingType = TypeVar("MappingType", bound=VectorMapping)
 
 
-class Portfolio(Generic[H, MappingType]):
+class Portfolio[H: (float, int), MappingType: VectorMapping]:
     holdings: UniverseMapping[H]
     cash: float = 0
 
@@ -45,7 +45,7 @@ class Portfolio(Generic[H, MappingType]):
             self.holdings = holdings
 
 
-class QuantityPortfolio(Portfolio[Quantity, MappingType], Generic[MappingType]):
+class QuantityPortfolio[MappingType: VectorMapping](Portfolio[Quantity, MappingType]):
     def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
         values = self.holdings * prices
         total_value = values.sum() + self.cash
@@ -57,8 +57,8 @@ class QuantityPortfolio(Portfolio[Quantity, MappingType], Generic[MappingType]):
         )
 
 
-class FractionalQuantityPortfolio(
-    Portfolio[FractionalQuantity, MappingType], Generic[MappingType]
+class FractionalQuantityPortfolio[MappingType: VectorMapping](
+    Portfolio[FractionalQuantity, MappingType]
 ):
     def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
         values = self.holdings * prices
@@ -71,7 +71,7 @@ class FractionalQuantityPortfolio(
         )
 
 
-class WeightedPortfolio(Portfolio[Weight, MappingType], Generic[MappingType]):
+class WeightedPortfolio[MappingType: VectorMapping](Portfolio[Weight, MappingType]):
     def into_quantities(
         self, prices: UniverseMapping[Price], total_value: Price
     ) -> QuantityPortfolio:
@@ -143,10 +143,8 @@ def uniform_portfolio(
         holdings=SeriesUniverseMapping.from_names_and_data(
             tuple(full_universe),
             pl.Series(
-                
-                    uniform_allocation_weight if sec in tradable_universe else 0.0
-                    for sec in full_universe
-                
+                uniform_allocation_weight if sec in tradable_universe else 0.0
+                for sec in full_universe
             ),
         ),
     )

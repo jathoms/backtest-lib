@@ -43,8 +43,7 @@ include = ["src"]
 exclude = ["src/backtest_lib/examples"]
 
 [tool.ruff]
-line-length = 100
-
+line-length = 88
 
 [tool.ruff.lint]
 exclude = ["src/backtest_lib/examples"]
@@ -60,7 +59,6 @@ ignore = ["EM101"]
 
 [tool.ruff.format]
 docstring-code-format = true
-
 
 [tool.pyrefly]
 project-includes = ["**/*"]

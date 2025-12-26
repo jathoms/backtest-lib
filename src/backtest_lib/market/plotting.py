@@ -115,6 +115,7 @@ class ByPeriodPlotAccessor(ABC):
     def __call__(self, **kwargs) -> Any:
         return self.bar(**kwargs)
 
+    @abstractmethod
     def bar(
         self,
         **kwargs,

@@ -229,6 +229,7 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
         self, key: SecurityName | Iterable[SecurityName]
     ) -> Timeseries[ValueT, Index] | PastView[ValueT, Index]: ...
 
+    @abstractmethod
     def __iter__(self) -> Iterator[SecurityName]: ...
 
     @property
@@ -403,13 +404,17 @@ class MarketView[Index: Comparable]:
         sec = view.securities
         if self._security_policy is SecurityAxisPolicy.STRICT:
             if len(sec) != len(ref_sec) or not all(
-                a == b for a, b in zip(sec, ref_sec)
+                a == b for a, b in zip(sec, ref_sec, strict=True)
             ):
                 # TODO: improve this error message. will require more context in this
                 # function i.e add a string of the name of the reference sequence
                 raise ValueError("Securities must match reference exactly.")
             new_sec: Sequence[SecurityName] | None = None
-        elif self._security_policy is SecurityAxisPolicy.SUBSET_OK or self._security_policy is SecurityAxisPolicy.SUPERSET_OK or self._security_policy is SecurityAxisPolicy.COERCE:
+        elif (
+            self._security_policy is SecurityAxisPolicy.SUBSET_OK
+            or self._security_policy is SecurityAxisPolicy.SUPERSET_OK
+            or self._security_policy is SecurityAxisPolicy.COERCE
+        ):
             raise NotImplementedError()
         else:
             raise RuntimeError("Unknown security policy")
@@ -422,11 +427,14 @@ class MarketView[Index: Comparable]:
             # that requires a numpy-specific function (.all()) to collapse
             # to a single bool
             if len(periods) != len(ref_periods) or not all(
-                a == b for a, b in zip(periods, ref_periods)
+                a == b for a, b in zip(periods, ref_periods, strict=True)
             ):
                 raise ValueError("Periods must match reference exactly.")
             new_per: Sequence[Index] | None = None
-        elif self._period_policy is PeriodAxisPolicy.INTERSECT or self._period_policy is PeriodAxisPolicy.FFILL:
+        elif (
+            self._period_policy is PeriodAxisPolicy.INTERSECT
+            or self._period_policy is PeriodAxisPolicy.FFILL
+        ):
             raise NotImplementedError()
         else:
             raise RuntimeError("Unknown period policy")
@@ -487,14 +495,14 @@ class MarketView[Index: Comparable]:
         )
         filtered_signal_securities = {
             k: [sec for sec in securities if sec in self.signals[k].securities]
-            for k in self.signals.keys()
+            for k in self.signals
         }
         return MarketView(
             prices=self.prices.filter_securities(filtered_price),
             volume=self.volume.by_security[filtered_volume] if self.volume else None,
-            tradable=self.tradable.by_security[filtered_tradable]
-            if self.tradable
-            else None,
+            tradable=(
+                self.tradable.by_security[filtered_tradable] if self.tradable else None
+            ),
             periods=self.periods,
             signals={
                 k: v.by_security[filtered_signal_securities[k]]

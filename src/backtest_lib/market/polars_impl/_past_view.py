@@ -201,10 +201,9 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
         )
 
     def __iter__(self) -> Iterator[np.datetime64]:
-        for period in self._period_axis.dt64[
+        yield from self._period_axis.dt64[
             self._period_slice_start : self._period_slice_start + len(self)
-        ]:
-            yield period
+        ]
 
     @overload
     def to_dataframe(
@@ -380,8 +379,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
         )
 
     def __iter__(self) -> Iterator[str]:
-        for sec in self._sel_names or self._security_axis.names:
-            yield sec
+        yield from self._sel_names or self._security_axis.names
 
     @property
     def plot(self) -> BySecurityPlotAccessor:
@@ -460,7 +458,8 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
             raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
         if not len(periods) == len(ms):
             raise ValueError(
-                f"Length of period sequence must match length of security mapping list, lengths were {len(periods)} and {len(ms)} respectively."
+                "Length of period sequence must match length of security "
+                f"mapping list, lengths were {len(periods)} and {len(ms)} respectively."
             )
 
         first_keys = set(ms[0].keys())
@@ -471,8 +470,9 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
                 if m.keys() != first_keys
             )
             raise KeyError(
-                "All security mappings must have the same keys to create a PolarsPastView.\n"
-                f"Found differing keys from first keys (period, keys): {differing_keys}"
+                "All security mappings must have the same keys to create a"
+                " PolarsPastView.\nFound differing keys from first keys (period,"
+                f" keys): {differing_keys}"
             )
         allowed_types: list[type[Any] | pl.DataType] = [float, int]
         allowed_types.extend(
@@ -483,7 +483,9 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         passed_type = next(iter(unique_passed_types), None)
         if not all(x is passed_type for x in unique_passed_types):
             raise ValueError(
-                f"All values of the mapping must be the same to create a PolarsPastView, {len(unique_passed_types)} types were passed ({unique_passed_types})"
+                "All values of the mapping must be the same to create a "
+                f"PolarsPastView, {len(unique_passed_types)} types were passed "
+                f"({unique_passed_types})"
             )
         if passed_type not in allowed_types:
             raise ValueError(f"Cannot create PolarsPastView of type {passed_type}.")
@@ -510,13 +512,16 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
                 df = pl.DataFrame(df)
             except Exception as e:
                 raise ValueError(
-                    f"Cannot create PolarsPastView from '{df.__name__}'. It must be able to be turned into a polars DataFrame with a 'date' column and a column for each security: {e}"
-                )
+                    f"Cannot create PolarsPastView from '{df.__name__}'. "
+                    "It must be able to be turned into a polars DataFrame with a "
+                    f"'date' column and a column for each security: {e}"
+                ) from e
         try:
             dates = df.get_column("date")
         except Exception as e:
             raise ValueError(
-                "Input dataframe must have column for 'date' and a column for each security"
+                "Input dataframe must have column for 'date' and a column for each"
+                " security"
             ) from e
 
         if dates.dtype not in (pl.Date, pl.Datetime):

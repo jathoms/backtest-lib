@@ -114,7 +114,12 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
                 if not all(name in self.names for name in other.names):
                     logger.debug(f"lhs size: {len(self)}, rhs size: {len(other)}")
                     logger.debug(
-                        f"{len([name for name in self.names if name not in other.names])} items found in lhs not in rhs"
+                        f"{
+                            len(
+                                [name for name in self.names if name not in other.names]
+                            )
+                        }"
+                        " items found in lhs not in rhs"
                     )
                     return cast(float, _RHS_HANDOFF), float
                 data = _mapping_to_series(self, other)
@@ -131,7 +136,8 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
             return aligned_series, self._scalar_type
 
         raise TypeError(
-            "Unsupported operand: only scalars, mappings or SeriesUniverseMapping with compatible axes are allowed."
+            "Unsupported operand: only scalars, mappings or SeriesUniverseMapping "
+            "with compatible axes are allowed."
         )
 
     def __add__(
@@ -246,10 +252,9 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
     ) -> SeriesUniverseMapping[T]:
         keys_tuple = tuple(keys)
 
-        if not isinstance(values, pl.Series):
-            values_series = pl.Series(values)
-        else:
-            values_series = values
+        values_series = (
+            pl.Series(values) if not isinstance(values, pl.Series) else values
+        )
 
         return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
 
@@ -260,7 +265,7 @@ def _mapping_to_series[T: (float, int)](
 ) -> pl.Series:
     keys_touched = len(other_mapping)
     idxs = np.fromiter(
-        (mapping.pos[k] for k in other_mapping.keys()),
+        (mapping.pos[k] for k in other_mapping),
         dtype=np.int64,
         count=keys_touched,
     )
