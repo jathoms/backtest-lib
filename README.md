@@ -4,50 +4,65 @@
 
 ### Strategy
 
-This library provides a lightweight framework for backtesting trading strategies. At its core, you define a strategy as a simple Python function that maps the current market state and portfolio into a decision about what to hold next. The library handles the rest: simulating trades over time, applying your decision rules at a fixed frequency, and generating performance statistics.
+This library provides a lightweight framework for backtesting trading strategies. At its core, you define a strategy as a simple Python function that maps the current market state and portfolio into a decision about what to hold next. The library handles the rest: simulating trades over time, applying your decision rules at an optionally specified frequency, and generating performance statistics.
 
 A strategy must conform to the following structure:
 
 ```python
 class Decision:
-    target: Holdings
-    notes: UniverseMapping[Any] | None
+    target: WeightedPortfolio
+    notes: UniverseMapping[Any] | None = None
 
 class Strategy(Protocol):
     def __call__(
         self,
         universe: Universe,
-        current_holdings: Holdings,
+        current_portfolio: WeightedPortfolio,
         market: MarketView,
-        ctx: StrategyContext,
+        ctx: StrategyContext | None,
     ) -> Decision: ...
 ```
 
-_In short, a function is called a strategy as long as it takes the universe, the current holdings, a market view, and additional context as parameters, and returns a Decision (which wraps the desired holdings)._
+_In short, a function is called a strategy as long as it takes the universe, the current holdings, a market view, and additional context as parameters, and returns a Decision (which wraps the target portfolio)._
 
 As inputs, the strategy receives the available universe, current holdings, a view of the market, and a context object for state.
 
-For outputs, the strategy emits a Decision specifying the new target holdings for each decision point in the _decision schedule_ (TODO) (plus optional notes for inspection/memoized signals).
+For outputs, the strategy emits a Decision specifying the new target portfolio for each decision point in the _decision schedule_ 
 
-An toy example strategy can be written as follows, where we allocate our holdings uniformly across the all tradable assets:
+An toy example strategy can be written as follows, where we allocate our holdings uniformly across our universe:
 
 ```python
+import backtest_lib as btl
+from backtest_lib.portfolio import uniform_portfolio
+
 def equal_weight_strategy(
-    universe: Universe,
-    current_holdings: Holdings,
-    market: MarketView,
-    ctx: StrategyContext,
-) -> Decision:
-    weight = 1.0 / n
-    target_holdings = Holdings({asset: weight for asset in universe})
-    return Decision(target_holdings)
+    universe,
+    current_portfolio,
+    market,
+    ctx,
+):
+    return btl.Decision(uniform_portfolio(universe))
+```
+
+Or alternatively, another trivial strategy where we do nothing after creating our initial portfolio:
+
+```python
+import backtest_lib as btl
+
+def buy_and_hold_strategy(
+    universe,
+    current_portfolio,
+    market,
+    ctx,
+):
+    return btl.Decision(current_portfolio)
 ```
 
 ## Market
 
 Inside the strategy function, the main way to interact with market data is through the MarketView object. This object provides a time-fenced view of historical prices, volumes, and tradability up to the current decision point. The data is time-fenced so that the strategy only sees information available at each step, as it marches forward through periods to reduce the risk of lookahead bias.
 
-### Key properties:
+### Main MarketView properties:
 
 - market.prices: access to OHLC price histories
 
@@ -65,11 +80,11 @@ access a single security’s full history with `market.prices.close.by_security[
 
 or restrict the view to a time window with `market.volume.after(ctx.now - timedelta(days=90))`.
 
-For instance, if we wanted to calculate the rolling 30 day mean trading volume of MSFT, we can use the expression `market.volume.after(ctx.now - timedelta(days=30)).by_security["MSFT"].as_series().mean()`
+For instance, if we wanted to calculate the rolling 30 day mean trading volume of MSFT, we can use the expression `market.volume.after(ctx.now - timedelta(days=30)).by_security["MSFT"].mean()`
 
 ### More fleshed out: AAPL volume filter + momentum strategy
 
-Assuming our data period is 1 day, we can implement a momentum/volume filter strategy like below. We keep the universe limited to a single security (AAPL) for simplicity.
+Assuming we are using daily data, we can implement a momentum/volume filter strategy like below. We keep the universe limited to a single security (AAPL) for simplicity.
 
 ```python
 def aapl_momentum_with_liquidity(
@@ -81,11 +96,11 @@ def aapl_momentum_with_liquidity(
     if "AAPL" not in universe:
         return Decision(target=Holdings(), notes={"warn": "AAPL not in universe"})
 
-    aapl_close = market.prices.close.by_security["AAPL"]            # Timeseries[Price, datetime64]
+    aapl_close = market.prices.close.by_security["AAPL"]            # Timeseries[float, datetime64]
     aapl_tradable = market.tradable.by_security["AAPL"]             # Timeseries[bool, datetime64]
     aapl_volume = (
         market.volume.by_security["AAPL"] if market.volume is not None else None
-    )                                                                # Timeseries[Volume, datetime64] | None
+    )                                                                # Timeseries[int, datetime64] | None
 
     momentum_lookback = 126   # ~6 months
     vol_window = 60           # ~3 months
@@ -111,18 +126,10 @@ def aapl_momentum_with_liquidity(
     tradable_now = bool(aapl_tradable[-1])
 
     go_long = (momentum > 0.0) and vol_ok and tradable_now
-    target = Holdings({"AAPL": 1.0}) if go_long else Holdings()  # 100% AAPL or 100% cash
-    # TODO: how to represent no holdings/full cash.
+    target = WeightedPortfolio({"AAPL": 1.0}) if go_long else WeightedPortfolio({"AAPL": 0.0}, cash=1.0)
 
     return Decision(
         target=target,
-        notes={
-            # TODO: this notes thing seems useful for audit, maybe flesh it out some more, or maybe just a dict is fine.
-            "rule": "Long AAPL if 126d momentum > 0 and liquidity/tradability pass",
-            "momentum_126d": momentum,
-            "avg_vol_60": avg_vol,
-            "tradable_now": tradable_now,
-        },
     )
 ```
 
