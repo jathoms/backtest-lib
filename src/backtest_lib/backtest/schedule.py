@@ -110,7 +110,7 @@ class DecisionSchedule[I: Comparable]:
                 )
             if start is not None and x < start:
                 continue
-            if end is not None and not self._inclusive_end and x >= end or x > end:
+            if end is not None and ((not self._inclusive_end and x >= end) or x > end):
                 break
 
             yield x
@@ -186,13 +186,14 @@ def decision_schedule[I: Comparable](
     if isinstance(schedule, str):
         if not isinstance(start, DateTimeLike):
             raise TypeError("For string schedules, start must be a datetime.")
-        if end is not None and not isinstance(end, DateTimeLike):
-            raise TypeError("For string schedules, end a datetime or None.")
-        if end is not None and end < start:
-            raise ValueError("end must be >= start")
+        if end is not None:
+            if not isinstance(end, DateTimeLike):
+                raise TypeError("For string schedules, end a datetime or None.")
+            if end < start:
+                raise ValueError("end must be >= start")
+            end = _to_pydt(end)
 
         start = _to_pydt(start)
-        end = _to_pydt(end)
 
         s = schedule.strip()
         inferred = (
