@@ -79,8 +79,9 @@ class Backtest:
               <backtest_lib.schedule.make_decision_schedule>`, or
             - None, in which case a schedule is constructed from
               ``market_view.periods``.
+
         backend: Backend identifier used to select the
-        :class:`PastView <backtest_lib.pastview.PastView>`
+            :class:`PastView <backtest_lib.pastview.PastView>`
             implementation used for data manipulation, memory allocation,
             and results view.
             Default (and currently only implemented) backend is "polars"
@@ -105,7 +106,7 @@ class Backtest:
         ...     hold_strategy, universe, market, uniform_portfolio(universe)
         ... )
         >>> results = bt.run()
-        >>> results.annualized_return  # doctest: +ELLIPSIS
+        >>> results.annualized_return
         -0.00022650...
     """
 
