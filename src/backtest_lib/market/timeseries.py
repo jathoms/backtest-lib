@@ -4,7 +4,6 @@ from typing import (
     Any,
     Protocol,
     Self,
-    TypeVar,
     overload,
     runtime_checkable,
 )
@@ -26,10 +25,7 @@ class Comparable(Protocol):
     __ge__: Callable[[Any], Any]
 
 
-Index = TypeVar("Index", bound=Comparable, contravariant=True)  # Type used for indexing
-
-
-class Timeseries[Scalar: (float, int), Index](VectorOps[Scalar], ABC):
+class Timeseries[Scalar: (float, int), Index: Comparable](VectorOps[Scalar], ABC):
     @overload
     def __getitem__(self, key: int) -> Scalar: ...
 

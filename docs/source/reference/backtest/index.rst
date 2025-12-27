@@ -2,8 +2,13 @@
 Backtest
 ========
 
-.. currentmodule:: backtest_lib
+.. currentmodule:: backtest_lib.backtest
 
-.. autoclass:: Backtest
-    :members:
-    :noindex:
+.. autosummary::
+   :toctree: api/
+
+   Backtest
+   settings.BacktestSettings
+   results.BacktestResults
+   schedule.DecisionSchedule
+   schedule.make_decision_schedule

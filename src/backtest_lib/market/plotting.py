@@ -21,6 +21,8 @@ PV = TypeVar("PV", bound="PastView")
 
 
 class PastViewPlotAccessor(ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
     def __init__(self, obj): ...
 
@@ -44,6 +46,8 @@ class PastViewPlotAccessor(ABC):
 
 
 class UniverseMappingPlotAccessor(ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
     def __init__(self, obj: VM): ...
 
@@ -86,6 +90,8 @@ class UniverseMappingPlotAccessor(ABC):
 
 
 class TimeseriesPlotAccessor(ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
     def __init__(self, obj: TS): ...
 
@@ -108,6 +114,8 @@ class TimeseriesPlotAccessor(ABC):
 
 
 class ByPeriodPlotAccessor(ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
     def __init__(self, obj: BP): ...
 
@@ -123,6 +131,8 @@ class ByPeriodPlotAccessor(ABC):
 
 
 class BySecurityPlotAccessor(ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
     def __init__(self, obj: BS): ...
 

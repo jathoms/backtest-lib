@@ -8,7 +8,6 @@ import polars as pl
 
 from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
-from backtest_lib.universe import Price
 from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 
@@ -21,6 +20,8 @@ MappingType = TypeVar("MappingType", bound=VectorMapping)
 
 
 class Portfolio[H: (float, int), MappingType: VectorMapping]:
+    """PLACEHOLDER"""
+
     holdings: UniverseMapping[H]
     cash: float = 0
 
@@ -46,7 +47,9 @@ class Portfolio[H: (float, int), MappingType: VectorMapping]:
 
 
 class QuantityPortfolio[MappingType: VectorMapping](Portfolio[Quantity, MappingType]):
-    def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
+    """PLACEHOLDER"""
+
+    def into_weighted(self, prices: UniverseMapping[float]) -> WeightedPortfolio:
         values = self.holdings * prices
         total_value = values.sum() + self.cash
         weights = values / total_value
@@ -60,7 +63,9 @@ class QuantityPortfolio[MappingType: VectorMapping](Portfolio[Quantity, MappingT
 class FractionalQuantityPortfolio[MappingType: VectorMapping](
     Portfolio[FractionalQuantity, MappingType]
 ):
-    def into_weighted(self, prices: UniverseMapping[Price]) -> WeightedPortfolio:
+    """PLACEHOLDER"""
+
+    def into_weighted(self, prices: UniverseMapping[float]) -> WeightedPortfolio:
         values = self.holdings * prices
         total_value = values.sum() + self.cash
         weights = values / total_value
@@ -72,8 +77,10 @@ class FractionalQuantityPortfolio[MappingType: VectorMapping](
 
 
 class WeightedPortfolio[MappingType: VectorMapping](Portfolio[Weight, MappingType]):
+    """PLACEHOLDER"""
+
     def into_quantities(
-        self, prices: UniverseMapping[Price], total_value: Price
+        self, prices: UniverseMapping[float], total_value: float
     ) -> QuantityPortfolio:
         target_qtys = (total_value * self.holdings) / prices
         qtys = target_qtys.floor()
@@ -85,7 +92,7 @@ class WeightedPortfolio[MappingType: VectorMapping](Portfolio[Weight, MappingTyp
         )
 
     def into_quantities_fractional(
-        self, prices: UniverseMapping[Price], total_value: Price
+        self, prices: UniverseMapping[float], total_value: float
     ) -> FractionalQuantityPortfolio:
         cash = total_value * self.cash
         holdings = (total_value * self.holdings) / prices
@@ -131,6 +138,7 @@ class WeightedPortfolio[MappingType: VectorMapping](Portfolio[Weight, MappingTyp
 def uniform_portfolio(
     full_universe: Iterable[str], tradable_universe: Iterable[str] | None = None
 ) -> WeightedPortfolio:
+    """PLACEHOLDER"""
     if tradable_universe is None:
         tradable_universe = full_universe
     if not isinstance(tradable_universe, set):

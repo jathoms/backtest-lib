@@ -20,7 +20,7 @@ from backtest_lib.market.plotting import (
 )
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON
 from backtest_lib.market.polars_impl._plotting import SeriesUniverseMappingPlotAccessor
-from backtest_lib.universe import SecurityName, Universe
+from backtest_lib.universe import Universe
 from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
@@ -36,7 +36,7 @@ ScalarU = float | int
 class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
     names: Universe
     _data: pl.Series
-    pos: dict[SecurityName, int] = field(repr=False)
+    pos: dict[str, int] = field(repr=False)
     _scalar_type: type[T]
 
     @staticmethod
@@ -56,7 +56,7 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
         self,
         names: Universe,
         _data: pl.Series,
-        pos: dict[SecurityName, int],
+        pos: dict[str, int],
         _scalar_type: type[int] | type[float] | None = None,
     ):
         n = len(names)
@@ -79,13 +79,13 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
         return self._data
 
     @overload
-    def __getitem__(self, key: SecurityName) -> T: ...
+    def __getitem__(self, key: str) -> T: ...
 
     @overload
-    def __getitem__(self, key: Iterable[SecurityName]) -> pl.Series: ...
+    def __getitem__(self, key: Iterable[str]) -> pl.Series: ...
 
-    def __getitem__(self, key: SecurityName | Iterable[SecurityName]) -> T | pl.Series:
-        if isinstance(key, SecurityName):
+    def __getitem__(self, key: str | Iterable[str]) -> T | pl.Series:
+        if isinstance(key, str):
             return self._scalar_type(self._data.item(self.pos[key]))
         elif isinstance(key, list):
             idx = np.fromiter(
@@ -95,7 +95,7 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
         else:
             raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
 
-    def __iter__(self) -> Iterator[SecurityName]:
+    def __iter__(self) -> Iterator[str]:
         return iter(self.names)
 
     def __len__(self) -> int:

@@ -14,23 +14,20 @@ from typing import (
     overload,
 )
 
-import pandas as pd
-import polars as pl
-
 from backtest_lib.universe import (
     PastUniversePrices,
 )
 
 if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
     from backtest_lib.market.plotting import (
         ByPeriodPlotAccessor,
         BySecurityPlotAccessor,
         PastViewPlotAccessor,
     )
     from backtest_lib.market.timeseries import Comparable, Timeseries
-    from backtest_lib.universe import (
-        SecurityName,
-    )
     from backtest_lib.universe.universe_mapping import UniverseMapping
     from backtest_lib.universe.vector_mapping import VectorMapping
 
@@ -63,11 +60,13 @@ def get_timeseries_type_from_mapping(backend: str) -> type[Timeseries]:
 
 
 type SecurityMappings[T: (float, int)] = (
-    Sequence[VectorMapping[SecurityName, T]] | Sequence[Mapping[SecurityName, T]]
+    Sequence[VectorMapping[str, T]] | Sequence[Mapping[str, T]]
 )
 
 
 class SecurityAxisPolicy(Enum):
+    """PLACEHOLDER"""
+
     STRICT = auto()
     SUBSET_OK = auto()
     SUPERSET_OK = auto()
@@ -75,6 +74,8 @@ class SecurityAxisPolicy(Enum):
 
 
 class PeriodAxisPolicy(Enum):
+    """PLACEHOLDER"""
+
     STRICT = auto()
     INTERSECT = auto()
     FFILL = auto()
@@ -93,26 +94,36 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
     @property
     @abstractmethod
-    def periods(self) -> Sequence[Index]: ...
+    def periods(self) -> Sequence[Index]:
+        """PLACEHOLDER PROPERTY"""
+        ...
 
     @property
     @abstractmethod
-    def securities(self) -> Sequence[SecurityName]: ...
+    def securities(self) -> Sequence[str]:
+        """PLACEHOLDER PROPERTY"""
+        ...
 
     @property
     @abstractmethod
-    def by_period(self) -> ByPeriod[ValueT, Index]: ...
+    def by_period(self) -> ByPeriod[ValueT, Index]:
+        """PLACEHOLDER PROPERTY"""
+        ...
 
     @property
     @abstractmethod
-    def by_security(self) -> BySecurity[ValueT, Index]: ...
+    def by_security(self) -> BySecurity[ValueT, Index]:
+        """PLACEHOLDER PROPERTY"""
+        ...
 
     @abstractmethod
     def between(
         self,
         start: Index | str,
         end: Index | str,
-    ) -> Self: ...  # will not clone data, must be contiguous, performs a binary search
+    ) -> Self:
+        """PLACEHOLDER"""
+        ...  # will not clone data, must be contiguous, performs a binary search
 
     @abstractmethod
     def after(
@@ -120,7 +131,9 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         start: Index | str,
         *,
         inclusive: bool = True,  # common expectation: include the start tick
-    ) -> Self: ...
+    ) -> Self:
+        """PLACEHOLDER"""
+        ...
 
     @abstractmethod
     def before(
@@ -128,27 +141,39 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         end: Index | str,
         *,
         inclusive: bool = False,  # common expectation: half-open [.., end)
-    ) -> Self: ...
+    ) -> Self:
+        """PLACEHOLDER"""
+        ...
 
     @staticmethod
     @abstractmethod
     def from_security_mappings(
         ms: SecurityMappings[Any],
         periods: Sequence[Index],
-    ) -> Self: ...
+    ) -> Self:
+        """PLACEHOLDER"""
+        ...
 
     @staticmethod
     @abstractmethod
-    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self: ...
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
+        """PLACEHOLDER"""
+        ...
 
     @property
     @abstractmethod
-    def plot(self) -> PastViewPlotAccessor: ...
+    def plot(self) -> PastViewPlotAccessor:
+        """PLACEHOLDER"""
+        ...
 
 
 class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
-    def __len__(self) -> int: ...
+    def __len__(self) -> int:
+        """PLACEHOLDER"""
+        ...
 
     @overload
     def __getitem__(self, key: SupportsIndex) -> UniverseMapping[ValueT]: ...
@@ -159,14 +184,20 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
     @abstractmethod
     def __getitem__(
         self, key: SupportsIndex | slice
-    ) -> UniverseMapping[ValueT] | PastView[ValueT, Index]: ...
+    ) -> UniverseMapping[ValueT] | PastView[ValueT, Index]:
+        """PLACEHOLDER"""
+        ...
 
     @abstractmethod
-    def __iter__(self) -> Iterator[Index]: ...
+    def __iter__(self) -> Iterator[Index]:
+        """PLACEHOLDER"""
+        ...
 
     @property
     @abstractmethod
-    def plot(self) -> ByPeriodPlotAccessor: ...
+    def plot(self) -> ByPeriodPlotAccessor:
+        """PLACEHOLDER"""
+        ...
 
     @overload
     def to_dataframe(
@@ -211,30 +242,42 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
         show_securities: bool = False,
         lazy: bool = False,
         backend: Literal["polars", "pandas"] = "polars",
-    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame: ...
+    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame:
+        """PLACEHOLDER"""
+        ...
 
 
 class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
+    """PLACEHOLDER"""
+
     @abstractmethod
-    def __len__(self) -> int: ...
+    def __len__(self) -> int:
+        """PLACEHOLDER"""
+        ...
 
     @overload
-    def __getitem__(self, key: SecurityName) -> Timeseries[ValueT, Index]: ...
+    def __getitem__(self, key: str) -> Timeseries[ValueT, Index]: ...
 
     @overload
-    def __getitem__(self, key: Iterable[SecurityName]) -> PastView[ValueT, Index]: ...
+    def __getitem__(self, key: Iterable[str]) -> PastView[ValueT, Index]: ...
 
     @abstractmethod
     def __getitem__(
-        self, key: SecurityName | Iterable[SecurityName]
-    ) -> Timeseries[ValueT, Index] | PastView[ValueT, Index]: ...
+        self, key: str | Iterable[str]
+    ) -> Timeseries[ValueT, Index] | PastView[ValueT, Index]:
+        """PLACEHOLDER"""
+        ...
 
     @abstractmethod
-    def __iter__(self) -> Iterator[SecurityName]: ...
+    def __iter__(self) -> Iterator[str]:
+        """PLACEHOLDER"""
+        ...
 
     @property
     @abstractmethod
-    def plot(self) -> BySecurityPlotAccessor: ...
+    def plot(self) -> BySecurityPlotAccessor:
+        """PLACEHOLDER"""
+        ...
 
     @overload
     def to_dataframe(
@@ -270,18 +313,56 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
         show_periods: bool = True,
         lazy: bool = False,
         backend: Literal["polars", "pandas"] = "polars",
-    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame: ...
+    ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame:
+        """PLACEHOLDER"""
+        ...
 
 
 class MarketView[Index: Comparable]:
+    """Holds a common set of signals for backtesting, as well as any custom signals
+    defined by the user.
+
+    Provides a mechanism for aligning, and enforcing the alignment of the
+    :class:`~backtest_lib.market.PastView` for each signal.
+
+    Type parameters:
+        Index: A type that is comparable with itself. This will commonly be a
+        datetime-like type such as ``np.datetime64``. This constraint allows
+        us to enforce monotonicity on the market periods.
+
+    Args:
+        prices: A :class:`~backtest_lib.universe.PastUniversePrices` structure that
+            holds close, open, high, and low prices for each period. Each price view is
+            represented by a :class:`~backtest_lib.market.PastView`. All price views
+            except for `close` are optional.
+        tradable: An optional :class:`~backtest_lib.market.PastView` of tradability
+            over the periods and securities of the reference view.
+            volume: An optional :class:`~backtest_lib.market.PastView` of volume
+            over the periods and securities of the reference view.
+        signals: An optional mapping from :class:`str` to any custom
+            :class:`~backtest_lib.market.PastView` specified by the user.
+        security_policy: A :class:`~backtest_lib.market.SecurityAxisPolicy`
+            determining how missing or misaligned securities are treated in the
+            construction of the :class:`~backtest_lib.market.MarketView`.
+        period_policy: A :class:`~backtest_lib.market.PeriodAxisPolicy`
+            determining how missing periods are treated in the
+            construction of the :class:`~backtest_lib.market.MarketView`.
+        backend: See ``backtest_lib.Backtest._backend``.
+
+
+    Attributes:
+        periods: A sequence of elements with the type `Index` (see *Type parameters*).
+        TBC
+
+
+    """
+
     # TODO: polars has a FrameInitTypes type.
     # we might want to copy this idea and have a MarketViewInitTypes type
     # instead of just using Any here.
     def __init__(
         self,
         prices: PastUniversePrices[Index] | PastView[float, Index] | Any,
-        periods: Sequence[Index] | None = None,
-        securities: Sequence[str] | None = None,
         tradable: PastView[int, Index] | Any | None = None,
         volume: PastView[int, Index] | Any | None = None,
         signals: dict[str, PastView[Any, Index] | Any] | None = None,
@@ -324,13 +405,8 @@ class MarketView[Index: Comparable]:
         self._volume: PastView[int, Index] | None = volume
         self._signals: dict[str, PastView[Any, Index]] = normalised_signals
 
-        if periods is None:
-            periods = self._resolve_period_axis_spec(reference_view_for_axis_values)
-
-        if securities is None:
-            securities = self._resolve_security_axis_spec(
-                reference_view_for_axis_values
-            )
+        periods = self._resolve_period_axis_spec(reference_view_for_axis_values)
+        securities = self._resolve_security_axis_spec(reference_view_for_axis_values)
 
         self._periods: Sequence[Index] = periods
         self._securities: Sequence[str] = securities
@@ -398,7 +474,7 @@ class MarketView[Index: Comparable]:
     def _align(
         self,
         view: PastView,
-        ref_sec: Sequence[SecurityName],
+        ref_sec: Sequence[str],
         ref_periods: Sequence[Index],
     ) -> PastView:
         sec = view.securities
@@ -409,7 +485,7 @@ class MarketView[Index: Comparable]:
                 # TODO: improve this error message. will require more context in this
                 # function i.e add a string of the name of the reference sequence
                 raise ValueError("Securities must match reference exactly.")
-            new_sec: Sequence[SecurityName] | None = None
+            new_sec: Sequence[str] | None = None
         elif (
             self._security_policy is SecurityAxisPolicy.SUBSET_OK
             or self._security_policy is SecurityAxisPolicy.SUPERSET_OK
@@ -449,7 +525,7 @@ class MarketView[Index: Comparable]:
     def _resolve_period_axis_spec(self, spec: str) -> Sequence[Index]:
         return self._resolve_axis_spec(spec).periods
 
-    def _resolve_security_axis_spec(self, spec: str) -> Sequence[SecurityName]:
+    def _resolve_security_axis_spec(self, spec: str) -> Sequence[str]:
         return self._resolve_axis_spec(spec).securities
 
     def _resolve_axis_spec(self, spec: str) -> PastView:
@@ -475,11 +551,10 @@ class MarketView[Index: Comparable]:
             prices=self.prices.truncated_to(n_periods),
             volume=self.volume.by_period[:n_periods] if self.volume else None,
             tradable=self.tradable.by_period[:n_periods] if self.tradable else None,
-            periods=self.periods[:n_periods],
             signals={k: v.by_period[:n_periods] for k, v in self.signals.items()},
         )
 
-    def filter_securities(self, securities: Sequence[SecurityName]) -> Self:
+    def filter_securities(self, securities: Sequence[str]) -> Self:
         filtered_price = [
             sec for sec in securities if sec in self.prices.close.securities
         ]
@@ -503,7 +578,6 @@ class MarketView[Index: Comparable]:
             tradable=(
                 self.tradable.by_security[filtered_tradable] if self.tradable else None
             ),
-            periods=self.periods,
             signals={
                 k: v.by_security[filtered_signal_securities[k]]
                 for k, v in self.signals.items()

@@ -9,23 +9,17 @@ if TYPE_CHECKING:
     from backtest_lib.market.timeseries import Comparable
 
 
-SecurityName = str
-Price = float
-Volume = int
-
-
-Universe = tuple[SecurityName, ...]
-
-
-type UniversePriceView[TPeriod: Comparable] = PastView[Price, TPeriod]
+Universe = tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class PastUniversePrices[Index: Comparable]:
-    close: UniversePriceView[Index]
-    open: UniversePriceView[Index] | None = None
-    high: UniversePriceView[Index] | None = None
-    low: UniversePriceView[Index] | None = None
+    """PLACEHOLDER"""
+
+    close: PastView[float, Index]
+    open: PastView[float, Index] | None = None
+    high: PastView[float, Index] | None = None
+    low: PastView[float, Index] | None = None
 
     def truncated_to(self, n_periods: int) -> Self:
         return PastUniversePrices(
@@ -35,7 +29,7 @@ class PastUniversePrices[Index: Comparable]:
             high=self.high.by_period[:n_periods] if self.high else None,
         )
 
-    def filter_securities(self, securities: Sequence[SecurityName]) -> Self:
+    def filter_securities(self, securities: Sequence[str]) -> Self:
         return PastUniversePrices(
             close=self.close.by_security[securities],
             open=self.open.by_security[securities] if self.open else None,

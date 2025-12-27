@@ -7,3 +7,6 @@ This is an overview of the public API of backtest-lib.
 .. toctree::
   backtest/index
   market/index
+  strategy/index
+  portfolio/index
+  universe/index

@@ -7,8 +7,6 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
-from backtest_lib.universe import SecurityName
-
 
 @dataclass(frozen=True)
 class SecurityAxis:
@@ -16,7 +14,7 @@ class SecurityAxis:
     pos: dict[str, int]  # name -> index (0..N-1)
 
     @staticmethod
-    def from_names(names: Sequence[SecurityName]) -> SecurityAxis:
+    def from_names(names: Sequence[str]) -> SecurityAxis:
         names_t = tuple(names)
         return SecurityAxis(names_t, {s: i for i, s in enumerate(names_t)})
 

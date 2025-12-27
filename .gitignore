@@ -21,4 +21,5 @@ wheels/
 
 docs/_build/
 docs/build/
-docs/source/_*
+docs/source/_build/
+docs/source/**/api/**

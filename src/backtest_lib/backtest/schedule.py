@@ -123,8 +123,7 @@ def _step_datetime_iter(
         cur = start
         while True:
             yield cur
-            # TODO investigate the soundness of this cast
-            cur = cast(datetime, cur + step)
+            cur = cur + step
 
     return _IterFactoryIterable(_it)
 
@@ -157,7 +156,7 @@ def _raise_iterator_input_error(schedule: object) -> None:
 
 
 @overload
-def decision_schedule(
+def make_decision_schedule(
     schedule: str,
     start: datetime,
     end: datetime | None = None,
@@ -167,7 +166,7 @@ def decision_schedule(
 
 
 @overload
-def decision_schedule[I: Comparable](
+def make_decision_schedule[I: Comparable](
     schedule: Iterable[I],
     start: I | None = None,
     end: I | None = None,
@@ -176,7 +175,7 @@ def decision_schedule[I: Comparable](
 ) -> DecisionSchedule[I]: ...
 
 
-def decision_schedule[I: Comparable](
+def make_decision_schedule[I: Comparable](
     schedule: Iterable[I] | str,
     start: I | datetime | None = None,
     end: I | datetime | None = None,

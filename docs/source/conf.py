@@ -16,6 +16,34 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
+    "sphinx.ext.intersphinx",
+]
+
+
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "pandas": ("https://pandas.pydata.org/pandas-docs/stable/", None),
+    "polars": ("https://docs.pola.rs/py-polars/html/", None),
+}
+
+autodoc_type_aliases = {
+    "pd.DataFrame": "pandas.DataFrame",
+    "pl.DataFrame": "polars.DataFrame",
+    "pl.LazyFrame": "polars.LazyFrame",
+}
+
+napoleon_preprocess_types = True
+napoleon_use_param = True
+napoleon_type_aliases = {
+    "pd.DataFrame": "pandas.DataFrame",
+    "pl.DataFrame": "polars.DataFrame",
+    "pl.LazyFrame": "polars.LazyFrame",
+}
+
+nitpick_ignore = [
+    ("py:class", "pd.DataFrame"),
+    ("py:class", "pl.DataFrame"),
+    ("py:class", "pl.LazyFrame"),
 ]
 
 source_suffix = {
@@ -25,17 +53,11 @@ source_suffix = {
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
+nitpicky = False
+
+templates_path = ["_templates"]
+
 autosummary_generate = True
-
-myst_enable_extensions = [
-    "colon_fence",
-]
-
-myst_heading_anchors = 3
-
-doctest_global_setup = r"""
-import backtest_lib
-"""
 
 doctest_default_flags = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
 

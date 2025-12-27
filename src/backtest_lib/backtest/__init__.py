@@ -9,11 +9,11 @@ import numpy as np
 
 from backtest_lib.backtest._helpers import _to_pydt
 from backtest_lib.backtest.results import BacktestResults
-from backtest_lib.backtest.schedule import DecisionSchedule
-from backtest_lib.backtest.schedule import decision_schedule as make_decision_schedule
+from backtest_lib.backtest.schedule import DecisionSchedule, make_decision_schedule
 from backtest_lib.backtest.settings import BacktestSettings
-from backtest_lib.market import get_pastview_from_mapping
-from backtest_lib.strategy import Decision, MarketView, Strategy, WeightedPortfolio
+from backtest_lib.market import MarketView, get_pastview_from_mapping
+from backtest_lib.portfolio import WeightedPortfolio
+from backtest_lib.strategy import Decision, Strategy
 from backtest_lib.strategy.context import StrategyContext
 
 if TYPE_CHECKING:
@@ -37,51 +37,48 @@ class Backtest:
     object that iterates through market periods, invokes the strategy on configured
     decision dates, and updates the simulated portfolio by applying inter-period
     price changes. The resulting allocation history is materialized via a configurable
-    :class:`PastView <backtest_lib.pastview.PastView>` backend and converted into
+    :class:`PastView <backtest_lib.market.PastView>` backend and converted into
     :class:`BacktestResults <backtest_lib.backtest.results.BacktestResults>`.
 
     The simulation model is intentionally simple:
 
     - Decisions are evaluated on a
-      :class:`DecisionSchedule <backtest_lib.schedule.DecisionSchedule>`. Between
-      decision points, the portfolio weights drift only due to price movements.
+      :class:`DecisionSchedule <backtest_lib.backtest.schedule.DecisionSchedule>`.
+      Between decision points, the portfolio weights drift only due to price movements.
     - The backtest assumes the portfolio can be rebalanced to the strategy's
       target portfolio exactly at decision times (i.e., no slippage/fees unless
       incorporated elsewhere).
     - Strategies may return an incomplete set of holdings; missing securities
       are padded with zero weight to match the full universe.
-    - If :attr:`BacktestSettings.allow_short
-      <backtest_lib.backtest.settings.BacktestSettings.allow_short>`
+    - If ``BacktestSettings.allow_short``
       is False and the target contains negative weights, the target is coerced into
       a long-only portfolio.
 
     Args:
         strategy: Callable strategy that produces a
-            :class:`Decision <backtest_lib.decision.Decision>` given the current
+            :class:`~backtest_lib.strategy.Decision` given the current
             universe, portfolio, market view, and optional context.
         universe: The tradable security set defining the expected holdings keys.
-            See :class:`Universe <backtest_lib.universe.Universe>`.
+            See :class:`~backtest_lib.universe.Universe`.
         market_view: Historical market data used for pricing and period iteration.
-            See :class:`MarketView <backtest_lib.market.MarketView>`. The decision
+            See :class:`~backtest_lib.market.MarketView`. The decision
             schedule defaults to ``market_view.periods`` when not provided.
         initial_portfolio: Starting
-            :class:`WeightedPortfolio <backtest_lib.portfolio.WeightedPortfolio>`
+            :class:`~backtest_lib.portfolio.WeightedPortfolio`
             used to initialize the simulation state.
         settings: Controls simulation constraints (e.g., shorting). Defaults to
             :meth:`BacktestSettings.default
             <backtest_lib.backtest.settings.BacktestSettings.default>`.
         decision_schedule: Rebalance schedule. May be:
 
-            - A :class:`DecisionSchedule
-              <backtest_lib.schedule.DecisionSchedule>` instance,
+            - A :class:`~backtest_lib.backtest.schedule.DecisionSchedule` instance,
             - A string specification consumed by
-              :func:`make_decision_schedule
-              <backtest_lib.schedule.make_decision_schedule>`, or
+              :func:`~backtest_lib.backtest.schedule.make_decision_schedule`, or
             - None, in which case a schedule is constructed from
               ``market_view.periods``.
 
         backend: Backend identifier used to select the
-            :class:`PastView <backtest_lib.pastview.PastView>`
+            :class:`~backtest_lib.market.PastView`
             implementation used for data manipulation, memory allocation,
             and results view.
             Default (and currently only implemented) backend is "polars".

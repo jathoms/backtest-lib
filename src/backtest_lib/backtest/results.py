@@ -6,12 +6,9 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
-from backtest_lib.market.timeseries import Comparable
-from backtest_lib.strategy import MarketView
-from backtest_lib.universe import SecurityName
-
 if TYPE_CHECKING:
-    from backtest_lib.market import PastView
+    from backtest_lib.market import MarketView, PastView
+    from backtest_lib.market.timeseries import Comparable
 
 import polars as pl
 
@@ -27,7 +24,7 @@ class BacktestResults[IndexT: Comparable]:
     """
 
     periods: Sequence[IndexT] = field(repr=False)
-    securities: Sequence[SecurityName] = field(repr=False)
+    securities: Sequence[str] = field(repr=False)
 
     weights: PastView[float, IndexT] = field(repr=False)
     asset_returns: PastView[float, IndexT] = field(repr=False)
@@ -71,7 +68,7 @@ class BacktestResults[IndexT: Comparable]:
         """
 
         periods: Sequence[Any] = weights.periods
-        securities: Sequence[SecurityName] = weights.securities
+        securities: Sequence[str] = weights.securities
 
         if list(periods) != list(returns.periods):
             raise ValueError("weights and returns must share the same periods")

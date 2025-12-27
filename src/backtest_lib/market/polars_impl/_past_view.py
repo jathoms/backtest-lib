@@ -35,7 +35,6 @@ from backtest_lib.market.polars_impl._plotting import (
 )
 from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
 from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
-from backtest_lib.universe import SecurityName
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -307,7 +306,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
     def __getitem__(
         self, key: str | Iterable[str]
     ) -> PolarsTimeseries | PolarsPastView:
-        if isinstance(key, SecurityName):
+        if isinstance(key, str):
             if self._sel_names is not None and key not in self._sel_names:
                 raise KeyError(key)
 
@@ -446,7 +445,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         return Array1DDTView(self._period_axis.dt64)
 
     @property
-    def securities(self) -> tuple[SecurityName, ...]:
+    def securities(self) -> tuple[str, ...]:
         return self._security_axis.names
 
     @staticmethod
