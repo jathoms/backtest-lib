@@ -54,14 +54,15 @@ def fetch_history_one(tickers, start, end=None, interval="1d"):
 
 
 def get_sp500_market_view(
-    start: dt.datetime, end: dt.datetime | None = dt.datetime.now()
+    start: dt.datetime,
+    end: dt.datetime | None = dt.datetime.now(),
 ) -> MarketView[np.datetime64]:
     changes = pkl.load(
-        files(backtest_lib.examples).joinpath("sp500_changes.pkl").open("rb")
+        files(backtest_lib.examples).joinpath("sp500_changes.pkl").open("rb"),
     )
 
     current = pkl.load(
-        files(backtest_lib.examples).joinpath("sp500_const.pkl").open("rb")
+        files(backtest_lib.examples).joinpath("sp500_const.pkl").open("rb"),
     )
 
     dates = pd.date_range(start, end, freq="B").values
@@ -80,10 +81,12 @@ def get_sp500_market_view(
 
     current_tickers = [
         line.rstrip("\n")
-        for line in files(backtest_lib.examples)
-        .joinpath("sp500_constituents.txt")
-        .open("r")
-        .readlines()
+        for line in (
+            files(backtest_lib.examples)
+            .joinpath("sp500_constituents.txt")
+            .open("r")
+            .readlines()
+        )
     ]
     all_historical_tickers = (
         set(added["Ticker"]).union(set(removed["Ticker"])).union(current_tickers)
@@ -93,7 +96,7 @@ def get_sp500_market_view(
         {
             "date": dates,
             **{ticker: [True] * len(dates) for ticker in all_historical_tickers},
-        }
+        },
     )
 
     for ticker in all_historical_tickers:
@@ -153,5 +156,4 @@ def get_sp500_market_view(
     return MarketView(
         prices=PastUniversePrices(close=close_price_past_view),
         tradable=tradable_view,
-        periods=Array1DDTView(dates),
     )
