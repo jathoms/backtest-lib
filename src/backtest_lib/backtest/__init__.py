@@ -84,7 +84,7 @@ class Backtest:
             :class:`PastView <backtest_lib.pastview.PastView>`
             implementation used for data manipulation, memory allocation,
             and results view.
-            Default (and currently only implemented) backend is "polars"
+            Default (and currently only implemented) backend is "polars".
 
     Attributes:
         strategy: Strategy under test.

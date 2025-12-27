@@ -40,13 +40,13 @@ build-backend = "hatchling.build"
 
 [tool.ty.src]
 include = ["src"]
-exclude = ["src/backtest_lib/examples"]
+exclude = ["src/backtest_lib/examples/*"]
 
 [tool.ruff]
 line-length = 88
 
 [tool.ruff.lint]
-exclude = ["src/backtest_lib/examples"]
+exclude = ["src/backtest_lib/examples/*"]
 select = [
     "E",
     "F",
