@@ -2,11 +2,13 @@
 Strategy
 ========
 
-.. currentmodule:: backtest_lib.strategy
+.. currentmodule:: backtest_lib
 
+.. toctree::
+   :hidden:
 
-.. autosummary::
-   :toctree: api/
+   decision
 
-   Decision
-   Strategy
+.. autoclass:: Strategy
+   :members:
+

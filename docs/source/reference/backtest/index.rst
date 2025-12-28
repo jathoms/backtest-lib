@@ -2,13 +2,16 @@
 Backtest
 ========
 
-.. currentmodule:: backtest_lib.backtest
 
-.. autosummary::
-   :toctree: api/
+.. toctree::
+   :maxdepth: 2
+   :hidden:
+   
+   settings
+   results
+   schedule
 
-   Backtest
-   settings.BacktestSettings
-   results.BacktestResults
-   schedule.DecisionSchedule
-   schedule.make_decision_schedule
+.. currentmodule:: backtest_lib
+
+.. autoclass:: Backtest
+   :members: 
