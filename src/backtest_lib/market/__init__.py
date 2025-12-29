@@ -326,7 +326,7 @@ class MarketView[Index: Comparable]:
     :class:`~backtest_lib.market.PastView` for each signal.
 
     Type parameters:
-        Index: A type that is comparable with itself. This will commonly be a
+        `Index`: A type that is comparable with itself. This will commonly be a
         datetime-like type such as ``np.datetime64``. This constraint allows
         us to enforce monotonicity on the market periods.
 
@@ -347,13 +347,27 @@ class MarketView[Index: Comparable]:
         period_policy: A :class:`~backtest_lib.market.PeriodAxisPolicy`
             determining how missing periods are treated in the
             construction of the :class:`~backtest_lib.market.MarketView`.
+        reference_view_for_axis_values: The :class:`~backtest_lib.market.PastView`
+            of this market view used as a reference for the securities and periods
+            for the market view as a whole. For example, when the reference view is
+            "volume", a security or period in any other
+            :class:`~backtest_lib.market.PastView` ("tradable", "prices.close", etc.)
+            :class:`~backtest_lib.market.PastView` not found in the "volume"
+            :class:`~backtest_lib.market.PastView` will be counted as `missing` and
+            will trigger an exception when the associated axis policy is set to
+            ``STRICT``.
+
+            The reference view can be specified as an value of "signals" by passing
+            "signal:<SIGNAL_NAME>" as the reference i.e "signal:carry" for a signal
+            named "carry".
         backend: See ``backtest_lib.Backtest._backend``.
 
 
     Attributes:
-        periods: A sequence of elements with the type `Index` (see *Type parameters*).
-        TBC
-
+        periods: The periods of the reference view. A :class:`~collections.abc.Sequence`
+            of ``Index`` (See *Type parameters*).
+        securities: The securities of the reference view. A
+            :class:`~collections.abc.Sequence` of :class:`str`.
 
     """
 

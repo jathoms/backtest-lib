@@ -2,7 +2,6 @@ import re
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timedelta
 from typing import (
-    cast,
     overload,
 )
 
