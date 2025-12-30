@@ -27,7 +27,7 @@ ruffcheck:
 docs open="" output_dir="docs/_build/html":
   uv sync --group docs
   uv run sphinx-build -b html -W --keep-going "docs/source" "{{output_dir}}"
-  @uv run python -c 'import sys, pathlib, webbrowser; open_flag=sys.argv[1]; out=sys.argv[2]; (webbrowser.open(pathlib.Path(out, \"index.html\").resolve().as_uri()) if open_flag == \"--open\" else None)' "{{open}}" "{{output_dir}}"
+  @uv run python -c "import sys, pathlib, webbrowser; open_flag=sys.argv[1]; out=sys.argv[2]; (webbrowser.open(pathlib.Path(out, \"index.html\").resolve().as_uri()) if open_flag == \"--open\" else None)" "{{open}}" "{{output_dir}}"
 
 doctest:
   uv sync --group docs
