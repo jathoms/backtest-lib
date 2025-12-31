@@ -263,16 +263,8 @@ def _mapping_to_series[T: (float, int)](
     mapping: SeriesUniverseMapping,
     other_mapping: Mapping[Any, T] | VectorMapping[Any, T],
 ) -> pl.Series:
-    keys_touched = len(other_mapping)
-    idxs = np.fromiter(
-        (mapping.pos[k] for k in other_mapping),
-        dtype=np.int64,
-        count=keys_touched,
-    )
-    vals = np.fromiter(
-        (float(v) for v in other_mapping.values()), dtype=float, count=keys_touched
-    )
+    idxs = (mapping.pos[k] for k in other_mapping)
+    vals = (v for v in other_mapping.values())
     series = pl.zeros(len(mapping.names), eager=True)
-    # TODO: I don't like having to use this function.
     series.scatter(idxs, vals)
     return series
