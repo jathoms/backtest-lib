@@ -153,7 +153,6 @@ class Backtest:
         output_weights: list[VectorMapping[str, float]] = []
         returns_contribution: list[VectorMapping[str, float]] = []
 
-        total_growth = 1.0
         self._current_portfolio = self.initial_portfolio
         yesterday_prices = self.market_view.prices.close.by_period[0]
 
@@ -162,7 +161,7 @@ class Backtest:
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
             logger.debug(
                 f"Starting period {i} ({ctx.now}). Current total growth:"
-                f" {total_growth}",
+                f" {self._current_portfolio.total_value}",
             )
             if ctx.now >= _to_pydt(next_decision_period):
                 try:
@@ -245,12 +244,10 @@ class Backtest:
             pct_change = today_prices / yesterday_prices
             returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 
-            inter_day_adjusted_portfolio, growth = _apply_inter_period_price_changes(
+            inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
                 portfolio_after_decision,
                 pct_change,
             )
-
-            total_growth *= growth
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
@@ -271,7 +268,7 @@ class Backtest:
 def _apply_inter_period_price_changes(
     portfolio: WeightedPortfolio,
     pct_change: UniverseMapping[float],
-) -> tuple[WeightedPortfolio, float]:
+) -> WeightedPortfolio:
     prev_cash = portfolio.cash
     prev_hold = portfolio.holdings
     # logger.debug(
@@ -285,12 +282,10 @@ def _apply_inter_period_price_changes(
     new_cash = prev_cash / new_total_weight
     new_holdings = new_total_holdings_weight / new_total_weight
 
-    return (
-        WeightedPortfolio(
-            cash=new_cash,
-            holdings=new_holdings,
-        ),
-        new_total_weight,
+    return WeightedPortfolio(
+        cash=new_cash,
+        holdings=new_holdings,
+        total_value=portfolio.total_value * new_total_weight,
     )
 
 
