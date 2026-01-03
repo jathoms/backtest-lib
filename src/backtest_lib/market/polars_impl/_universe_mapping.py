@@ -242,6 +242,14 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
             names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
         )
 
+    def truncate(self) -> SeriesUniverseMapping[int]:
+        return SeriesUniverseMapping[int](
+            names=self.names,
+            _data=self._data.cast(pl.Int64),
+            pos=self.pos,
+            _scalar_type=int,
+        )
+
     @property
     def plot(self) -> UniverseMappingPlotAccessor:
         return SeriesUniverseMappingPlotAccessor(self)

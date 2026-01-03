@@ -5,15 +5,18 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from backtest_lib.backtest._helpers import _to_pydt
 from backtest_lib.backtest.results import BacktestResults
 from backtest_lib.backtest.schedule import DecisionSchedule, make_decision_schedule
 from backtest_lib.backtest.settings import BacktestSettings
-from backtest_lib.market import MarketView, get_pastview_from_mapping
-from backtest_lib.portfolio import WeightedPortfolio
-from backtest_lib.strategy import Decision, Strategy
+from backtest_lib.engine import Engine, make_engine
+from backtest_lib.engine.execute.perfect_world import PerfectWorldPlanExecutor
+from backtest_lib.engine.plan.perfect_world import (
+    PerfectWorldPlanGenerator,
+)
+from backtest_lib.market import MarketView, get_pastview_type_from_backend
+from backtest_lib.portfolio import CashPortfolio, Portfolio, WeightedPortfolio
+from backtest_lib.strategy import Strategy
 from backtest_lib.strategy.context import StrategyContext
 
 if TYPE_CHECKING:
@@ -115,21 +118,27 @@ class Backtest:
     settings: BacktestSettings
     _schedule: DecisionSchedule
     _backend: type[PastView]
+    _engine: Engine
 
     def __init__(
         self,
         strategy: Strategy,
-        universe: Universe,
         market_view: MarketView,
         initial_portfolio: WeightedPortfolio,
+        universe: Universe | None = None,
         settings: BacktestSettings = _DEFAULT_BACKTEST_SETTINGS,
         *,
+        engine: Engine | None = None,
         decision_schedule: str | DecisionSchedule | None = None,
         backend="polars",
     ):
         self.strategy = strategy
-        self.universe = universe
+        self.universe = universe or tuple(market_view.securities)
         self.market_view = market_view
+        if isinstance(initial_portfolio, CashPortfolio):
+            initial_portfolio = initial_portfolio.materialize(
+                universe=self.universe, backend=backend
+            )
         self.initial_portfolio = initial_portfolio
         self.settings = settings
         if isinstance(decision_schedule, str):
@@ -142,25 +151,30 @@ class Backtest:
             self._schedule = make_decision_schedule(market_view.periods)
         else:
             self._schedule = decision_schedule
-        self._backend = get_pastview_from_mapping(backend)
+        self._backend = get_pastview_type_from_backend(backend)
+
+        self._engine = engine or make_engine(
+            PerfectWorldPlanGenerator(),
+            PerfectWorldPlanExecutor(backend, self.universe),
+            self.universe,
+        )
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         schedule_it = iter(self._schedule)
         next_decision_period = next(schedule_it)
-        current_uni = None
         if ctx is None:
             ctx = StrategyContext()
-        output_weights: list[VectorMapping[str, float]] = []
-        returns_contribution: list[VectorMapping[str, float]] = []
+        output_holdings: list[VectorMapping[str, float]] = []
 
         self._current_portfolio = self.initial_portfolio
         yesterday_prices = self.market_view.prices.close.by_period[0]
 
         for i in range(1, len(self.market_view.periods) + 1):
             past_market_view = self.market_view.truncated_to(i)
+            today_prices = past_market_view.prices.close.by_period[-1]
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
             logger.debug(
-                f"Starting period {i} ({ctx.now}). Current total growth:"
+                f"Starting period {i} ({ctx.now}). Current total portfolio value:"
                 f" {self._current_portfolio.total_value}",
             )
             if ctx.now >= _to_pydt(next_decision_period):
@@ -173,88 +187,58 @@ class Backtest:
                     )
                     break
 
-                decision = self.strategy(
-                    universe=self.universe,
-                    current_portfolio=self._current_portfolio,
-                    market=past_market_view,
+                # NOTE: we are using close prices here. this is an implicit assumption.
+                # the user may want to use (low+high)/2, mid price, VWAP/TWAP.
+                result = self._engine.execute_strategy(
+                    strategy=self.strategy,
+                    portfolio=self._current_portfolio,
+                    market=self.market_view,
                     ctx=ctx,
+                    prices=yesterday_prices,
                 )
-                if len(decision.target.holdings) < len(self.universe):
-                    # pad out the unnaccounted-for securities with 0.
-                    # NOTE: this is some extra allocation we might not need
-                    # as * 0 allocates, and so does + in the case where
-                    # keys are not equal.
-                    # maybe a .merge() method on the VectorMapping would make
-                    # more sense.
-                    logger.debug(
-                        "Incomplete universe returned by strategy (decision had"
-                        f" {len(decision.target.holdings)}, full universe has"
-                        f" {len(self.universe)}), filling remaining securities with 0.",
-                    )
-                    object.__setattr__(
-                        decision.target,
-                        "holdings",
-                        (
-                            (self.market_view.prices.close.by_period[0] * 0)
-                            + decision.target.holdings
-                        ),
-                    )
 
-                if current_uni is not None and set(
-                    decision.target.holdings.keys(),
-                ) ^ set(current_uni):
-                    logger.debug(
-                        f"{ctx.now}: Universe changed! len:"
-                        f" {len(current_uni)}->{len(decision.target.holdings.keys())},"
-                        " diff:"
-                        f" {set(current_uni) ^ set(decision.target.holdings.keys())}",
-                    )
+                # problem: we convert into quantities a lot even when we may not have
+                # to. i.e when the user is using a PerfectWorldGenerator/Executor and
+                # only wants to pass target weights.
+                # idea: allow a decorator or something on the user's strategy to say:
+                # @weight_based or @quantity_based or something else so we can optimize
+                # our backtesting behaviour due to not neeeding constant conversions.
+                portfolio_after_decision = result.after.into_quantities(
+                    yesterday_prices
+                )
+                logger.debug(
+                    f"engine output for {ctx.now}: {result.after.holdings}, "
+                    f"cash: {result.after.cash}"
+                )
 
                 if past_market_view.tradable is not None:
                     _check_tradable(
-                        decision,
+                        portfolio_after_decision,
                         past_market_view.tradable.by_period[-1],
                         ctx.now,
                     )
-
-                target_portfolio = decision.target
-                if not isinstance(target_portfolio, WeightedPortfolio):
-                    target_portfolio = target_portfolio.into_weighted()
-                total_weight_after_decision = (
-                    decision.target.holdings.sum() + decision.target.cash
-                )
-
-                assert np.isclose(total_weight_after_decision, 1.0), (
-                    "Total weight after making a decision cannot exceed 1.0, "
-                    f"weight on period {i} was {total_weight_after_decision}"
-                )
-
-                if not self.settings.allow_short and any(
-                    x < 0 for x in target_portfolio.holdings.values()
-                ):
-                    target_portfolio = target_portfolio.into_long_only()
-
-                # assume we can perfectly track the target portfolio for now
-                portfolio_after_decision = target_portfolio
             else:
-                portfolio_after_decision = self._current_portfolio
-            output_weights.append(portfolio_after_decision.holdings)
+                portfolio_after_decision = self._current_portfolio.into_quantities(
+                    yesterday_prices
+                )
+            # TODO: the weights can be calculated as part of the results calculation,
+            pf_as_weights = portfolio_after_decision.into_weighted(
+                prices=yesterday_prices
+            )
+            output_holdings.append(pf_as_weights.holdings)
 
-            today_prices = past_market_view.prices.close.by_period[-1]
             pct_change = today_prices / yesterday_prices
-            returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 
             inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
-                portfolio_after_decision,
+                pf_as_weights,
                 pct_change,
             )
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
-            current_uni = list(portfolio_after_decision.holdings.keys())
 
-        allocation_history = self._backend.from_security_mappings(
-            output_weights,
+        allocation_history: PastView = self._backend.from_security_mappings(
+            output_holdings,
             self.market_view.periods[: i - 1],
         )
         results = BacktestResults.from_weights_market_initial_capital(
@@ -285,12 +269,14 @@ def _apply_inter_period_price_changes(
     return WeightedPortfolio(
         cash=new_cash,
         holdings=new_holdings,
+        universe=new_holdings.keys(),  # brittle, review this
         total_value=portfolio.total_value * new_total_weight,
+        constructor_backend=portfolio._backend,
     )
 
 
 def _check_tradable(
-    decision: Decision,
+    portfolio_after_decision: Portfolio,
     tradable_mapping: UniverseMapping,
     now: dt.datetime,
 ):
@@ -298,11 +284,13 @@ def _check_tradable(
         security for security, is_tradable in tradable_mapping.items() if is_tradable
     }
     logger.debug(f"Tradable len: {len(tradable)}")
-    logger.debug(f"Decision weights len: {len(decision.target.holdings.keys())}")
+    logger.debug(
+        f"New portfolio weights len:  {len(portfolio_after_decision.holdings.keys())}"
+    )
     msgs = [
         f"Security '{sec}' is marked as non-tradable on period {now} but is given a"
         f" value of {val}."
-        for sec, val in decision.target.holdings.items()
+        for sec, val in portfolio_after_decision.holdings.items()
         if val > 0 and sec not in tradable
     ]
     if msgs:
