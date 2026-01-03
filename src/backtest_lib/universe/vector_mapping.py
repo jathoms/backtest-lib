@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping
 from typing import Self, TypeVar, overload
 
 K_contra = TypeVar(
@@ -178,4 +178,4 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
 
     @classmethod
     @abstractmethod
-    def from_vectors(cls, keys: Sequence[K_contra], values: Sequence[V]) -> Self: ...
+    def from_vectors(cls, keys: Iterable[K_contra], values: Iterable[V]) -> Self: ...

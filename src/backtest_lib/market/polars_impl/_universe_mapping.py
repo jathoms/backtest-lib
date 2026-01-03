@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -248,7 +248,7 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
 
     @classmethod
     def from_vectors(
-        cls, keys: Sequence[str], values: Sequence[T]
+        cls, keys: Iterable[str], values: Iterable[T]
     ) -> SeriesUniverseMapping[T]:
         keys_tuple = tuple(keys)
 
