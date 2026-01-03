@@ -32,3 +32,6 @@ class UniverseMapping[Scalar: (float, int)](VectorMapping[str, Scalar], ABC):
 
     @abstractmethod
     def floor(self) -> UniverseMapping[int]: ...
+
+    @abstractmethod
+    def truncate(self) -> UniverseMapping[int]: ...

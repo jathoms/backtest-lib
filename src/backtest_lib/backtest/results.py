@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 class BacktestResults[IndexT: Comparable]:
     """
     Snapshot of a backtest's results, with key statistics pre-computed.
-
-    This is a continuous-weight (no integer position rounding) model.
     """
 
     periods: Sequence[IndexT] = field(repr=False)
@@ -246,7 +244,7 @@ class BacktestResults[IndexT: Comparable]:
             .collect()
         )
 
-        asset_returns = backend.from_dataframe(asset_returns_df)
+        asset_returns: PastView = backend.from_dataframe(asset_returns_df)
 
         results = BacktestResults.from_weights_and_returns(
             weights=weights,

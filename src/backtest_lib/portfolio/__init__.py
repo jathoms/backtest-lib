@@ -1,30 +1,20 @@
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
 from collections.abc import Iterable, Mapping
-from dataclasses import replace
-from typing import Self, TypeVar, cast
+from dataclasses import dataclass, replace
 
-import polars as pl
-
-from backtest_lib.market import get_mapping_type_from_mapping
+from backtest_lib.market import get_mapping_type_from_backend
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
-from backtest_lib.strategy.decision import (
-    AlterPositionsDecision,
-    Decision,
-    MakeTradesDecision,
-    TargetWeightsDecision,
-)
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
 Quantity = int
 FractionalQuantity = float
 Weight = float
 
-H = TypeVar("H", float, int)
 
-
-class NegativeCashException(Exception): ...
+logger = logging.getLogger(__name__)
 
 
 class Portfolio[H: (float, int)]:
@@ -33,18 +23,26 @@ class Portfolio[H: (float, int)]:
     holdings: UniverseMapping[H]
     cash: float = 0
     total_value: float
+    universe: tuple[str, ...]
     _backend: str = "polars"
 
     def __init__(
         self,
+        universe: Iterable[str],
         holdings: UniverseMapping[H] | Mapping[str, H],
-        cash: float = 0,
-        total_value: float = 0,
-        constructor_backend="polars",
+        cash: float,
+        total_value: float,
+        constructor_backend: str,
     ):
-        self.holdings = make_universe_mapping(holdings, constructor_backend)
+        universe_tup = tuple(universe)
+        self.holdings = make_universe_mapping(
+            m=holdings,
+            universe=universe_tup,
+            constructor_backend=constructor_backend,
+        )
         self.cash = cash
         self.total_value = total_value
+        self.universe = universe_tup
         self._backend = constructor_backend
 
     @abstractmethod
@@ -61,35 +59,6 @@ class Portfolio[H: (float, int)]:
     def into_quantities_fractional(
         self, prices: UniverseMapping | None = None
     ) -> FractionalQuantityPortfolio: ...
-
-    def after_decision(self, decision: Decision, prices: UniverseMapping) -> Self:
-        match decision:
-            case MakeTradesDecision(trades=trades):
-                pos_delta = trades.position_delta
-                decision_cost = trades.total_cost()
-                new_cash = self.cash - decision_cost
-
-                if new_cash < 0:
-                    # TODO: add settings for when this raises vs gives a warning etc.
-                    raise NegativeCashException()
-
-                qtys = self.into_quantities(prices=prices)
-                new_holdings = qtys.holdings + pos_delta
-
-                # TODO: This implicitly converts the user's portfolio into a
-                # QuantityPortfolio when they return a MakeTradesDecision. Review
-                return QuantityPortfolio(
-                    holdings=new_holdings,
-                    cash=new_cash,
-                    total_value=self.total_value,
-                    constructor_backend=self._backend,
-                )
-
-            case AlterPositionsDecision():
-                ...
-            case TargetWeightsDecision():
-                ...
-        return self
 
 
 class QuantityPortfolio(Portfolio[Quantity]):
@@ -110,6 +79,9 @@ class QuantityPortfolio(Portfolio[Quantity]):
         return WeightedPortfolio(
             cash=cash_weight,
             holdings=weights,
+            total_value=total_value,
+            universe=self.universe,
+            constructor_backend=self._backend,
         )
 
     def into_quantities(self, prices=None) -> QuantityPortfolio:
@@ -122,6 +94,7 @@ class QuantityPortfolio(Portfolio[Quantity]):
             holdings=self.holdings * 1.0,
             cash=self.cash,
             total_value=self.total_value,
+            universe=self.universe,
             constructor_backend=self._backend,
         )
 
@@ -142,6 +115,9 @@ class FractionalQuantityPortfolio(Portfolio[FractionalQuantity]):
         return WeightedPortfolio(
             cash=cash_weight,
             holdings=weights,
+            universe=self.universe,
+            total_value=total_value,
+            constructor_backend=self._backend,
         )
 
     def into_quantities(self, prices=None) -> QuantityPortfolio:
@@ -150,6 +126,7 @@ class FractionalQuantityPortfolio(Portfolio[FractionalQuantity]):
             holdings=self.holdings.floor(),
             cash=self.cash,
             total_value=self.total_value,
+            universe=self.universe,
             constructor_backend=self._backend,
         )
 
@@ -177,11 +154,11 @@ class WeightedPortfolio(Portfolio[Weight]):
         qtys = target_qtys.floor()
         spent = (qtys * prices).sum()
         cash_value = self.total_value - spent
-        print(locals())
         return QuantityPortfolio(
             cash=cash_value,
             holdings=qtys,
             total_value=self.total_value,
+            universe=self.universe,
             constructor_backend=self._backend,
         )
 
@@ -199,11 +176,14 @@ class WeightedPortfolio(Portfolio[Weight]):
             cash=cash,
             holdings=holdings,
             total_value=self.total_value,
+            universe=self.universe,
             constructor_backend=self._backend,
         )
 
     def into_long_only(self) -> WeightedPortfolio:
         if isinstance(self.holdings, SeriesUniverseMapping):
+            import polars as pl
+
             # Assumes we want to keep our leverage ratio at 1
             df = pl.DataFrame({"w": self.holdings.as_series()})
             redistributed_weights = (
@@ -228,7 +208,13 @@ class WeightedPortfolio(Portfolio[Weight]):
                 )
             )["norm_redist_w"]
             new_holdings = replace(self.holdings, _data=redistributed_weights)
-            return WeightedPortfolio(cash=self.cash, holdings=new_holdings)
+            return WeightedPortfolio(
+                cash=self.cash,
+                holdings=new_holdings,
+                universe=self.universe,
+                total_value=self.total_value,
+                constructor_backend=self._backend,
+            )
         else:
             raise NotImplementedError()
 
@@ -237,39 +223,69 @@ class WeightedPortfolio(Portfolio[Weight]):
 
 
 def uniform_portfolio(
-    full_universe: Iterable[str], tradable_universe: Iterable[str] | None = None
+    full_universe: Iterable[str],
+    tradable_universe: Iterable[str] | None = None,
+    value: float = 1.0,
+    backend: str = "polars",
 ) -> WeightedPortfolio:
     """PLACEHOLDER"""
     if tradable_universe is None:
         tradable_universe = full_universe
+    full_tup = tuple(full_universe)
     if not isinstance(tradable_universe, set):
         tradable_universe = set(tradable_universe)
-    uniform_allocation_weight = 1.0 / min(
-        len(tradable_universe), len(list(full_universe))
-    )
+    uniform_allocation_weight = 1.0 / min(len(tradable_universe), len(full_tup))
     return WeightedPortfolio(
         cash=0,
-        holdings=SeriesUniverseMapping.from_names_and_data(
-            tuple(full_universe),
-            pl.Series(
+        universe=full_tup,
+        holdings=get_mapping_type_from_backend(backend).from_vectors(
+            full_tup,
+            (
                 uniform_allocation_weight if sec in tradable_universe else 0.0
-                for sec in full_universe
+                for sec in full_tup
             ),
         ),
+        total_value=value,
+        constructor_backend=backend,
     )
 
 
 def make_universe_mapping[T: (int, float)](
-    m: Mapping[str, T], constructor_backend: str = "polars"
+    m: Mapping[str, T],
+    universe: Iterable[str],
+    constructor_backend: str = "polars",
 ) -> UniverseMapping[T]:
     if not isinstance(m, UniverseMapping) and isinstance(m, Mapping):
-        backend_mapping_type = get_mapping_type_from_mapping(constructor_backend)
-        native_mapping = backend_mapping_type.from_vectors(
-            # TODO: not sure what's going on with the typechecker here,
-            # just manually casting .values() for now.
-            tuple(m.keys()),
-            tuple(cast(Iterable, m.values())),
+        backend_mapping_type = get_mapping_type_from_backend(constructor_backend)
+        # TODO: check if this dictionary collection is slow.
+        # also, this doesn't check that securities passed in via the mapping are
+        # actually part of the universe. checking for that would be quite slow,
+        # so we avoid it for now.
+        return backend_mapping_type.from_vectors(
+            universe,
+            (m.get(k, 0.0) for k in universe),
         )
-        return native_mapping
     else:
         return m
+
+
+@dataclass(frozen=True, slots=True)
+class CashPortfolio:
+    value: float
+
+    def materialize(self, universe: Iterable[str], backend: str) -> WeightedPortfolio:
+        mapping_type = get_mapping_type_from_backend(backend)
+        universe_tup = tuple(universe)
+        return WeightedPortfolio(
+            holdings=mapping_type.from_vectors(
+                universe_tup, (0.0 for _ in universe_tup)
+            ),
+            cash=1.0,
+            constructor_backend=backend,
+            universe=universe_tup,
+            total_value=self.value,
+        )
+
+
+def cash(value: float):
+    return CashPortfolio(value=value)

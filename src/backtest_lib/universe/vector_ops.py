@@ -137,3 +137,6 @@ class VectorOps[Scalar: (int, float)](Sized, ABC):
 
     @abstractmethod
     def floor(self) -> VectorOps[int]: ...
+
+    @abstractmethod
+    def truncate(self) -> VectorOps[int]: ...

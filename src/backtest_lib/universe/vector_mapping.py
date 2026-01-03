@@ -8,9 +8,10 @@ K_contra = TypeVar(
     "K_contra",
     bound=str,
 )
+V_co = TypeVar("V_co", int, float, covariant=True)
 
 
-class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
+class VectorMapping[K, V_co](Mapping[K, V_co], ABC):
     @overload
     def __add__(
         self: VectorMapping[K, int],
@@ -19,7 +20,7 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     @overload
     def __add__(
         self: VectorMapping[K, int],
-        other: float | VectorMapping[K, float] | Mapping[K, int | float],
+        other: float | VectorMapping[K, float] | Mapping[K, float],
     ) -> VectorMapping[K, float]: ...
     @overload
     def __add__(
@@ -41,7 +42,7 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     @overload
     def __radd__(
         self: VectorMapping[K, int],
-        other: float | VectorMapping[K, float] | Mapping[K, int | float],
+        other: float | VectorMapping[K, float] | Mapping[K, float],
     ) -> VectorMapping[K, float]: ...
     @overload
     def __radd__(
@@ -63,7 +64,7 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     @overload
     def __sub__(
         self: VectorMapping[K, int],
-        other: float | VectorMapping[K, float] | Mapping[K, int | float],
+        other: float | VectorMapping[K, float] | Mapping[K, float],
     ) -> VectorMapping[K, float]: ...
     @overload
     def __sub__(
@@ -85,7 +86,7 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     @overload
     def __rsub__(
         self: VectorMapping[K, int],
-        other: float | VectorMapping[K, float] | Mapping[K, int | float],
+        other: float | VectorMapping[K, float] | Mapping[K, float],
     ) -> VectorMapping[K, float]: ...
     @overload
     def __rsub__(
@@ -107,7 +108,7 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     @overload
     def __mul__(
         self: VectorMapping[K, int],
-        other: float | VectorMapping[K, float] | Mapping[K, int | float],
+        other: float | VectorMapping[K, float] | Mapping[K, float],
     ) -> VectorMapping[K, float]: ...
     @overload
     def __mul__(
@@ -129,7 +130,7 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     @overload
     def __rmul__(
         self: VectorMapping[K, int],
-        other: float | VectorMapping[K, float] | Mapping[K, int | float],
+        other: float | VectorMapping[K, float] | Mapping[K, float],
     ) -> VectorMapping[K, float]: ...
     @overload
     def __rmul__(
@@ -165,17 +166,21 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
             raise ValueError(f"mean of empty {type(self)}")
         return self.sum() / n
 
+    @abstractmethod
     def abs(self) -> Self: ...
+
+    @abstractmethod
+    def truncate(self) -> VectorMapping[K, int]: ...
 
     @abstractmethod
     def floor(self) -> VectorMapping[K, int]: ...
 
     @abstractmethod
-    def __getitem__(self, key: K) -> V: ...
+    def __getitem__(self, key: K) -> V_co: ...
 
     @abstractmethod
     def __iter__(self) -> Iterator[K]: ...
 
     @classmethod
     @abstractmethod
-    def from_vectors(cls, keys: Iterable[K_contra], values: Iterable[V]) -> Self: ...
+    def from_vectors(cls, keys: Iterable[K_contra], values: Iterable[V_co]) -> Self: ...
