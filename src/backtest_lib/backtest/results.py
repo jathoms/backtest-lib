@@ -246,7 +246,7 @@ class BacktestResults[IndexT: Comparable]:
             .collect()
         )
 
-        asset_returns = backend.from_dataframe(asset_returns_df)
+        asset_returns: PastView = backend.from_dataframe(asset_returns_df)
 
         results = BacktestResults.from_weights_and_returns(
             weights=weights,

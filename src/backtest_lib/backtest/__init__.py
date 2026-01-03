@@ -5,15 +5,13 @@ import logging
 import warnings
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from backtest_lib.backtest._helpers import _to_pydt
 from backtest_lib.backtest.results import BacktestResults
 from backtest_lib.backtest.schedule import DecisionSchedule, make_decision_schedule
 from backtest_lib.backtest.settings import BacktestSettings
 from backtest_lib.market import MarketView, get_pastview_from_mapping
-from backtest_lib.portfolio import WeightedPortfolio
-from backtest_lib.strategy import Decision, Strategy
+from backtest_lib.portfolio import Portfolio, WeightedPortfolio
+from backtest_lib.strategy import Strategy
 from backtest_lib.strategy.context import StrategyContext
 
 if TYPE_CHECKING:
@@ -179,63 +177,36 @@ class Backtest:
                     market=past_market_view,
                     ctx=ctx,
                 )
-                if len(decision.target.holdings) < len(self.universe):
-                    # pad out the unnaccounted-for securities with 0.
-                    # NOTE: this is some extra allocation we might not need
-                    # as * 0 allocates, and so does + in the case where
-                    # keys are not equal.
-                    # maybe a .merge() method on the VectorMapping would make
-                    # more sense.
-                    logger.debug(
-                        "Incomplete universe returned by strategy (decision had"
-                        f" {len(decision.target.holdings)}, full universe has"
-                        f" {len(self.universe)}), filling remaining securities with 0.",
-                    )
-                    object.__setattr__(
-                        decision.target,
-                        "holdings",
-                        (
-                            (self.market_view.prices.close.by_period[0] * 0)
-                            + decision.target.holdings
-                        ),
-                    )
+                portfolio_after_decision = self._current_portfolio.after_decision(
+                    decision,
+                    prices=yesterday_prices,
+                    settings=self.settings,
+                    universe=self.universe,
+                )
 
-                if current_uni is not None and set(
-                    decision.target.holdings.keys(),
-                ) ^ set(current_uni):
+                if (
+                    logger.isEnabledFor(logging.DEBUG)
+                    and current_uni is not None
+                    and set(
+                        portfolio_after_decision.holdings.keys(),
+                    )
+                    ^ set(current_uni)
+                ):
                     logger.debug(
-                        f"{ctx.now}: Universe changed! len:"
-                        f" {len(current_uni)}->{len(decision.target.holdings.keys())},"
-                        " diff:"
-                        f" {set(current_uni) ^ set(decision.target.holdings.keys())}",
+                        f"{ctx.now}: Universe changed! len: {len(current_uni)}:"
+                        "->{len(portfolio_after_decision.holdings.keys())},"
+                        f" diff: {
+                            set(current_uni)
+                            ^ set(portfolio_after_decision.holdings.keys())
+                        }",
                     )
 
                 if past_market_view.tradable is not None:
                     _check_tradable(
-                        decision,
+                        portfolio_after_decision,
                         past_market_view.tradable.by_period[-1],
                         ctx.now,
                     )
-
-                target_portfolio = decision.target
-                if not isinstance(target_portfolio, WeightedPortfolio):
-                    target_portfolio = target_portfolio.into_weighted()
-                total_weight_after_decision = (
-                    decision.target.holdings.sum() + decision.target.cash
-                )
-
-                assert np.isclose(total_weight_after_decision, 1.0), (
-                    "Total weight after making a decision cannot exceed 1.0, "
-                    f"weight on period {i} was {total_weight_after_decision}"
-                )
-
-                if not self.settings.allow_short and any(
-                    x < 0 for x in target_portfolio.holdings.values()
-                ):
-                    target_portfolio = target_portfolio.into_long_only()
-
-                # assume we can perfectly track the target portfolio for now
-                portfolio_after_decision = target_portfolio
             else:
                 portfolio_after_decision = self._current_portfolio
             output_weights.append(portfolio_after_decision.holdings)
@@ -245,7 +216,7 @@ class Backtest:
             returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 
             inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
-                portfolio_after_decision,
+                portfolio_after_decision.into_weighted(),
                 pct_change,
             )
 
@@ -253,7 +224,7 @@ class Backtest:
             yesterday_prices = today_prices
             current_uni = list(portfolio_after_decision.holdings.keys())
 
-        allocation_history = self._backend.from_security_mappings(
+        allocation_history: PastView = self._backend.from_security_mappings(
             output_weights,
             self.market_view.periods[: i - 1],
         )
@@ -290,7 +261,7 @@ def _apply_inter_period_price_changes(
 
 
 def _check_tradable(
-    decision: Decision,
+    portfolio_after_decision: Portfolio,
     tradable_mapping: UniverseMapping,
     now: dt.datetime,
 ):
@@ -298,11 +269,13 @@ def _check_tradable(
         security for security, is_tradable in tradable_mapping.items() if is_tradable
     }
     logger.debug(f"Tradable len: {len(tradable)}")
-    logger.debug(f"Decision weights len: {len(decision.target.holdings.keys())}")
+    logger.debug(
+        f"New portfolio weights len:  {len(portfolio_after_decision.holdings.keys())}"
+    )
     msgs = [
         f"Security '{sec}' is marked as non-tradable on period {now} but is given a"
         f" value of {val}."
-        for sec, val in decision.target.holdings.items()
+        for sec, val in portfolio_after_decision.holdings.items()
         if val > 0 and sec not in tradable
     ]
     if msgs:

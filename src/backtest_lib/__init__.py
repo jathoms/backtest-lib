@@ -5,7 +5,7 @@ from backtest_lib.portfolio import (
     QuantityPortfolio,
     WeightedPortfolio,
 )
-from backtest_lib.strategy import Decision, Strategy
+from backtest_lib.strategy import Strategy
 from backtest_lib.universe import PastUniversePrices
 
 __all__ = [

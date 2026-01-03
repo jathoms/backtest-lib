@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import replace
 from typing import Self, TypeVar, cast
 
+import numpy as np
 import polars as pl
 
+from backtest_lib.backtest.settings import BacktestSettings
 from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
 from backtest_lib.strategy.decision import (
@@ -22,6 +25,8 @@ FractionalQuantity = float
 Weight = float
 
 H = TypeVar("H", float, int)
+
+logger = logging.getLogger(__name__)
 
 
 class NegativeCashException(Exception): ...
@@ -62,7 +67,24 @@ class Portfolio[H: (float, int)]:
         self, prices: UniverseMapping | None = None
     ) -> FractionalQuantityPortfolio: ...
 
-    def after_decision(self, decision: Decision, prices: UniverseMapping) -> Self:
+    def after_decision(
+        self,
+        decision: Decision,
+        prices: UniverseMapping,
+        settings: BacktestSettings,
+        universe: tuple[str, ...],
+    ) -> Portfolio:
+        implied_universe = decision.implied_universe()
+        if len(implied_universe) < len(universe):
+            logger.debug(
+                "Incomplete universe returned by strategy (decision had"
+                f" {len(implied_universe)}, full universe has"
+                f" {len(universe)}), filling remaining securities with 0.",
+            )
+            # pad out the unnaccounted-for securities with 0.
+            # NOTE: this is some extra allocation we might not need
+            decision = decision.with_universe(universe)
+
         match decision:
             case MakeTradesDecision(trades=trades):
                 pos_delta = trades.position_delta
@@ -85,10 +107,26 @@ class Portfolio[H: (float, int)]:
                     constructor_backend=self._backend,
                 )
 
-            case AlterPositionsDecision():
+            case AlterPositionsDecision(adjustments=adj):
+                # TODO: this
+                del adj
                 ...
-            case TargetWeightsDecision():
-                ...
+
+            case TargetWeightsDecision(target_weights=target_weights, cash=cash):
+                total_weight_after_decision = target_weights.sum() + cash
+                assert np.isclose(total_weight_after_decision, 1.0), (
+                    "Total weight after making a decision cannot exceed 1.0, "
+                    f"weight was {total_weight_after_decision}"
+                )
+                target_portfolio = WeightedPortfolio(holdings=target_weights, cash=cash)
+                if not settings.allow_short and any(
+                    x < 0 for x in target_weights.values()
+                ):
+                    target_portfolio = target_portfolio.into_long_only()
+
+                # TODO: This branch doesn't take any transaction costs into account.
+                # Can 1 weight change be treated as 1 trade?
+                return target_portfolio
         return self
 
 
