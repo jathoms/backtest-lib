@@ -543,6 +543,7 @@ class MarketView[Index: Comparable]:
         return self._resolve_axis_spec(spec).securities
 
     def _resolve_axis_spec(self, spec: str) -> PastView:
+        view: PastView[int, Index] | PastView[float, Index] | None
         if spec == "prices":
             # a bit of a sharp edge making "prices" exclusively tied to close prices.
             # TODO: loosen this requirement somewhat.

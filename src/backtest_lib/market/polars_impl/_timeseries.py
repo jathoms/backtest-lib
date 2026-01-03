@@ -138,6 +138,8 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     def as_series(self) -> pl.Series:
         return self._vec
 
+    # TODO: add scalar type return in here so that
+    # the scalar types are properly kept track of.
     def _rhs(self, other: VectorOps[Scalar] | ScalarU) -> pl.Series | T:
         if isinstance(other, (int, float)):
             return self._scalar_type(other)
@@ -147,53 +149,65 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             raise ValueError("Axis mismatch: operations require identical PeriodAxis.")
         raise TypeError("Only scalars or same-axis PolarsTimeseries are supported.")
 
-    def __add__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __add__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec + rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __radd__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __radd__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs + self._vec, self._axis, self._name, self._scalar_type
         )
 
-    def __sub__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __sub__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec - rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __rsub__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __rsub__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs - self._vec, self._axis, self._name, self._scalar_type
         )
 
-    def __mul__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __mul__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         rhs = self._rhs(other)
         return PolarsTimeseries(
             self._vec * rhs, self._axis, self._name, self._scalar_type
         )
 
-    def __rmul__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __rmul__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         lhs = self._rhs(other)
         return PolarsTimeseries(
             lhs * self._vec, self._axis, self._name, self._scalar_type
         )
 
-    def __truediv__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __truediv__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[float]:
         rhs = self._rhs(other)
-        return PolarsTimeseries(
-            self._vec / rhs, self._axis, self._name, self._scalar_type
-        )
+        return PolarsTimeseries[float](self._vec / rhs, self._axis, self._name, float)
 
-    def __rtruediv__(self, other: VectorOps[Scalar] | ScalarU) -> PolarsTimeseries:
+    def __rtruediv__(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> PolarsTimeseries[float]:
         lhs = self._rhs(other)
-        return PolarsTimeseries(
-            lhs / self._vec, self._axis, self._name, self._scalar_type
-        )
+        return PolarsTimeseries[float](lhs / self._vec, self._axis, self._name, float)
 
     def sum(self) -> T:
         return self._scalar_type(self._vec.sum())
@@ -201,8 +215,8 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     def mean(self) -> T:
         return self._scalar_type(self._vec.mean())
 
-    def abs(self) -> Self:
-        return PolarsTimeseries(
+    def abs(self) -> PolarsTimeseries[T]:
+        return PolarsTimeseries[T](
             self._vec.abs(), self._axis, self._name, self._scalar_type
         )
 
