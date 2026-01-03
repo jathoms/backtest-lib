@@ -7,6 +7,8 @@ import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
+from backtest_lib.market import Closed
+
 
 @dataclass(frozen=True)
 class SecurityAxis:
@@ -48,11 +50,11 @@ class PeriodAxis:
         new_labels = tuple(self.labels[i] for i in idxs)
         return PeriodAxis(
             dt64=self.dt64[idxs],
-            labels=tuple(new_labels),
+            labels=new_labels,
             pos={lbl: i for i, lbl in enumerate(new_labels)},
         )
 
-    def _slice(self, key: slice) -> PeriodAxis:
+    def slice(self, key: slice) -> PeriodAxis:
         """
         Creates a new PeriodAxis from a slice
         of the current PeriodAxis.
@@ -94,32 +96,10 @@ class PeriodAxis:
         start: np.datetime64,
         end: np.datetime64,
         *,
-        closed: str = "both",
+        closed: str | Closed = Closed.BOTH,
     ) -> tuple[int, int]:
-        inc_start = closed in ("both", "left")
-        inc_end = closed in ("both", "right")
+        inc_start = closed in (Closed.BOTH, Closed.LEFT)
+        inc_end = closed in (Closed.BOTH, Closed.RIGHT)
         left, _ = self.bounds_after(start, inclusive=inc_start)
         _, right = self.bounds_before(end, inclusive=inc_end)
         return left, right
-
-    def after(
-        self, start: np.datetime64, *, inclusive: bool = True
-    ) -> NDArray[np.int64]:
-        left, right = self.bounds_after(start, inclusive=inclusive)
-        return np.arange(left, right, dtype=np.int64)
-
-    def before(
-        self, end: np.datetime64, *, inclusive: bool = False
-    ) -> NDArray[np.int64]:
-        left, right = self.bounds_before(end, inclusive=inclusive)
-        return np.arange(left, right, dtype=np.int64)
-
-    def between(
-        self,
-        start: np.datetime64,
-        end: np.datetime64,
-        *,
-        closed: str = "left",
-    ) -> NDArray[np.int64]:
-        left, right = self.bounds_between(start, end, closed=closed)
-        return np.arange(left, right, dtype=np.int64)
