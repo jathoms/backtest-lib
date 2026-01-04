@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from functools import cached_property
-from typing import Literal, Self
+from itertools import chain
+from typing import Any, Literal, Self, override
 
 from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.universe.universe_mapping import UniverseMapping
@@ -15,13 +16,6 @@ from backtest_lib.universe.universe_mapping import UniverseMapping
 class TradeDirection(StrEnum):
     BUY = "buy"
     SELL = "sell"
-
-
-@dataclass(frozen=True, slots=True)
-class TradeInstruction:
-    direction: TradeDirection
-    qty: int
-    security: str
 
 
 @dataclass(frozen=True)
@@ -76,56 +70,73 @@ class Trades:
         return replace(self, security_alignment=universe)
 
 
-class Decision(ABC):
-    @abstractmethod
-    def implied_universe(self) -> tuple[str, ...]:
-        raise NotImplementedError
+class Decision:
+    def __add__(self, other: Decision) -> CompositeDecision:
+        left = self.decisions if isinstance(self, CompositeDecision) else (self,)
+        right = other.decisions if isinstance(other, CompositeDecision) else (other,)
+        return CompositeDecision(left + right)
 
-    @abstractmethod
-    def with_universe(self, universe: tuple[str, ...]) -> Self: ...
-
-
-@dataclass(frozen=True, slots=True)
-class MakeTradesDecision(Decision):
-    trades: Trades
-
-    def implied_universe(self) -> tuple[str, ...]:
-        return self.trades.security_alignment
-
-    def with_universe(self, universe: tuple[str, ...]) -> Self:
-        return replace(self, trades=self.trades.with_universe(universe))
+    def __radd__(self, other: Any) -> CompositeDecision | Decision:
+        # allow sum([...]) with start=0 (default). otherwise NotImplemented.
+        if other == 0:
+            return self
+        return NotImplemented
 
 
 @dataclass(frozen=True, slots=True)
-class AlterPositionsDecision(Decision):
-    adjustments: UniverseMapping[int]
+class MakeTradeDecision(Decision):
+    direction: TradeDirection
+    qty: int
+    security: str
 
-    def implied_universe(self) -> tuple[str, ...]:
-        return tuple(self.adjustments.keys())
+    def __post_init__(self):
+        if self.qty < 0:
+            raise ValueError("qty must be non-negative.")
 
-    def with_universe(self, universe: tuple[str, ...]) -> Self:
-        return replace(
-            self, adjustments=self.adjustments + {sec: 0 for sec in universe}
-        )
+
+@dataclass(frozen=True, slots=True)
+class CompositeDecision(Decision):
+    decisions: tuple[Decision, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TargetHoldingsDecision(Decision):
+    target_holdings: Mapping[str, float]
+    cash: float = 0
 
 
 @dataclass(frozen=True, slots=True)
 class TargetWeightsDecision(Decision):
-    target_weights: UniverseMapping[float]
+    target_weights: Mapping[str, float]
     cash: float = 0
 
-    def implied_universe(self) -> tuple[str, ...]:
-        return tuple(self.target_weights.keys())
 
-    def with_universe(self, universe: tuple[str, ...]) -> Self:
-        return replace(
-            self, target_weights=self.target_weights + {sec: 0 for sec in universe}
-        )
+@dataclass(frozen=True, slots=True)
+class HoldDecision(Decision): ...
 
 
-def make_trades() -> MakeTradesDecision: ...
+def hold() -> HoldDecision:
+    return HoldDecision()
 
 
-def trade(direction: str | TradeDirection, qty: int, security: str) -> TradeInstruction:
+def target_holdings(
+    holdings: Mapping[str, float], cash: float = 0
+) -> TargetHoldingsDecision:
+    return TargetHoldingsDecision(target_holdings=holdings, cash=cash)
+
+
+def target_weights(
+    weights: Mapping[str, float], cash: float = 0
+) -> TargetWeightsDecision:
+    return TargetWeightsDecision(target_weights=weights, cash=cash)
+
+
+def combine(*decisions: Decision) -> Decision:
+    return sum(decisions, start=hold())
+
+
+def trade(
+    direction: str | TradeDirection, qty: int, security: str
+) -> MakeTradeDecision:
     direction = TradeDirection(direction)
-    return TradeInstruction(direction=direction, qty=qty, security=security)
+    return MakeTradeDecision(direction=direction, qty=qty, security=security)
