@@ -16,5 +16,4 @@ __all__ = [
     "QuantityPortfolio",
     "FractionalQuantityPortfolio",
     "Strategy",
-    "Decision",
 ]
