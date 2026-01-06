@@ -4,7 +4,7 @@ import logging
 from abc import abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import replace
-from typing import TypeVar, cast
+from typing import cast
 
 import polars as pl
 
@@ -16,7 +16,6 @@ Quantity = int
 FractionalQuantity = float
 Weight = float
 
-H = TypeVar("H", float, int)
 
 logger = logging.getLogger(__name__)
 
