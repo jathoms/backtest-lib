@@ -131,6 +131,7 @@ class PerfectWorldPlanExecutor:
                     constructor_backend=self._backend,
                 )
             elif isinstance(op, TargetHoldingsOp):
+                logger.debug(f"Processing op: {op}")
                 target_holdings_universe_mapping = make_universe_mapping(
                     op.holdings, self._security_alignment, self._backend
                 )
@@ -138,7 +139,7 @@ class PerfectWorldPlanExecutor:
                 if op.fill_cash:
                     if op.cash is not None:
                         _warn_redundant_cash(op.cash)
-                    target_asset_values = op.holdings * prices
+                    target_asset_values = target_holdings_universe_mapping * prices
                     target_total_value = target_asset_values.sum()
                     logger.debug(
                         f"asset values: {target_asset_values}, "
@@ -158,7 +159,7 @@ class PerfectWorldPlanExecutor:
                     "use `fill_cash=True` in `target_holdings`"
                 )
 
-                portfolio_after = WeightedPortfolio(
+                portfolio_after = QuantityPortfolio(
                     universe=self._security_alignment,
                     holdings=target_holdings_universe_mapping,
                     cash=cash,

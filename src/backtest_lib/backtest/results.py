@@ -184,7 +184,7 @@ class BacktestResults[IndexT: Comparable]:
 
     @staticmethod
     def from_weights_market_initial_capital(
-        holdings: PastView[float, Any],
+        weights: PastView[float, Any],
         market: MarketView[Any],
         *,
         initial_capital: float = 1.0,

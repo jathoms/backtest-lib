@@ -164,8 +164,7 @@ class Backtest:
         next_decision_period = next(schedule_it)
         if ctx is None:
             ctx = StrategyContext()
-        output_holdings: list[VectorMapping[str, int]] = []
-        returns_contribution: list[VectorMapping[str, float]] = []
+        output_holdings: list[VectorMapping[str, float]] = []
 
         self._current_portfolio = self.initial_portfolio
         yesterday_prices = self.market_view.prices.close.by_period[0]
@@ -198,6 +197,12 @@ class Backtest:
                     prices=yesterday_prices,
                 )
 
+                # problem: we convert into quantities a lot even when we may not have
+                # to. i.e when the user is using a PerfectWorldGenerator/Executor and
+                # only wants to pass target weights.
+                # idea: allow a decorator or something on the user's strategy to say:
+                # @weight_based or @quantity_based or something else so we can optimize
+                # our backtesting behaviour due to not neeeding constant conversions.
                 portfolio_after_decision = result.after.into_quantities(
                     yesterday_prices
                 )
@@ -216,13 +221,16 @@ class Backtest:
                 portfolio_after_decision = self._current_portfolio.into_quantities(
                     yesterday_prices
                 )
-            output_holdings.append(portfolio_after_decision.holdings)
+            # TODO: the weights can be calculated as part of the results calculation,
+            pf_as_weights = portfolio_after_decision.into_weighted(
+                prices=yesterday_prices
+            )
+            output_holdings.append(pf_as_weights.holdings)
 
             pct_change = today_prices / yesterday_prices
-            returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 
             inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
-                portfolio_after_decision.into_weighted(yesterday_prices),
+                pf_as_weights,
                 pct_change,
             )
 
