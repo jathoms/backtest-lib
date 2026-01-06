@@ -14,23 +14,15 @@ from backtest_lib.engine.decision import (
 )
 from backtest_lib.engine.plan import (
     MakeTradeOp,
-    MakeTradesOp,
     Plan,
     TargetHoldingsOp,
-    TargettingOp,
     TargetWeightsOp,
     TradeOrder,
-    Trades,
 )
 from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
-
-class DuplicateTargetException(Exception): ...
-
-
-PerfectWorldOps = TargetWeightsOp | TargetHoldingsOp | MakeTradesOp
-_PerfectWorldAtomicOps = TargetWeightsOp | TargetHoldingsOp | MakeTradeOp
+PerfectWorldOps = TargetWeightsOp | TargetHoldingsOp | MakeTradeOp
 
 
 class PerfectWorldPlanGenerator:
@@ -47,7 +39,7 @@ class PerfectWorldPlanGenerator:
 
     def _parse_decision(
         self, decision: Decision, prices: UniverseMapping
-    ) -> Iterator[_PerfectWorldAtomicOps]:
+    ) -> Iterator[PerfectWorldOps]:
         if isinstance(decision, TargetWeightsDecision):
             yield TargetWeightsOp(decision.target_weights, decision.cash)
         elif isinstance(decision, TargetHoldingsDecision):
@@ -68,31 +60,8 @@ class PerfectWorldPlanGenerator:
         else:
             assert_never(decision)
 
-    def _normalize_ops(
-        self, atomic_ops: Iterable[_PerfectWorldAtomicOps]
-    ) -> Iterator[PerfectWorldOps]:
-        trades = []
-        targetting_op: TargettingOp | None = None
-
-        for op in atomic_ops:
-            if isinstance(op, MakeTradeOp):
-                trades.append(op.trade)
-            elif isinstance(op, TargettingOp):
-                if targetting_op is not None:
-                    raise DuplicateTargetException()
-                targetting_op = op
-                yield op
-            else:
-                assert_never(op)
-        batched_trades = Trades(
-            trades=tuple(trades),
-            security_alignment=self._security_alignment,
-            backend_mapping_type=self._backend_mapping_type,
-        )
-        yield MakeTradesOp(batched_trades)
-
     def generate_plan(
         self, decision: Decision, prices: UniverseMapping
     ) -> Plan[PerfectWorldOps]:
-        ops = self._normalize_ops(self._parse_decision(decision, prices))
-        return Plan(steps=tuple(ops))
+        ops = self._parse_decision(decision, prices)
+        return Plan(steps=ops)

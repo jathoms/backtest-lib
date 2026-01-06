@@ -10,11 +10,8 @@ from backtest_lib.backtest.results import BacktestResults
 from backtest_lib.backtest.schedule import DecisionSchedule, make_decision_schedule
 from backtest_lib.backtest.settings import BacktestSettings
 from backtest_lib.engine import Engine, make_engine
-from backtest_lib.engine.execute import PlanExecutor
 from backtest_lib.engine.execute.perfect_world import PerfectWorldPlanExecutor
-from backtest_lib.engine.plan import PlanGenerator
 from backtest_lib.engine.plan.perfect_world import (
-    PerfectWorldOps,
     PerfectWorldPlanGenerator,
 )
 from backtest_lib.market import MarketView, get_pastview_from_mapping
@@ -23,7 +20,6 @@ from backtest_lib.strategy import Strategy
 from backtest_lib.strategy.context import StrategyContext
 
 if TYPE_CHECKING:
-    from backtest_lib.engine.plan import PlanOp
     from backtest_lib.market import PastView
     from backtest_lib.universe import Universe
     from backtest_lib.universe.universe_mapping import UniverseMapping
@@ -161,7 +157,6 @@ class Backtest:
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         schedule_it = iter(self._schedule)
         next_decision_period = next(schedule_it)
-        current_uni = None
         if ctx is None:
             ctx = StrategyContext()
         output_weights: list[VectorMapping[str, float]] = []
@@ -194,7 +189,7 @@ class Backtest:
                     market=past_market_view,
                     ctx=ctx,
                 )
-                # NOTE: we are using cloes prices here. this is an implicit assumption.
+                # NOTE: we are using close prices here. this is an implicit assumption.
                 # the user may want to use (low+high)/2, mid price, VWAP/TWAP.
                 decision_result = self._engine.execute_decision(
                     decision=decision,
@@ -202,6 +197,8 @@ class Backtest:
                     prices=today_prices,
                     market=self.market_view,
                 )
+
+                portfolio_after_decision = decision_result.after
 
                 if past_market_view.tradable is not None:
                     _check_tradable(
@@ -223,7 +220,6 @@ class Backtest:
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
-            current_uni = list(portfolio_after_decision.holdings.keys())
 
         allocation_history: PastView = self._backend.from_security_mappings(
             output_weights,

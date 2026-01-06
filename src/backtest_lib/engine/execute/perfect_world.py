@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from functools import cached_property
 from typing import assert_never
 
-from backtest_lib.engine.execute import NO_COST, ExecutionResult
-from backtest_lib.engine.plan import MakeTradesOp, Plan, TargettingOp
+from backtest_lib.engine.execute import NO_COST, ExecutionResult, Trades
+from backtest_lib.engine.plan import MakeTradeOp, Plan, TargettingOp
 from backtest_lib.engine.plan.perfect_world import PerfectWorldOps
 from backtest_lib.market import MarketView, get_mapping_type_from_mapping
 from backtest_lib.portfolio import Portfolio, QuantityPortfolio
@@ -13,6 +13,9 @@ from backtest_lib.universe.universe_mapping import UniverseMapping
 
 
 class TargettingOpNotFirstException(Exception): ...
+
+
+class DuplicateTargetException(Exception): ...
 
 
 class NegativeCashException(Exception): ...
@@ -30,6 +33,29 @@ class PerfectWorldPlanExecutor:
     def _backend_mapping_type(self) -> type[UniverseMapping]:
         return get_mapping_type_from_mapping(self._backend)
 
+    def _normalize_ops(
+        self, atomic_ops: Iterable[PerfectWorldOps]
+    ) -> Iterator[TargettingOp | Trades]:
+        trades = []
+        targetting_op: TargettingOp | None = None
+
+        for op in atomic_ops:
+            if isinstance(op, MakeTradeOp):
+                trades.append(op.trade)
+            elif isinstance(op, TargettingOp):
+                if targetting_op is not None:
+                    raise DuplicateTargetException()
+                targetting_op = op
+                yield op
+            else:
+                assert_never(op)
+        if trades:
+            yield Trades(
+                trades=tuple(trades),
+                security_alignment=self._security_alignment,
+                backend_mapping_type=self._backend_mapping_type,
+            )
+
     def execute_plan(
         self,
         plan: Plan[PerfectWorldOps],
@@ -45,32 +71,20 @@ class PerfectWorldPlanExecutor:
 
         """
         del market
-        if len(plan) == 0:
-            return ExecutionResult(
-                before=portfolio,
-                after=portfolio,
-                costs=NO_COST,
-                fills=None,
-            )
 
         portfolio_after = portfolio
-        have_target = False
-        if isinstance(plan.steps[0], TargettingOp):
-            portfolio_after = plan.steps[0].to_portfolio(
-                total_value=portfolio.total_value, backend=self._backend
-            )
-            have_target = True
-
-        for op in plan.steps[1:] if have_target else plan.steps:
+        for op in self._normalize_ops(plan.steps):
             if isinstance(op, TargettingOp):
-                raise TargettingOpNotFirstException()
-            elif isinstance(op, MakeTradesOp):
-                if op.trades.security_alignment != self._security_alignment:
+                portfolio_after = op.to_portfolio(
+                    total_value=portfolio.total_value, backend=self._backend
+                )
+            elif isinstance(op, Trades):
+                if op.security_alignment != self._security_alignment:
                     raise ValueError(
                         "Passed op with misaligned securities into executor."
                     )
-                pos_delta = op.trades.position_delta
-                decision_cost = op.trades.total_cost()
+                pos_delta = op.position_delta
+                decision_cost = op.total_cost()
                 new_cash = portfolio.cash - decision_cost
 
                 if new_cash < 0:
@@ -85,7 +99,7 @@ class PerfectWorldPlanExecutor:
                 portfolio_after = QuantityPortfolio(
                     holdings=new_holdings,
                     cash=new_cash,
-                    total_value=portfolio_after.total_value,
+                    total_value=portfolio.total_value,
                     constructor_backend=self._backend,
                 )
             else:
