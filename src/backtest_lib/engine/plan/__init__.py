@@ -6,8 +6,9 @@ from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import Protocol, Self, TypeVar
 
-from backtest_lib.engine.decision import Decision, TradeDirection
+from backtest_lib.engine.decision import Decision, DecisionBase, TradeDirection
 from backtest_lib.market import get_mapping_type_from_mapping
+from backtest_lib.portfolio import QuantityPortfolio, WeightedPortfolio
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
 
@@ -66,11 +67,14 @@ class Trades:
 class PlanOp: ...
 
 
-TPlanOp_co = TypeVar("TPlanOp_co", bound=PlanOp, covariant=True)
+TPlanOp_co = TypeVar("TPlanOp_co", covariant=True)
+T_co = TypeVar("T_co", covariant=True)
 
 
-class PlanGenerator[T: PlanOp](Protocol):
-    def generate_plan(self, decision: Decision, prices: UniverseMapping) -> Plan[T]: ...
+class PlanGenerator[T_co](Protocol):
+    def generate_plan(
+        self, decision: Decision, prices: UniverseMapping
+    ) -> Plan[T_co]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,11 +82,27 @@ class TargetWeightsOp(PlanOp):
     weights: Mapping[str, float]
     cash: float
 
+    def to_portfolio(self, total_value: float, backend: str) -> WeightedPortfolio:
+        return WeightedPortfolio(
+            holdings=self.weights,
+            cash=self.cash,
+            total_value=total_value,
+            constructor_backend=backend,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class TargetHoldingsOp(PlanOp):
     holdings: Mapping[str, int]
     cash: float
+
+    def to_portfolio(self, total_value: float, backend: str) -> QuantityPortfolio:
+        return QuantityPortfolio(
+            holdings=self.holdings,
+            cash=self.cash,
+            total_value=total_value,
+            constructor_backend=backend,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,4 +119,10 @@ class MakeTradeOp(PlanOp):
 class Plan[TPlanOp_co]:
     steps: tuple[TPlanOp_co, ...]
 
-    def net_cash_change(self) -> float: ...
+    def __len__(self):
+        return len(self.steps)
+
+
+HOLD_PLAN = Plan(())
+
+TargettingOp = TargetWeightsOp | TargetHoldingsOp

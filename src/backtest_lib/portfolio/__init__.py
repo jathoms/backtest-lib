@@ -29,9 +29,6 @@ H = TypeVar("H", float, int)
 logger = logging.getLogger(__name__)
 
 
-class NegativeCashException(Exception): ...
-
-
 class Portfolio[H: (float, int)]:
     """PLACEHOLDER"""
 
@@ -163,6 +160,17 @@ class QuantityPortfolio(Portfolio[Quantity]):
             constructor_backend=self._backend,
         )
 
+    def apply_position_delta(delta: UniverseMapping[int]) -> QuantityPortfolio:
+        decision_cost = delta.total_cost()
+        new_cash = self.cash - decision_cost
+
+        if new_cash < 0:
+            # TODO: add settings for when this raises vs gives a warning etc.
+            raise NegativeCashException()
+
+        qtys = self.into_quantities(prices=prices)
+        new_holdings = qtys.holdings + pos_delta
+
 
 class FractionalQuantityPortfolio(Portfolio[FractionalQuantity]):
     """PLACEHOLDER"""
@@ -215,7 +223,6 @@ class WeightedPortfolio(Portfolio[Weight]):
         qtys = target_qtys.floor()
         spent = (qtys * prices).sum()
         cash_value = self.total_value - spent
-        print(locals())
         return QuantityPortfolio(
             cash=cash_value,
             holdings=qtys,

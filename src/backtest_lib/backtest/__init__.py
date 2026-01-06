@@ -9,12 +9,21 @@ from backtest_lib.backtest._helpers import _to_pydt
 from backtest_lib.backtest.results import BacktestResults
 from backtest_lib.backtest.schedule import DecisionSchedule, make_decision_schedule
 from backtest_lib.backtest.settings import BacktestSettings
+from backtest_lib.engine import Engine, make_engine
+from backtest_lib.engine.execute import PlanExecutor
+from backtest_lib.engine.execute.perfect_world import PerfectWorldPlanExecutor
+from backtest_lib.engine.plan import PlanGenerator
+from backtest_lib.engine.plan.perfect_world import (
+    PerfectWorldOps,
+    PerfectWorldPlanGenerator,
+)
 from backtest_lib.market import MarketView, get_pastview_from_mapping
 from backtest_lib.portfolio import Portfolio, WeightedPortfolio
 from backtest_lib.strategy import Strategy
 from backtest_lib.strategy.context import StrategyContext
 
 if TYPE_CHECKING:
+    from backtest_lib.engine.plan import PlanOp
     from backtest_lib.market import PastView
     from backtest_lib.universe import Universe
     from backtest_lib.universe.universe_mapping import UniverseMapping
@@ -113,6 +122,7 @@ class Backtest:
     settings: BacktestSettings
     _schedule: DecisionSchedule
     _backend: type[PastView]
+    _engine: Engine
 
     def __init__(
         self,
@@ -122,6 +132,7 @@ class Backtest:
         initial_portfolio: WeightedPortfolio,
         settings: BacktestSettings = _DEFAULT_BACKTEST_SETTINGS,
         *,
+        engine: Engine | None = None,
         decision_schedule: str | DecisionSchedule | None = None,
         backend="polars",
     ):
@@ -142,6 +153,11 @@ class Backtest:
             self._schedule = decision_schedule
         self._backend = get_pastview_from_mapping(backend)
 
+        self._engine = engine or make_engine(
+            PerfectWorldPlanGenerator(backend, universe),
+            PerfectWorldPlanExecutor(backend, universe),
+        )
+
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         schedule_it = iter(self._schedule)
         next_decision_period = next(schedule_it)
@@ -156,6 +172,7 @@ class Backtest:
 
         for i in range(1, len(self.market_view.periods) + 1):
             past_market_view = self.market_view.truncated_to(i)
+            today_prices = past_market_view.prices.close.by_period[-1]
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
             logger.debug(
                 f"Starting period {i} ({ctx.now}). Current total growth:"
@@ -177,29 +194,14 @@ class Backtest:
                     market=past_market_view,
                     ctx=ctx,
                 )
-                portfolio_after_decision = self._current_portfolio.after_decision(
-                    decision,
-                    prices=yesterday_prices,
-                    settings=self.settings,
-                    universe=self.universe,
+                # NOTE: we are using cloes prices here. this is an implicit assumption.
+                # the user may want to use (low+high)/2, mid price, VWAP/TWAP.
+                decision_result = self._engine.execute_decision(
+                    decision=decision,
+                    portfolio=self._current_portfolio,
+                    prices=today_prices,
+                    market=self.market_view,
                 )
-
-                if (
-                    logger.isEnabledFor(logging.DEBUG)
-                    and current_uni is not None
-                    and set(
-                        portfolio_after_decision.holdings.keys(),
-                    )
-                    ^ set(current_uni)
-                ):
-                    logger.debug(
-                        f"{ctx.now}: Universe changed! len: {len(current_uni)}:"
-                        "->{len(portfolio_after_decision.holdings.keys())},"
-                        f" diff: {
-                            set(current_uni)
-                            ^ set(portfolio_after_decision.holdings.keys())
-                        }",
-                    )
 
                 if past_market_view.tradable is not None:
                     _check_tradable(
@@ -211,7 +213,6 @@ class Backtest:
                 portfolio_after_decision = self._current_portfolio
             output_weights.append(portfolio_after_decision.holdings)
 
-            today_prices = past_market_view.prices.close.by_period[-1]
             pct_change = today_prices / yesterday_prices
             returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 

@@ -512,7 +512,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
             except Exception as e:
                 raise ValueError(
                     f"Cannot create PolarsPastView from passed object with "
-                    "type 'type(df)'. "
+                    f"type '{type(df)}'. "
                     "It must be able to be turned into a polars DataFrame with a "
                     f"'date' column and a column for each security: {e}"
                 ) from e

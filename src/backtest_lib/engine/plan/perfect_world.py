@@ -1,50 +1,53 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass, replace
 from functools import cached_property
-from itertools import chain
-from typing import TYPE_CHECKING, Protocol, Self, assert_never
+from typing import assert_never
 
 from backtest_lib.engine.decision import (
     CompositeDecision,
     Decision,
-    DecisionT,
     HoldDecision,
     MakeTradeDecision,
     TargetHoldingsDecision,
     TargetWeightsDecision,
-    TradeDirection,
 )
 from backtest_lib.engine.plan import (
     MakeTradeOp,
     MakeTradesOp,
+    Plan,
     TargetHoldingsOp,
+    TargettingOp,
     TargetWeightsOp,
     TradeOrder,
     Trades,
 )
-from backtest_lib.market import MarketView, get_mapping_type_from_mapping
+from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.universe.universe_mapping import UniverseMapping
-
-if TYPE_CHECKING:
-    from backtest_lib.engine.plan import Plan, PlanOp
 
 
 class DuplicateTargetException(Exception): ...
 
 
-type PerfectWorldOps = TargetWeightsOp | TargetHoldingsOp | MakeTradesOp | MakeTradeOp
+PerfectWorldOps = TargetWeightsOp | TargetHoldingsOp | MakeTradesOp
+_PerfectWorldAtomicOps = TargetWeightsOp | TargetHoldingsOp | MakeTradeOp
 
 
 class PerfectWorldPlanGenerator:
-    _backend_mapping_type: type[UniverseMapping]
+    _backend: str
     _security_alignment: tuple[str, ...]
 
+    def __init__(self, backend: str, security_alignment: Iterable[str]):
+        self._backend = backend
+        self._security_alignment = tuple(security_alignment)
+
+    @cached_property
+    def _backend_mapping_type(self) -> type[UniverseMapping]:
+        return get_mapping_type_from_mapping(self._backend)
+
     def _parse_decision(
-        self, decision: DecisionT, prices: UniverseMapping
-    ) -> Iterator[PerfectWorldOps]:
+        self, decision: Decision, prices: UniverseMapping
+    ) -> Iterator[_PerfectWorldAtomicOps]:
         if isinstance(decision, TargetWeightsDecision):
             yield TargetWeightsOp(decision.target_weights, decision.cash)
         elif isinstance(decision, TargetHoldingsDecision):
@@ -65,29 +68,31 @@ class PerfectWorldPlanGenerator:
         else:
             assert_never(decision)
 
-    def generate_plan(
-        self, decision: DecisionT, prices: UniverseMapping
-    ) -> Plan[PerfectWorldOps]:
+    def _normalize_ops(
+        self, atomic_ops: Iterable[_PerfectWorldAtomicOps]
+    ) -> Iterator[PerfectWorldOps]:
         trades = []
-        ops: list[PerfectWorldOps] = []
-        target_set = False
-        for step in self._parse_decision(decision, prices):
-            if isinstance(step, MakeTradeOp):
-                trades.append(step.trade)
-            elif isinstance(step, MakeTradesOp):
-                trades.extend(step.trades.trades)
-            elif isinstance(step, TargetHoldingsDecision | TargetWeightsDecision):
-                if target_set:
+        targetting_op: TargettingOp | None = None
+
+        for op in atomic_ops:
+            if isinstance(op, MakeTradeOp):
+                trades.append(op.trade)
+            elif isinstance(op, TargettingOp):
+                if targetting_op is not None:
                     raise DuplicateTargetException()
-                ops.append(step)
-                target_set = True
+                targetting_op = op
+                yield op
             else:
-                ops.append(step)
+                assert_never(op)
         batched_trades = Trades(
             trades=tuple(trades),
             security_alignment=self._security_alignment,
             backend_mapping_type=self._backend_mapping_type,
         )
-        ops.append(MakeTradesOp(trades=batched_trades))
+        yield MakeTradesOp(batched_trades)
 
+    def generate_plan(
+        self, decision: Decision, prices: UniverseMapping
+    ) -> Plan[PerfectWorldOps]:
+        ops = self._normalize_ops(self._parse_decision(decision, prices))
         return Plan(steps=tuple(ops))

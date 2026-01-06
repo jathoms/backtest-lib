@@ -11,9 +11,9 @@ class TradeDirection(StrEnum):
     SELL = "sell"
 
 
-class Decision:
-    def __add__(self, other: DecisionT) -> Decision:
-        assert not isinstance(self, Decision)
+class DecisionBase:
+    def __add__(self, other: Decision) -> DecisionBase:
+        assert not isinstance(self, DecisionBase)
         if isinstance(self, HoldDecision):
             return other
         if isinstance(other, HoldDecision):
@@ -24,7 +24,7 @@ class Decision:
 
 
 @dataclass(frozen=True, slots=True)
-class MakeTradeDecision(Decision):
+class MakeTradeDecision(DecisionBase):
     direction: TradeDirection
     qty: int
     security: str
@@ -35,28 +35,28 @@ class MakeTradeDecision(Decision):
 
 
 @dataclass(frozen=True, slots=True)
-class CompositeDecision(Decision):
-    decisions: tuple[DecisionT, ...]
+class CompositeDecision(DecisionBase):
+    decisions: tuple[Decision, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class TargetHoldingsDecision(Decision):
+class TargetHoldingsDecision(DecisionBase):
     target_holdings: Mapping[str, int]
     cash: float = 0
 
 
 @dataclass(frozen=True, slots=True)
-class TargetWeightsDecision(Decision):
+class TargetWeightsDecision(DecisionBase):
     target_weights: Mapping[str, float]
     cash: float = 0
 
 
 @dataclass(frozen=True, slots=True)
-class HoldDecision(Decision):
+class HoldDecision(DecisionBase):
     pass
 
 
-DecisionT = (
+Decision = (
     HoldDecision
     | MakeTradeDecision
     | TargetWeightsDecision
@@ -81,7 +81,7 @@ def target_weights(
     return TargetWeightsDecision(target_weights=weights, cash=cash)
 
 
-def combine(*decisions: Decision) -> Decision:
+def combine(*decisions: DecisionBase) -> DecisionBase:
     return sum(decisions, start=hold())
 
 

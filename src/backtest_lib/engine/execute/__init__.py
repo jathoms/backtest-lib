@@ -11,12 +11,16 @@ from backtest_lib.market import MarketView, get_mapping_type_from_mapping
 from backtest_lib.portfolio import Portfolio
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
-TPlanOp_contra = TypeVar("TPlanOp_contra", bound=PlanOp, contravariant=True)
+TPlanOp_contra = TypeVar("TPlanOp_contra", contravariant=True)
 
 
 class PlanExecutor[TPlanOp_contra](Protocol):
-    def execute(
-        self, plan: Plan[TPlanOp_contra], portfolio: Portfolio, market: MarketView
+    def execute_plan(
+        self,
+        plan: Plan[TPlanOp_contra],
+        portfolio: Portfolio,
+        prices: UniverseMapping,
+        market: MarketView,
     ) -> ExecutionResult: ...
 
 
@@ -30,10 +34,13 @@ class CostBreakdown:
             raise ValueError("Costs must be non-negative.")
 
 
+NO_COST = CostBreakdown(fees=0, slippage=0)
+
+
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
     before: Portfolio
     after: Portfolio
     costs: CostBreakdown
-    fills: Trades  # realized trades (may differ)
+    fills: Trades | None
     warnings: tuple[str, ...] = ()
