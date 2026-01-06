@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from backtest_lib.universe.vector_mapping import VectorMapping
 
 
-def get_pastview_from_mapping(backend: str) -> type[PastView]:
+def get_pastview_type_from_backend(backend: str) -> type[PastView]:
     if backend == "polars":
         from backtest_lib.market.polars_impl import PolarsPastView
 
@@ -41,7 +41,7 @@ def get_pastview_from_mapping(backend: str) -> type[PastView]:
         raise ValueError(f"Could not find data backend {backend}")
 
 
-def get_mapping_type_from_mapping(backend: str) -> type[UniverseMapping]:
+def get_mapping_type_from_backend(backend: str) -> type[UniverseMapping]:
     if backend == "polars":
         from backtest_lib.market.polars_impl import SeriesUniverseMapping
 
@@ -50,7 +50,7 @@ def get_mapping_type_from_mapping(backend: str) -> type[UniverseMapping]:
         raise ValueError(f"Could not find data backend {backend}")
 
 
-def get_timeseries_type_from_mapping(backend: str) -> type[Timeseries]:
+def get_timeseries_type_from_backend(backend: str) -> type[Timeseries]:
     if backend == "polars":
         from backtest_lib.market.polars_impl import PolarsTimeseries
 
@@ -385,7 +385,7 @@ class MarketView[Index: Comparable]:
         reference_view_for_axis_values: str = "prices",
         backend: str = "polars",
     ):
-        backend_pastview_type = get_pastview_from_mapping(backend)
+        backend_pastview_type = get_pastview_type_from_backend(backend)
 
         if not isinstance(prices, PastUniversePrices):
             if isinstance(prices, PastView):

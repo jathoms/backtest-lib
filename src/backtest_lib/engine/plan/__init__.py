@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
 from backtest_lib.engine.decision import Decision, TradeDirection
-from backtest_lib.portfolio import QuantityPortfolio, WeightedPortfolio
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
 
@@ -27,42 +26,28 @@ class TradeOrder:
 class PlanOp: ...
 
 
-TPlanOp_co = TypeVar("TPlanOp_co", covariant=True)
+TPlanOp_co = TypeVar("TPlanOp_co", bound=PlanOp, covariant=True)
 T_co = TypeVar("T_co", covariant=True)
 
 
-class PlanGenerator[T_co](Protocol):
+class PlanGenerator[TPlanOp_co](Protocol):
     def generate_plan(
         self, decision: Decision, prices: UniverseMapping
-    ) -> Plan[T_co]: ...
+    ) -> Plan[TPlanOp_co]: ...
 
 
 @dataclass(frozen=True, slots=True)
 class TargetWeightsOp(PlanOp):
     weights: Mapping[str, float]
-    cash: float
-
-    def to_portfolio(self, total_value: float, backend: str) -> WeightedPortfolio:
-        return WeightedPortfolio(
-            holdings=self.weights,
-            cash=self.cash,
-            total_value=total_value,
-            constructor_backend=backend,
-        )
+    cash: float | None
+    fill_cash: bool
 
 
 @dataclass(frozen=True, slots=True)
 class TargetHoldingsOp(PlanOp):
     holdings: Mapping[str, int]
-    cash: float
-
-    def to_portfolio(self, total_value: float, backend: str) -> QuantityPortfolio:
-        return QuantityPortfolio(
-            holdings=self.holdings,
-            cash=self.cash,
-            total_value=total_value,
-            constructor_backend=backend,
-        )
+    cash: float | None
+    fill_cash: bool
 
 
 @dataclass(frozen=True, slots=True)

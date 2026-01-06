@@ -11,8 +11,7 @@ class TradeDirection(StrEnum):
 
 
 class DecisionBase:
-    def __add__(self, other: Decision) -> DecisionBase:
-        assert not isinstance(self, DecisionBase)
+    def __add__(self: Decision, other: Decision) -> DecisionBase:
         if isinstance(self, HoldDecision):
             return other
         if isinstance(other, HoldDecision):
@@ -41,13 +40,15 @@ class CompositeDecision(DecisionBase):
 @dataclass(frozen=True, slots=True)
 class TargetHoldingsDecision(DecisionBase):
     target_holdings: Mapping[str, int]
-    cash: float = 0
+    fill_cash: bool
+    cash: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class TargetWeightsDecision(DecisionBase):
     target_weights: Mapping[str, float]
-    cash: float = 0
+    fill_cash: bool
+    cash: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,15 +70,15 @@ def hold() -> HoldDecision:
 
 
 def target_holdings(
-    holdings: Mapping[str, int], cash: float = 0
+    holdings: Mapping[str, int], fill_cash: bool = False
 ) -> TargetHoldingsDecision:
-    return TargetHoldingsDecision(target_holdings=holdings, cash=cash)
+    return TargetHoldingsDecision(target_holdings=holdings, fill_cash=fill_cash)
 
 
 def target_weights(
-    weights: Mapping[str, float], cash: float = 0
+    weights: Mapping[str, float], fill_cash: bool = False
 ) -> TargetWeightsDecision:
-    return TargetWeightsDecision(target_weights=weights, cash=cash)
+    return TargetWeightsDecision(target_weights=weights, fill_cash=fill_cash)
 
 
 def combine(*decisions: DecisionBase) -> DecisionBase:

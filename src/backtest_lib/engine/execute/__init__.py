@@ -6,12 +6,12 @@ from dataclasses import dataclass, replace
 from functools import cached_property
 from typing import Protocol, Self, TypeVar
 
-from backtest_lib.engine.plan import Plan, TradeOrder
-from backtest_lib.market import MarketView, get_mapping_type_from_mapping
+from backtest_lib.engine.plan import Plan, PlanOp, TradeOrder
+from backtest_lib.market import MarketView, get_mapping_type_from_backend
 from backtest_lib.portfolio import Portfolio
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
-TPlanOp_contra = TypeVar("TPlanOp_contra", contravariant=True)
+TPlanOp_contra = TypeVar("TPlanOp_contra", bound=PlanOp, contravariant=True)
 
 
 class PlanExecutor[TPlanOp_contra](Protocol):
@@ -53,13 +53,13 @@ class Trades:
         return Trades(
             trades=tuple(trades),
             security_alignment=tuple(security_alignment),
-            backend_mapping_type=get_mapping_type_from_mapping(backend),
+            backend_mapping_type=get_mapping_type_from_backend(backend),
         )
 
     @cached_property
     def position_delta(self) -> UniverseMapping[int]:
         zeros = self.backend_mapping_type.from_vectors(
-            self.security_alignment, (0 for _ in range(len(self.security_alignment)))
+            self.security_alignment, (0 for _ in self.security_alignment)
         ).floor()
         batched_trades: dict[str, int] = defaultdict(int)
         for t in self.trades:

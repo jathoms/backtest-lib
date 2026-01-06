@@ -14,8 +14,8 @@ from backtest_lib.engine.execute.perfect_world import PerfectWorldPlanExecutor
 from backtest_lib.engine.plan.perfect_world import (
     PerfectWorldPlanGenerator,
 )
-from backtest_lib.market import MarketView, get_pastview_from_mapping
-from backtest_lib.portfolio import Portfolio, WeightedPortfolio
+from backtest_lib.market import MarketView, get_pastview_type_from_backend
+from backtest_lib.portfolio import CashPortfolio, Portfolio, WeightedPortfolio
 from backtest_lib.strategy import Strategy
 from backtest_lib.strategy.context import StrategyContext
 
@@ -123,9 +123,9 @@ class Backtest:
     def __init__(
         self,
         strategy: Strategy,
-        universe: Universe,
         market_view: MarketView,
         initial_portfolio: WeightedPortfolio,
+        universe: Universe | None = None,
         settings: BacktestSettings = _DEFAULT_BACKTEST_SETTINGS,
         *,
         engine: Engine | None = None,
@@ -133,8 +133,12 @@ class Backtest:
         backend="polars",
     ):
         self.strategy = strategy
-        self.universe = universe
+        self.universe = universe or tuple(market_view.securities)
         self.market_view = market_view
+        if isinstance(initial_portfolio, CashPortfolio):
+            initial_portfolio = initial_portfolio.materialize(
+                universe=self.universe, backend=backend
+            )
         self.initial_portfolio = initial_portfolio
         self.settings = settings
         if isinstance(decision_schedule, str):
@@ -147,11 +151,12 @@ class Backtest:
             self._schedule = make_decision_schedule(market_view.periods)
         else:
             self._schedule = decision_schedule
-        self._backend = get_pastview_from_mapping(backend)
+        self._backend = get_pastview_type_from_backend(backend)
 
         self._engine = engine or make_engine(
-            PerfectWorldPlanGenerator(backend, universe),
-            PerfectWorldPlanExecutor(backend, universe),
+            PerfectWorldPlanGenerator(),
+            PerfectWorldPlanExecutor(backend, self.universe),
+            self.universe,
         )
 
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
@@ -159,7 +164,7 @@ class Backtest:
         next_decision_period = next(schedule_it)
         if ctx is None:
             ctx = StrategyContext()
-        output_weights: list[VectorMapping[str, float]] = []
+        output_holdings: list[VectorMapping[str, int]] = []
         returns_contribution: list[VectorMapping[str, float]] = []
 
         self._current_portfolio = self.initial_portfolio
@@ -170,7 +175,7 @@ class Backtest:
             today_prices = past_market_view.prices.close.by_period[-1]
             ctx.now = _to_pydt(self.market_view.periods[i - 1])
             logger.debug(
-                f"Starting period {i} ({ctx.now}). Current total growth:"
+                f"Starting period {i} ({ctx.now}). Current total portfolio value:"
                 f" {self._current_portfolio.total_value}",
             )
             if ctx.now >= _to_pydt(next_decision_period):
@@ -183,22 +188,23 @@ class Backtest:
                     )
                     break
 
-                decision = self.strategy(
-                    universe=self.universe,
-                    current_portfolio=self._current_portfolio,
-                    market=past_market_view,
-                    ctx=ctx,
-                )
                 # NOTE: we are using close prices here. this is an implicit assumption.
                 # the user may want to use (low+high)/2, mid price, VWAP/TWAP.
-                decision_result = self._engine.execute_decision(
-                    decision=decision,
+                result = self._engine.execute_strategy(
+                    strategy=self.strategy,
                     portfolio=self._current_portfolio,
-                    prices=today_prices,
                     market=self.market_view,
+                    ctx=ctx,
+                    prices=yesterday_prices,
                 )
 
-                portfolio_after_decision = decision_result.after
+                portfolio_after_decision = result.after.into_quantities(
+                    yesterday_prices
+                )
+                logger.debug(
+                    f"engine output for {ctx.now}: {result.after.holdings}, "
+                    f"cash: {result.after.cash}"
+                )
 
                 if past_market_view.tradable is not None:
                     _check_tradable(
@@ -207,14 +213,16 @@ class Backtest:
                         ctx.now,
                     )
             else:
-                portfolio_after_decision = self._current_portfolio
-            output_weights.append(portfolio_after_decision.holdings)
+                portfolio_after_decision = self._current_portfolio.into_quantities(
+                    yesterday_prices
+                )
+            output_holdings.append(portfolio_after_decision.holdings)
 
             pct_change = today_prices / yesterday_prices
             returns_contribution.append(pct_change * portfolio_after_decision.holdings)
 
             inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
-                portfolio_after_decision.into_weighted(),
+                portfolio_after_decision.into_weighted(yesterday_prices),
                 pct_change,
             )
 
@@ -222,7 +230,7 @@ class Backtest:
             yesterday_prices = today_prices
 
         allocation_history: PastView = self._backend.from_security_mappings(
-            output_weights,
+            output_holdings,
             self.market_view.periods[: i - 1],
         )
         results = BacktestResults.from_weights_market_initial_capital(
@@ -253,7 +261,9 @@ def _apply_inter_period_price_changes(
     return WeightedPortfolio(
         cash=new_cash,
         holdings=new_holdings,
+        universe=new_holdings.keys(),  # brittle, review this
         total_value=portfolio.total_value * new_total_weight,
+        constructor_backend=portfolio._backend,
     )
 
 
