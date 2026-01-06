@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import logging
 from abc import abstractmethod
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
-from typing import Self, TypeVar, cast
+from typing import TypeVar, cast
 
-import numpy as np
 import polars as pl
 
-from backtest_lib.backtest.settings import BacktestSettings
 from backtest_lib.market import get_mapping_type_from_mapping
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
 from backtest_lib.universe.universe_mapping import UniverseMapping
