@@ -81,7 +81,7 @@ def target_weights(
     return TargetWeightsDecision(target_weights=weights, fill_cash=fill_cash)
 
 
-def combine(*decisions: DecisionBase) -> DecisionBase:
+def combine(*decisions: Decision) -> Decision:
     return sum(decisions, start=hold())
 
 
