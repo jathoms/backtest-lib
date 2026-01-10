@@ -23,3 +23,10 @@ docs/_build/
 docs/build/
 docs/source/_build/
 docs/source/**/api/**
+
+# JetBrains / PyCharm
+.idea/
+*.iml
+
+# local VS Code settings
+.vscode/
