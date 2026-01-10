@@ -6,6 +6,11 @@ from enum import StrEnum
 from typing import Literal
 
 
+class ReallocationMode(StrEnum):
+    PRO_RATA_OUT_EQUAL_IN = "pro_rata_out_equal_in"
+    EQUAL_OUT_EQUAL_IN = "equal_out_equal_in"
+
+
 class TradeDirection(StrEnum):
     BUY = "buy"
     SELL = "sell"
@@ -62,9 +67,7 @@ class ReallocateDecision(DecisionBase):
     fraction: float
     from_securities: frozenset[str]
     to_securities: frozenset[str]
-    mode: Literal["pro_rata_out_equal_in", "equal_out_equal_in"] = (
-        "pro_rata_out_equal_in"
-    )
+    mode: ReallocationMode
 
 
 def reallocate(
@@ -72,10 +75,10 @@ def reallocate(
     *,
     out_of: Iterable[str],
     into: Iterable[str],
-    mode: Literal[
-        "pro_rata_out_equal_in", "equal_out_equal_in"
-    ] = "pro_rata_out_equal_in",
+    mode: Literal["pro_rata_out_equal_in", "equal_out_equal_in"]
+    | ReallocationMode = ReallocationMode.PRO_RATA_OUT_EQUAL_IN,
 ) -> ReallocateDecision:
+    mode = ReallocationMode(mode)
     if fraction < 0:
         raise ValueError("fraction must be non-negative")
     to_set = frozenset(into)

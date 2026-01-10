@@ -9,6 +9,7 @@ from typing import assert_never
 
 import numpy as np
 
+from backtest_lib.engine.decision import ReallocationMode
 from backtest_lib.engine.execute import NO_COST, ExecutionResult, Trades
 from backtest_lib.engine.plan import (
     MakeTradeOp,
@@ -186,7 +187,7 @@ class PerfectWorldPlanExecutor:
                 )
             elif isinstance(op, ReallocateOp):
                 fraction = op.inner.fraction
-                if op.inner.mode == "equal_out_equal_in":
+                if op.inner.mode is ReallocationMode.EQUAL_OUT_EQUAL_IN:
                     out_wt = fraction / len(op.inner.from_securities)
                     in_wt = fraction / len(op.inner.to_securities)
                     from_reallocation = make_universe_mapping(
@@ -202,7 +203,7 @@ class PerfectWorldPlanExecutor:
                     compiled_reallocation = _WeightsReallocation(
                         from_reallocation + to_reallocation
                     )
-                elif op.inner.mode == "pro_rata_out_equal_in":
+                elif op.inner.mode is ReallocationMode.PRO_RATA_OUT_EQUAL_IN:
                     value_to_move = op.inner.fraction * portfolio.total_value
                     holdings_values = portfolio.holdings * prices
                     total_from_value = sum(
@@ -232,8 +233,7 @@ class PerfectWorldPlanExecutor:
                         from_reallocation + to_reallocation
                     )
                 else:
-                    # TODO: change "mode" to be a StrEnum so validation happens earlier
-                    raise
+                    assert_never(op.inner.mode)
             else:
                 assert_never(op)
 
