@@ -171,6 +171,9 @@ class VectorMapping[K, V: (float, int)](Mapping[K, V], ABC):
     def floor(self) -> VectorMapping[K, int]: ...
 
     @abstractmethod
+    def truncate(self) -> VectorMapping[K, int]: ...
+
+    @abstractmethod
     def __getitem__(self, key: K) -> V: ...
 
     @abstractmethod

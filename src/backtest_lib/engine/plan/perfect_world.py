@@ -9,12 +9,14 @@ from backtest_lib.engine.decision import (
     Decision,
     HoldDecision,
     MakeTradeDecision,
+    ReallocateDecision,
     TargetHoldingsDecision,
     TargetWeightsDecision,
 )
 from backtest_lib.engine.plan import (
     MakeTradeOp,
     Plan,
+    ReallocateOp,
     TargetHoldingsOp,
     TargetWeightsOp,
     TradeOrder,
@@ -23,7 +25,7 @@ from backtest_lib.universe.universe_mapping import UniverseMapping
 
 logger = logging.getLogger(__name__)
 
-PerfectWorldOps = TargetWeightsOp | TargetHoldingsOp | MakeTradeOp
+PerfectWorldOps = TargetWeightsOp | TargetHoldingsOp | MakeTradeOp | ReallocateOp
 
 
 class PerfectWorldPlanGenerator:
@@ -42,6 +44,8 @@ class PerfectWorldPlanGenerator:
                 cash=decision.cash,
                 fill_cash=decision.fill_cash,
             )
+        elif isinstance(decision, ReallocateDecision):
+            yield ReallocateOp(decision)
         elif isinstance(decision, MakeTradeDecision):
             trade_order = TradeOrder(
                 direction=decision.direction,

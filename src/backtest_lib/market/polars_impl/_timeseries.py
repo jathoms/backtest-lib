@@ -228,6 +228,14 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             _scalar_type=int,
         )
 
+    def truncate(self) -> PolarsTimeseries[int]:
+        return PolarsTimeseries(
+            _vec=self._vec.cast(pl.Int64),
+            _axis=self._axis,
+            _name=self._name,
+            _scalar_type=int,
+        )
+
     @property
     def plot(self) -> TimeseriesPlotAccessor:
         return PolarsTimeseriesPlotAccessor(self)

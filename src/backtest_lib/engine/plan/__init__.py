@@ -4,7 +4,7 @@ from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
-from backtest_lib.engine.decision import Decision, TradeDirection
+from backtest_lib.engine.decision import Decision, ReallocateDecision, TradeDirection
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
 
@@ -26,7 +26,7 @@ class TradeOrder:
 class PlanOp: ...
 
 
-TPlanOp_co = TypeVar("TPlanOp_co", bound=PlanOp, covariant=True)
+TPlanOp_co = TypeVar("TPlanOp_co", bound=PlanOp, infer_variance=True)
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -53,6 +53,11 @@ class TargetHoldingsOp(PlanOp):
 @dataclass(frozen=True, slots=True)
 class MakeTradeOp(PlanOp):
     trade: TradeOrder
+
+
+@dataclass(frozen=True, slots=True)
+class ReallocateOp(PlanOp):
+    inner: ReallocateDecision
 
 
 @dataclass(frozen=True, slots=True)

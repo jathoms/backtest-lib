@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Literal
 
 
 class TradeDirection(StrEnum):
@@ -56,11 +57,47 @@ class HoldDecision(DecisionBase):
     pass
 
 
+@dataclass(frozen=True, slots=True)
+class ReallocateDecision(DecisionBase):
+    fraction: float
+    from_securities: frozenset[str]
+    to_securities: frozenset[str]
+    mode: Literal["pro_rata_out_equal_in", "equal_out_equal_in"] = (
+        "pro_rata_out_equal_in"
+    )
+
+
+def reallocate(
+    fraction: float,
+    *,
+    out_of: Iterable[str],
+    into: Iterable[str],
+    mode: Literal[
+        "pro_rata_out_equal_in", "equal_out_equal_in"
+    ] = "pro_rata_out_equal_in",
+) -> ReallocateDecision:
+    if fraction < 0:
+        raise ValueError("fraction must be non-negative")
+    to_set = frozenset(into)
+    if not to_set:
+        raise ValueError("'to' must be non-empty")
+    from_set = frozenset(out_of)
+    if not from_set:
+        raise ValueError("'out_of' must be non-empty")
+    return ReallocateDecision(
+        fraction=fraction,
+        from_securities=from_set,
+        to_securities=to_set,
+        mode=mode,
+    )
+
+
 Decision = (
     HoldDecision
     | MakeTradeDecision
     | TargetWeightsDecision
     | TargetHoldingsDecision
+    | ReallocateDecision
     | CompositeDecision
 )
 

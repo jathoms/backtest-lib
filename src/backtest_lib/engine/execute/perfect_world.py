@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from functools import cached_property
 from typing import assert_never
 
@@ -12,8 +13,8 @@ from backtest_lib.engine.execute import NO_COST, ExecutionResult, Trades
 from backtest_lib.engine.plan import (
     MakeTradeOp,
     Plan,
+    ReallocateOp,
     TargetHoldingsOp,
-    TargettingOp,
     TargetWeightsOp,
 )
 from backtest_lib.engine.plan.perfect_world import PerfectWorldOps
@@ -39,6 +40,19 @@ class NegativeCashException(Exception): ...
 logger = logging.getLogger(__name__)
 
 
+@dataclass(slots=True)
+class _HoldingsReallocation:
+    inner: UniverseMapping[int]
+
+
+@dataclass(slots=True)
+class _WeightsReallocation:
+    inner: UniverseMapping[float]
+
+
+_CompiledReallocation = _HoldingsReallocation | _WeightsReallocation
+
+
 def _warn_redundant_cash(amount: float) -> None:
     warnings.warn(
         "fill_cash is set to True, but you have "
@@ -47,6 +61,40 @@ def _warn_redundant_cash(amount: float) -> None:
         "will be ignored.",
         stacklevel=2,
     )
+
+
+def _fill_cash_holdings(
+    holdings: UniverseMapping[int],
+    pf_total_value: float,
+    prices: UniverseMapping[float],
+) -> float:
+    target_asset_values = holdings * prices
+    target_total_value = target_asset_values.sum()
+    logger.debug(f"asset values: {target_asset_values}, total: {target_total_value}")
+    return pf_total_value - target_total_value
+
+
+@dataclass(slots=True)
+class _TargetWeightsCompiledOp:
+    weights: UniverseMapping[float]
+    cash: float
+
+    def reallocate(self, reallocation: _WeightsReallocation) -> None:
+        assert np.isclose(reallocation.inner.sum(), 0)
+        self.weights = self.weights + reallocation
+
+
+@dataclass(slots=True)
+class _TargetHoldingsCompiledOp:
+    holdings: UniverseMapping[int]
+    cash: float
+
+    def reallocate(self, reallocation: _HoldingsReallocation) -> None:
+        assert np.isclose(reallocation.inner.sum(), 0)
+        self.holdings = self.holdings + reallocation
+
+
+_CompiledOps = _TargetWeightsCompiledOp | _TargetHoldingsCompiledOp | Trades
 
 
 class PerfectWorldPlanExecutor:
@@ -62,21 +110,173 @@ class PerfectWorldPlanExecutor:
         return get_mapping_type_from_backend(self._backend)
 
     def _normalize_ops(
-        self, atomic_ops: Iterable[PerfectWorldOps]
-    ) -> Iterator[TargettingOp | Trades]:
+        self,
+        atomic_ops: Iterable[PerfectWorldOps],
+        portfolio: Portfolio,
+        prices: UniverseMapping,
+    ) -> Iterator[_CompiledOps]:
+        """Always yields the targetting op first"""
         trades = []
-        targetting_op: TargettingOp | None = None
+        compiled_targetting_op: (
+            _TargetHoldingsCompiledOp | _TargetWeightsCompiledOp | None
+        ) = None
+        compiled_reallocation: _CompiledReallocation | None = None
 
         for op in atomic_ops:
             if isinstance(op, MakeTradeOp):
                 trades.append(op.trade)
-            elif isinstance(op, TargettingOp):
-                if targetting_op is not None:
+            elif isinstance(op, TargetWeightsOp):
+                if compiled_targetting_op is not None:
                     raise DuplicateTargetException()
-                targetting_op = op
-                yield op
+                target_weights_universe_mapping = make_universe_mapping(
+                    op.weights,
+                    universe=self._security_alignment,
+                    constructor_backend=self._backend,
+                )
+                cash = op.cash or 0.0
+                if op.fill_cash:
+                    if op.cash is not None:
+                        _warn_redundant_cash(op.cash)
+                    cash = 1.0 - target_weights_universe_mapping.sum()
+                new_total_weight = target_weights_universe_mapping.sum() + cash
+                assert np.isclose(new_total_weight, 1.0), (
+                    "Total weight after making a decision must be 1.0, "
+                    f"weight was {new_total_weight}. "
+                    f"To automatically calculate cash as missing weights, "
+                    "use `fill_cash=True` in `target_weights`"
+                )
+                compiled_targetting_op = _TargetWeightsCompiledOp(
+                    target_weights_universe_mapping,
+                    cash=1.0 - target_weights_universe_mapping.sum(),
+                )
+            elif isinstance(op, TargetHoldingsOp):
+                if compiled_targetting_op is not None:
+                    raise DuplicateTargetException()
+                target_quantities_universe_mapping = make_universe_mapping(
+                    op.holdings,
+                    universe=self._security_alignment,
+                    constructor_backend=self._backend,
+                )
+                cash = op.cash or 0.0
+                if op.fill_cash:
+                    if op.cash is not None:
+                        _warn_redundant_cash(op.cash)
+                    cash = _fill_cash_holdings(
+                        target_quantities_universe_mapping,
+                        pf_total_value=portfolio.total_value,
+                        prices=prices,
+                    )
+                new_total_value = (
+                    target_quantities_universe_mapping * prices
+                ).sum() + cash
+                assert np.isclose(new_total_value, portfolio.total_value), (
+                    "Total holdings after making a decision must "
+                    "preserve total value of holdings, including cash "
+                    f"value changed from {portfolio.total_value} to {new_total_value}."
+                    "To automatically calculate cash as missing holdings, "
+                    "use `fill_cash=True` in `target_holdings`"
+                )
+                compiled_targetting_op = _TargetHoldingsCompiledOp(
+                    target_quantities_universe_mapping,
+                    cash=_fill_cash_holdings(
+                        target_quantities_universe_mapping,
+                        pf_total_value=portfolio.total_value,
+                        prices=prices,
+                    ),
+                )
+            elif isinstance(op, ReallocateOp):
+                fraction = op.inner.fraction
+                if op.inner.mode == "equal_out_equal_in":
+                    out_wt = fraction / len(op.inner.from_securities)
+                    in_wt = fraction / len(op.inner.to_securities)
+                    from_reallocation = make_universe_mapping(
+                        {sec: -out_wt for sec in op.inner.from_securities},
+                        universe=self._security_alignment,
+                        constructor_backend=self._backend,
+                    )
+                    to_reallocation = make_universe_mapping(
+                        {sec: in_wt for sec in op.inner.to_securities},
+                        universe=self._security_alignment,
+                        constructor_backend=self._backend,
+                    )
+                    compiled_reallocation = _WeightsReallocation(
+                        from_reallocation + to_reallocation
+                    )
+                elif op.inner.mode == "pro_rata_out_equal_in":
+                    value_to_move = op.inner.fraction * portfolio.total_value
+                    holdings_values = portfolio.holdings * prices
+                    total_from_value = sum(
+                        holdings_values[sec] for sec in op.inner.from_securities
+                    )
+                    total_to_value = sum(
+                        holdings_values[sec] for sec in op.inner.to_securities
+                    )
+                    from_reallocation = make_universe_mapping(
+                        {
+                            sec: (-holdings_values[sec] / total_from_value)
+                            * value_to_move
+                            for sec in op.inner.from_securities
+                        },
+                        universe=self._security_alignment,
+                        constructor_backend=self._backend,
+                    )
+                    to_reallocation = make_universe_mapping(
+                        {
+                            sec: (holdings_values[sec] / total_to_value) * value_to_move
+                            for sec in op.inner.to_securities
+                        },
+                        universe=self._security_alignment,
+                        constructor_backend=self._backend,
+                    )
+                    compiled_reallocation = _HoldingsReallocation(
+                        from_reallocation + to_reallocation
+                    )
+                else:
+                    # TODO: change "mode" to be a StrEnum so validation happens earlier
+                    raise
             else:
                 assert_never(op)
+
+        # if no target is provided, set the current portfolio as a base for the
+        # reallocation
+        if compiled_targetting_op is None and compiled_reallocation is not None:
+            if isinstance(portfolio.holdings, WeightedPortfolio):
+                compiled_targetting_op = _TargetWeightsCompiledOp(
+                    portfolio.holdings, portfolio.cash
+                )
+            elif isinstance(portfolio.holdings, QuantityPortfolio):
+                compiled_targetting_op = _TargetHoldingsCompiledOp(
+                    portfolio.holdings, portfolio.cash
+                )
+
+        if isinstance(compiled_targetting_op, _TargetWeightsCompiledOp):
+            if isinstance(compiled_reallocation, _WeightsReallocation):
+                compiled_targetting_op.reallocate(compiled_reallocation)
+            elif isinstance(compiled_reallocation, _HoldingsReallocation):
+                holdings_changes = compiled_reallocation.inner
+                value_changes = holdings_changes * prices
+                weight_changes = value_changes / portfolio.total_value
+                compiled_targetting_op.reallocate(_WeightsReallocation(weight_changes))
+            elif compiled_reallocation is not None:
+                assert_never(compiled_reallocation)
+            yield compiled_targetting_op
+        elif isinstance(compiled_targetting_op, _TargetHoldingsCompiledOp):
+            if isinstance(compiled_reallocation, _HoldingsReallocation):
+                compiled_targetting_op.reallocate(compiled_reallocation)
+            elif isinstance(compiled_reallocation, _WeightsReallocation):
+                weight_changes = compiled_reallocation.inner
+                target_value_changes = weight_changes * portfolio.total_value
+                qty_changes = (target_value_changes / prices).truncate()
+                actual_value_changes = qty_changes * prices
+                cash_delta = -(actual_value_changes.sum())
+                compiled_targetting_op.reallocate(_HoldingsReallocation(qty_changes))
+                compiled_targetting_op.cash += cash_delta
+            elif compiled_reallocation is not None:
+                assert_never(compiled_reallocation)
+            yield compiled_targetting_op
+        elif compiled_targetting_op is not None:
+            assert_never(compiled_targetting_op)
+
         if trades:
             yield Trades(
                 trades=tuple(trades),
@@ -101,68 +301,20 @@ class PerfectWorldPlanExecutor:
         del market
 
         portfolio_after = portfolio
-        for op in self._normalize_ops(plan.steps):
-            if isinstance(op, TargetWeightsOp):
-                cash = op.cash or 0.0
-                if op.fill_cash:
-                    if op.cash is not None:
-                        _warn_redundant_cash(op.cash)
-                    cash = 1.0 - (
-                        op.weights.sum()
-                        if isinstance(op.weights, UniverseMapping)
-                        else sum(op.weights.values())
-                    )
-                target_weights_universe_mapping = make_universe_mapping(
-                    op.weights, self._security_alignment, self._backend
-                )
-                new_total_weight = target_weights_universe_mapping.sum() + cash
-                assert np.isclose(new_total_weight, 1.0), (
-                    "Total weight after making a decision must be 1.0, "
-                    f"weight was {new_total_weight}. "
-                    f"To automatically calculate cash as missing weights, "
-                    "use `fill_cash=True` in `target_weights`"
-                )
-
+        for op in self._normalize_ops(plan.steps, portfolio, prices):
+            if isinstance(op, _TargetWeightsCompiledOp):
                 portfolio_after = WeightedPortfolio(
                     universe=self._security_alignment,
-                    holdings=target_weights_universe_mapping,
-                    cash=cash,
+                    holdings=op.weights,
+                    cash=op.cash,
                     total_value=portfolio.total_value,
                     constructor_backend=self._backend,
                 )
-            elif isinstance(op, TargetHoldingsOp):
-                logger.debug(f"Processing op: {op}")
-                target_holdings_universe_mapping = make_universe_mapping(
-                    op.holdings, self._security_alignment, self._backend
-                )
-                cash = op.cash or 0.0
-                if op.fill_cash:
-                    if op.cash is not None:
-                        _warn_redundant_cash(op.cash)
-                    target_asset_values = target_holdings_universe_mapping * prices
-                    target_total_value = target_asset_values.sum()
-                    logger.debug(
-                        f"asset values: {target_asset_values}, "
-                        f"total: {target_total_value}"
-                    )
-                    cash = portfolio.total_value - target_total_value
-
-                new_total_value = (
-                    target_holdings_universe_mapping * prices
-                ).sum() + cash
-
-                assert np.isclose(new_total_value, portfolio.total_value), (
-                    "Total holdings after making a decision must "
-                    "preserve total value of holdings, including cash "
-                    f"value changed from {portfolio.total_value} to {new_total_value}."
-                    "To automatically calculate cash as missing holdings, "
-                    "use `fill_cash=True` in `target_holdings`"
-                )
-
+            elif isinstance(op, _TargetHoldingsCompiledOp):
                 portfolio_after = QuantityPortfolio(
                     universe=self._security_alignment,
-                    holdings=target_holdings_universe_mapping,
-                    cash=cash,
+                    holdings=op.holdings,
+                    cash=op.cash,
                     total_value=portfolio.total_value,
                     constructor_backend=self._backend,
                 )
