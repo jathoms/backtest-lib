@@ -243,7 +243,7 @@ class PerfectWorldPlanExecutor:
             else:
                 assert_never(op)
 
-        print(
+        logger.debug(
             "Finished parsing reallocation and target ops, combining "
             f"type(reallocation) : {type(compiled_reallocation)} with "
             f"type(target) : {type(compiled_targetting_op)}"
