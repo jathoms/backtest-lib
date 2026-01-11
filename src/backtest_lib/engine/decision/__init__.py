@@ -7,8 +7,8 @@ from typing import Literal
 
 
 class ReallocationMode(StrEnum):
-    PRO_RATA_OUT_EQUAL_IN = "pro_rata_out_equal_in"
     EQUAL_OUT_EQUAL_IN = "equal_out_equal_in"
+    PRO_RATA_OUT_EQUAL_IN = "pro_rata_out_equal_in"
 
 
 class TradeDirection(StrEnum):
@@ -76,7 +76,7 @@ def reallocate(
     out_of: Iterable[str],
     into: Iterable[str],
     mode: Literal["pro_rata_out_equal_in", "equal_out_equal_in"]
-    | ReallocationMode = ReallocationMode.PRO_RATA_OUT_EQUAL_IN,
+    | ReallocationMode = ReallocationMode.EQUAL_OUT_EQUAL_IN,
 ) -> ReallocateDecision:
     mode = ReallocationMode(mode)
     if fraction < 0:

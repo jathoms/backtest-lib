@@ -81,9 +81,11 @@ class _TargetWeightsCompiledOp:
     cash: float
 
     def reallocate(self, reallocation: _WeightsReallocation) -> None:
-        print("applying reallocation...")
-        print(tuple(reallocation.inner.items()))
-        print(f"sum: {reallocation.inner.sum()}")
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Applying weights reallocation: {tuple(reallocation.inner.items())}\n"
+                f"to target weights {self.weights}"
+            )
         assert np.isclose(reallocation.inner.sum(), 0)
         self.weights = self.weights + reallocation.inner
 
@@ -94,6 +96,11 @@ class _TargetHoldingsCompiledOp:
     cash: float
 
     def reallocate(self, reallocation: _HoldingsReallocation) -> None:
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Applying holdings reallocation: {tuple(reallocation.inner.items())}\n"
+                f"to target holdings {self.holdings}"
+            )
         assert np.isclose(reallocation.inner.sum(), 0)
         self.holdings = self.holdings + reallocation.inner
 
@@ -190,7 +197,6 @@ class PerfectWorldPlanExecutor:
                 )
             elif isinstance(op, ReallocateOp):
                 fraction = op.inner.fraction
-                print(f"mode: {op.inner.mode}")
                 in_wt = fraction / len(op.inner.to_securities)
                 to_reallocation = make_universe_mapping(
                     {sec: in_wt for sec in op.inner.to_securities},
@@ -221,11 +227,6 @@ class PerfectWorldPlanExecutor:
                             " Cannot perform a reallocation out of them."
                         )
 
-                    total_to_value = sum(
-                        holdings_values[sec] for sec in op.inner.to_securities
-                    )
-                    print(total_from_value)
-                    print(total_to_value)
                     from_reallocation = make_universe_mapping(
                         {
                             sec: (-holdings_values[sec] / total_from_value) * fraction
@@ -237,15 +238,16 @@ class PerfectWorldPlanExecutor:
                     compiled_reallocation = _WeightsReallocation(
                         from_reallocation + to_reallocation
                     )
-                    print("here")
                 else:
                     assert_never(op.inner.mode)
             else:
                 assert_never(op)
 
-        print("figured out allocation and target, combining")
-        print(f"type(reallocation) : {type(compiled_reallocation)}")
-        print(f"type(target) : {type(compiled_targetting_op)}")
+        print(
+            "Finished parsing reallocation and target ops, combining "
+            f"type(reallocation) : {type(compiled_reallocation)} with "
+            f"type(target) : {type(compiled_targetting_op)}"
+        )
 
         # if no target is provided, set the current portfolio as a base for the
         # reallocation
@@ -307,15 +309,14 @@ class PerfectWorldPlanExecutor:
     ) -> ExecutionResult:
         """
         Executes a plan with assumptions of perfect conditions i.e no fees or slippage.
-        The convention for the input plan for the PerfectWorldPlanExecutor is, if there
-        is a TargettingOp as part of the plan, it must be the first operation in the
-        plan, or else we throw an exception.
-
+        Any targetting op will instantly change the portfolio to that target, so the
+        convention in ``self._normalize_ops`` is to yield the target first.
         """
         del market
 
         portfolio_after = portfolio
         for op in self._normalize_ops(plan.steps, portfolio, prices):
+            logger.debug(f"Executing compiled op {op}")
             if isinstance(op, _TargetWeightsCompiledOp):
                 portfolio_after = WeightedPortfolio(
                     universe=self._security_alignment,
