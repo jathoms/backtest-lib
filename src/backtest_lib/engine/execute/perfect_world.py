@@ -81,8 +81,11 @@ class _TargetWeightsCompiledOp:
     cash: float
 
     def reallocate(self, reallocation: _WeightsReallocation) -> None:
+        print("applying reallocation...")
+        print(tuple(reallocation.inner.items()))
+        print(f"sum: {reallocation.inner.sum()}")
         assert np.isclose(reallocation.inner.sum(), 0)
-        self.weights = self.weights + reallocation
+        self.weights = self.weights + reallocation.inner
 
 
 @dataclass(slots=True)
@@ -92,7 +95,7 @@ class _TargetHoldingsCompiledOp:
 
     def reallocate(self, reallocation: _HoldingsReallocation) -> None:
         assert np.isclose(reallocation.inner.sum(), 0)
-        self.holdings = self.holdings + reallocation
+        self.holdings = self.holdings + reallocation.inner
 
 
 _CompiledOps = _TargetWeightsCompiledOp | _TargetHoldingsCompiledOp | Trades
@@ -187,16 +190,17 @@ class PerfectWorldPlanExecutor:
                 )
             elif isinstance(op, ReallocateOp):
                 fraction = op.inner.fraction
+                print(f"mode: {op.inner.mode}")
+                in_wt = fraction / len(op.inner.to_securities)
+                to_reallocation = make_universe_mapping(
+                    {sec: in_wt for sec in op.inner.to_securities},
+                    universe=self._security_alignment,
+                    constructor_backend=self._backend,
+                )
                 if op.inner.mode is ReallocationMode.EQUAL_OUT_EQUAL_IN:
                     out_wt = fraction / len(op.inner.from_securities)
-                    in_wt = fraction / len(op.inner.to_securities)
                     from_reallocation = make_universe_mapping(
                         {sec: -out_wt for sec in op.inner.from_securities},
-                        universe=self._security_alignment,
-                        constructor_backend=self._backend,
-                    )
-                    to_reallocation = make_universe_mapping(
-                        {sec: in_wt for sec in op.inner.to_securities},
                         universe=self._security_alignment,
                         constructor_backend=self._backend,
                     )
@@ -204,49 +208,59 @@ class PerfectWorldPlanExecutor:
                         from_reallocation + to_reallocation
                     )
                 elif op.inner.mode is ReallocationMode.PRO_RATA_OUT_EQUAL_IN:
-                    value_to_move = op.inner.fraction * portfolio.total_value
                     holdings_values = portfolio.holdings * prices
                     total_from_value = sum(
                         holdings_values[sec] for sec in op.inner.from_securities
                     )
+
+                    if total_from_value <= 0:
+                        # TODO: add setting for when this silently scales down buys,
+                        # warns, or errors
+                        raise ValueError(
+                            "The securities in 'out_of' are not held in the portfolio."
+                            " Cannot perform a reallocation out of them."
+                        )
+
                     total_to_value = sum(
                         holdings_values[sec] for sec in op.inner.to_securities
                     )
+                    print(total_from_value)
+                    print(total_to_value)
                     from_reallocation = make_universe_mapping(
                         {
-                            sec: (-holdings_values[sec] / total_from_value)
-                            * value_to_move
+                            sec: (-holdings_values[sec] / total_from_value) * fraction
                             for sec in op.inner.from_securities
                         },
                         universe=self._security_alignment,
                         constructor_backend=self._backend,
                     )
-                    to_reallocation = make_universe_mapping(
-                        {
-                            sec: (holdings_values[sec] / total_to_value) * value_to_move
-                            for sec in op.inner.to_securities
-                        },
-                        universe=self._security_alignment,
-                        constructor_backend=self._backend,
-                    )
-                    compiled_reallocation = _HoldingsReallocation(
+                    compiled_reallocation = _WeightsReallocation(
                         from_reallocation + to_reallocation
                     )
+                    print("here")
                 else:
                     assert_never(op.inner.mode)
             else:
                 assert_never(op)
 
+        print("figured out allocation and target, combining")
+        print(f"type(reallocation) : {type(compiled_reallocation)}")
+        print(f"type(target) : {type(compiled_targetting_op)}")
+
         # if no target is provided, set the current portfolio as a base for the
         # reallocation
         if compiled_targetting_op is None and compiled_reallocation is not None:
-            if isinstance(portfolio.holdings, WeightedPortfolio):
+            if isinstance(portfolio, WeightedPortfolio):
                 compiled_targetting_op = _TargetWeightsCompiledOp(
                     portfolio.holdings, portfolio.cash
                 )
-            elif isinstance(portfolio.holdings, QuantityPortfolio):
+            elif isinstance(portfolio, QuantityPortfolio):
                 compiled_targetting_op = _TargetHoldingsCompiledOp(
                     portfolio.holdings, portfolio.cash
+                )
+            else:
+                raise NotImplementedError(
+                    f"Unsupported portfolio type: {type(portfolio)}"
                 )
 
         if isinstance(compiled_targetting_op, _TargetWeightsCompiledOp):

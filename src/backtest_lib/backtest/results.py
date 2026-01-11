@@ -19,8 +19,6 @@ logger = logging.getLogger(__name__)
 class BacktestResults[IndexT: Comparable]:
     """
     Snapshot of a backtest's results, with key statistics pre-computed.
-
-    This is a continuous-weight (no integer position rounding) model.
     """
 
     periods: Sequence[IndexT] = field(repr=False)

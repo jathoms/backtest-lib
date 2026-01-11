@@ -66,4 +66,4 @@ class PerfectWorldPlanGenerator:
         self, decision: Decision, prices: UniverseMapping
     ) -> Plan[PerfectWorldOps]:
         ops = self._parse_decision(decision, prices)
-        return Plan(steps=ops)
+        return Plan(steps=tuple(ops))

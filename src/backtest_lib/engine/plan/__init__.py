@@ -62,7 +62,7 @@ class ReallocateOp(PlanOp):
 
 @dataclass(frozen=True, slots=True)
 class Plan[TPlanOp_co]:
-    steps: Iterator[TPlanOp_co]
+    steps: tuple[TPlanOp_co]
 
 
 TargettingOp = TargetWeightsOp | TargetHoldingsOp
