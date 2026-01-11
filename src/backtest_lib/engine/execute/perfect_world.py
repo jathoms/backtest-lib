@@ -83,7 +83,7 @@ class _TargetWeightsCompiledOp:
     def reallocate(self, reallocation: _WeightsReallocation) -> None:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"Applying weights reallocation: {tuple(reallocation.inner.items())}\n"
+                f"Applying weights reallocation: {reallocation.inner}\n"
                 f"to target weights {self.weights}"
             )
         assert np.isclose(reallocation.inner.sum(), 0)
@@ -98,7 +98,7 @@ class _TargetHoldingsCompiledOp:
     def reallocate(self, reallocation: _HoldingsReallocation) -> None:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"Applying holdings reallocation: {tuple(reallocation.inner.items())}\n"
+                f"Applying holdings reallocation: {reallocation.inner}\n"
                 f"to target holdings {self.holdings}"
             )
         assert np.isclose(reallocation.inner.sum(), 0)
