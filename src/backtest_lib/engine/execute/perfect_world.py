@@ -86,7 +86,9 @@ class _TargetWeightsCompiledOp:
                 f"Applying weights reallocation: {reallocation.inner}\n"
                 f"to target weights {self.weights}"
             )
-        assert np.isclose(reallocation.inner.sum(), 0)
+        assert np.isclose(reallocation.inner.sum(), 0), (
+            "Computed a reallocation that does not sum to 0."
+        )
         self.weights = self.weights + reallocation.inner
 
 
@@ -101,7 +103,9 @@ class _TargetHoldingsCompiledOp:
                 f"Applying holdings reallocation: {reallocation.inner}\n"
                 f"to target holdings {self.holdings}"
             )
-        assert np.isclose(reallocation.inner.sum(), 0)
+        assert np.isclose(reallocation.inner.sum(), 0), (
+            "Computed a reallocation that does not sum to 0."
+        )
         self.holdings = self.holdings + reallocation.inner
 
 
