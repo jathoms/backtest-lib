@@ -16,7 +16,7 @@ from typing import (
 import numpy as np
 import polars as pl
 
-from backtest_lib.market import ByPeriod, BySecurity, PastView
+from backtest_lib.market import ByPeriod, BySecurity, Closed, PastView
 from backtest_lib.market.plotting import (
     ByPeriodPlotAccessor,
     BySecurityPlotAccessor,
@@ -589,7 +589,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         start: np.datetime64 | str,
         end: np.datetime64 | str,
         *,
-        closed: str = "left",
+        closed: Closed | str = Closed.LEFT,
     ) -> PolarsPastView:
         left, right = self._period_axis.bounds_between(
             to_npdt64(start), to_npdt64(end), closed=closed

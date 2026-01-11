@@ -4,7 +4,7 @@ import functools
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import replace
-from enum import Enum, auto
+from enum import Enum, StrEnum, auto
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -30,6 +30,12 @@ if TYPE_CHECKING:
     from backtest_lib.market.timeseries import Comparable, Timeseries
     from backtest_lib.universe.universe_mapping import UniverseMapping
     from backtest_lib.universe.vector_mapping import VectorMapping
+
+
+class Closed(StrEnum):
+    LEFT = "left"
+    RIGHT = "right"
+    BOTH = "both"
 
 
 def get_pastview_from_mapping(backend: str) -> type[PastView]:
@@ -121,6 +127,8 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         self,
         start: Index | str,
         end: Index | str,
+        *,
+        closed: Closed | str = Closed.LEFT,
     ) -> Self:
         """PLACEHOLDER"""
         ...  # will not clone data, must be contiguous, performs a binary search

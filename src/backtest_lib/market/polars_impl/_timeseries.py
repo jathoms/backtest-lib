@@ -89,7 +89,7 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             # return self._scalar_type(self._vec[key])
         else:
             return PolarsTimeseries[T](
-                self._vec[key], self._axis._slice(key), self._name, self._scalar_type
+                self._vec[key], self._axis.slice(key), self._name, self._scalar_type
             )
 
     def before(self, end: np.datetime64 | str, *, inclusive=False) -> Self:
