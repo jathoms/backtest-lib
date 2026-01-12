@@ -9,7 +9,7 @@ wheels/
 # Virtual environments
 .venv
 
-#pkl dumps of data
+# pkl dumps of data
 
 *.pkl
 !sp500_close.pkl
@@ -30,3 +30,6 @@ docs/source/**/api/**
 
 # local VS Code settings
 .vscode/
+
+# testing artifacts
+.coverage
