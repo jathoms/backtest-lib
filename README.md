@@ -9,10 +9,6 @@ This library provides a lightweight framework for backtesting trading strategies
 A strategy must conform to the following structure:
 
 ```python
-class Decision:
-    target: WeightedPortfolio
-    notes: UniverseMapping[Any] | None = None
-
 class Strategy(Protocol):
     def __call__(
         self,
@@ -23,17 +19,16 @@ class Strategy(Protocol):
     ) -> Decision: ...
 ```
 
-_In short, a function is called a strategy as long as it takes the universe, the current holdings, a market view, and additional context as parameters, and returns a Decision (which wraps the target portfolio)._
+_In short, a function is called a strategy as long as it takes the universe, the current holdings, a market view, and additional context as parameters, and returns a Decision, which can be constructed using the functions provided in the `decision` module, re-exported at the library root for convenience._
 
 As inputs, the strategy receives the available universe, current holdings, a view of the market, and a context object for state.
 
-For outputs, the strategy emits a Decision specifying the new target portfolio for each decision point in the _decision schedule_ 
+For outputs, the strategy emits a Decision for each decision point in the _decision schedule_ 
 
 An toy example strategy can be written as follows, where we allocate our holdings uniformly across our universe:
 
 ```python
-import backtest_lib as btl
-from backtest_lib.portfolio import uniform_portfolio
+from backtest_lib import target_weights
 
 def equal_weight_strategy(
     universe,
@@ -41,13 +36,13 @@ def equal_weight_strategy(
     market,
     ctx,
 ):
-    return btl.Decision(uniform_portfolio(universe))
+    return target_weights({sec: 1/len(universe) for sec in universe})
 ```
 
 Or alternatively, another trivial strategy where we do nothing after creating our initial portfolio:
 
 ```python
-import backtest_lib as btl
+from backtest_lib import hold
 
 def buy_and_hold_strategy(
     universe,
@@ -55,7 +50,7 @@ def buy_and_hold_strategy(
     market,
     ctx,
 ):
-    return btl.Decision(current_portfolio)
+    return hold()
 ```
 
 ## Market
@@ -94,21 +89,19 @@ def aapl_momentum_with_liquidity(
     ctx: StrategyContext,
 ) -> Decision:
     if "AAPL" not in universe:
-        return Decision(target=Holdings(), notes={"warn": "AAPL not in universe"})
-
-    aapl_close = market.prices.close.by_security["AAPL"]            # Timeseries[float, datetime64]
-    aapl_tradable = market.tradable.by_security["AAPL"]             # Timeseries[bool, datetime64]
+        return hold()
+    aapl_close = market.prices.close.by_security["AAPL"]
+    aapl_tradable = market.tradable.by_security["AAPL"]
     aapl_volume = (
         market.volume.by_security["AAPL"] if market.volume is not None else None
-    )                                                                # Timeseries[int, datetime64] | None
+    )
 
     momentum_lookback = 126   # ~6 months
     vol_window = 60           # ~3 months
 
     # make sure we have enough history
     if len(aapl_close) < momentum_lookback + 1:
-        return Decision(target=Holdings(), notes={"info": "warmup - insufficient price history"})
-
+        return hold()
     # momentum: simple ratio of the current price over the price at (lookback) days ago.
     recent_price = aapl_close[-1]
     past_price = aapl_close[-(momentum_lookback + 1)]
@@ -126,11 +119,9 @@ def aapl_momentum_with_liquidity(
     tradable_now = bool(aapl_tradable[-1])
 
     go_long = (momentum > 0.0) and vol_ok and tradable_now
-    target = WeightedPortfolio({"AAPL": 1.0}) if go_long else WeightedPortfolio({"AAPL": 0.0}, cash=1.0)
+    target = {"AAPL": 1.0} if go_long else {"AAPL": 0.0}
 
-    return Decision(
-        target=target,
-    )
+    return target_weights(target, fill_cash=True)
 ```
 
 ## Building
