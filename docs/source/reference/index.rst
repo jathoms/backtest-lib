@@ -11,4 +11,5 @@ This is an overview of the public API of backtest-lib.
   market/index
   strategy/index
   portfolio/index
+  engine/index
   universe/index

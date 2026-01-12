@@ -100,13 +100,13 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
     @property
     @abstractmethod
-    def periods(self) -> Sequence[Index]:
+    def periods(self) -> tuple[Index, ...]:
         """PLACEHOLDER PROPERTY"""
         ...
 
     @property
     @abstractmethod
-    def securities(self) -> Sequence[str]:
+    def securities(self) -> tuple[str, ...]:
         """PLACEHOLDER PROPERTY"""
         ...
 
@@ -430,8 +430,8 @@ class MarketView[Index: Comparable]:
         periods = self._resolve_period_axis_spec(reference_view_for_axis_values)
         securities = self._resolve_security_axis_spec(reference_view_for_axis_values)
 
-        self._periods: Sequence[Index] = periods
-        self._securities: Sequence[str] = securities
+        self._periods: tuple[Index, ...] = periods
+        self._securities: tuple[str, ...] = securities
         self._security_policy: SecurityAxisPolicy = security_policy
         self._period_policy: PeriodAxisPolicy = period_policy
         self._backend: str = backend
@@ -443,11 +443,11 @@ class MarketView[Index: Comparable]:
         return self._prices
 
     @property
-    def periods(self) -> Sequence[Index]:
+    def periods(self) -> tuple[Index, ...]:
         return self._periods
 
     @property
-    def securities(self) -> Sequence[str]:
+    def securities(self) -> tuple[str, ...]:
         return self._securities
 
     @property
@@ -544,10 +544,10 @@ class MarketView[Index: Comparable]:
         # TODO: Add a reindexing method to the PastView protocol in some way
         # return view.reindex(securities=new_sec, periods=new_per)
 
-    def _resolve_period_axis_spec(self, spec: str) -> Sequence[Index]:
+    def _resolve_period_axis_spec(self, spec: str) -> tuple[Index, ...]:
         return self._resolve_axis_spec(spec).periods
 
-    def _resolve_security_axis_spec(self, spec: str) -> Sequence[str]:
+    def _resolve_security_axis_spec(self, spec: str) -> tuple[str, ...]:
         return self._resolve_axis_spec(spec).securities
 
     def _resolve_axis_spec(self, spec: str) -> PastView:

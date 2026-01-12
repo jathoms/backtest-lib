@@ -35,5 +35,18 @@ repos:
         files: \.ipynb$
         language: system
 
+      - id: doctest
+        name: run doctests
+        files: ^docs/
+        entry: just doctest
+        language: system
+        pass_filenames: false
+
+      - id: docs
+        name: build docs
+        files: ^docs/
+        entry: just docs
+        language: system
+        pass_filenames: false
 
 

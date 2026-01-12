@@ -1,10 +1,8 @@
-
 ========
 Decision
 ========
 
-.. currentmodule:: backtest_lib
+.. currentmodule:: backtest_lib.engine.decision
 
 .. autoclass:: Decision
-   :members:
 

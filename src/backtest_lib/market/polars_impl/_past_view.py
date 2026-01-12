@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
+from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -25,7 +26,6 @@ from backtest_lib.market.plotting import (
 from backtest_lib.market.polars_impl._axis import PeriodAxis, SecurityAxis
 from backtest_lib.market.polars_impl._helpers import (
     POLARS_TO_PYTHON,
-    Array1DDTView,
     to_npdt64,
 )
 from backtest_lib.market.polars_impl._plotting import (
@@ -440,9 +440,9 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
     def by_security(self) -> PolarsBySecurity[ValueT]:
         return self._by_security
 
-    @property
-    def periods(self) -> Sequence[np.datetime64]:
-        return Array1DDTView(self._period_axis.dt64)
+    @cached_property
+    def periods(self) -> tuple[np.datetime64, ...]:
+        return tuple(x for x in self._period_axis.dt64)
 
     @property
     def securities(self) -> tuple[str, ...]:

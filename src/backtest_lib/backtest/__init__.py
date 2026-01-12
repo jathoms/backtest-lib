@@ -101,13 +101,11 @@ class Backtest:
         >>> market = btl.MarketView(spot_prices)
         >>> universe = market.securities
         >>> def hold_strategy(universe, current_portfolio, market, ctx):
-        ...     return btl.Decision(current_portfolio)
-        >>> bt = btl.Backtest(
-        ...     hold_strategy, universe, market, uniform_portfolio(universe)
-        ... )
+        ...     return btl.hold()
+        >>> bt = btl.Backtest(hold_strategy, market, uniform_portfolio(universe))
         >>> results = bt.run()
         >>> results.annualized_return
-        -0.00022650...
+        -0.00553564...
     """
 
     strategy: Strategy
@@ -133,7 +131,7 @@ class Backtest:
         backend="polars",
     ):
         self.strategy = strategy
-        self.universe = universe or tuple(market_view.securities)
+        self.universe = universe or market_view.securities
         self.market_view = market_view
         if isinstance(initial_portfolio, CashPortfolio):
             initial_portfolio = initial_portfolio.materialize(
