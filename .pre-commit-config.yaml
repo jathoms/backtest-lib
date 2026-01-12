@@ -29,3 +29,11 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: notebook-clear-outputs
+        name: reset jupyter notebook state
+        entry: uv run jupyter nbconvert --clear-output
+        files: \.ipynb$
+        language: system
+
+
+
