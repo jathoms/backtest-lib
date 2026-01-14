@@ -1,0 +1,29 @@
+name: CI - Clear notebook outputs
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "**/*.ipynb"
+      - ".github/workflows/clear-notebooks.yml"
+  pull_request:
+    paths:
+      - "**/*.ipynb"
+      - ".github/workflows/clear-notebooks.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nbconvert:
+    name: Clear notebooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: nbconvert
+        run: uv run pre-commit run notebook-clear-outputs --all-files --show-diff-on-failure

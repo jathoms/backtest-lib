@@ -1,0 +1,50 @@
+name: CI - Build docs
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "docs/**"
+      - "**/*.py"
+      - ".github/workflows/build-docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/build-docs.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: Build docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+
+      - name: Set up just 
+        uses: extractions/setup-just@v3
+
+      - name: Build docs
+        run: just docs
+
+  doctest:
+    name: Run doctests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup
+        uses: ./.github/actions/setup
+        with:
+          group: docs
+
+      - name: Set up just
+        uses: extractions/setup-just@v3
+
+      - name: Run doctests
+        run: just doctest

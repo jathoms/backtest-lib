@@ -1,0 +1,18 @@
+name: "Set up uv and python"
+inputs:
+  group:
+    description: "uv dependency group to install"
+    required: false
+    default: "dev"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - uses: astral-sh/setup-uv@v7
+
+    - name: Sync deps
+      shell: bash
+      run: uv sync --group ${{ inputs.group }} --frozen

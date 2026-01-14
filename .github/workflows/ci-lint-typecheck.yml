@@ -24,7 +24,7 @@ jobs:
     name: Ruff (lint + format)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Ruff check
         uses: astral-sh/ruff-action@v3
@@ -40,19 +40,10 @@ jobs:
     name: Typecheck (pyrefly)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: "pip"
-
-      - name: Install uv
-        run: python -m pip install -U uv
-
-      - name: Sync typecheck deps (locked)
-        run: uv sync --dev --frozen
+      - name: Setup
+        uses: ./.github/actions/setup
 
       - name: Run pyrefly
         run: uv run pyrefly check

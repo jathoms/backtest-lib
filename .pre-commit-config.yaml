@@ -22,7 +22,7 @@ repos:
         pass_filenames: false
         always_run: true
 
-      - id: pytest-check
+      - id: pytest
         name: pytest (all tests)
         entry: uv run pytest
         language: system
