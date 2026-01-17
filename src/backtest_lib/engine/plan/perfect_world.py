@@ -47,12 +47,18 @@ class PerfectWorldPlanGenerator:
         elif isinstance(decision, ReallocateDecision):
             yield ReallocateOp(decision)
         elif isinstance(decision, MakeTradeDecision):
-            trade_order = TradeOrder(
-                direction=decision.direction,
-                qty=decision.qty,
-                security=decision.security,
-                price=prices[decision.security],
-            )
+            try:
+                trade_order = TradeOrder(
+                    direction=decision.direction,
+                    qty=decision.qty,
+                    security=decision.security,
+                    price=prices[decision.security],
+                )
+            except KeyError as e:
+                raise KeyError(
+                    f"Tried to {str(decision.direction)} "
+                    f"'{decision.security}', but it was not in the universe"
+                ) from e
             yield MakeTradeOp(trade_order)
         elif isinstance(decision, CompositeDecision):
             for step in decision.decisions:

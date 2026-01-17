@@ -44,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
-class _HoldingsReallocation:
+class _ValueReallocation:
     inner: UniverseMapping[int]
 
 
@@ -53,7 +53,7 @@ class _WeightsReallocation:
     inner: UniverseMapping[float]
 
 
-_CompiledReallocation = _HoldingsReallocation | _WeightsReallocation
+_CompiledReallocation = _ValueReallocation | _WeightsReallocation
 
 
 def _warn_redundant_cash(amount: float) -> None:
@@ -82,16 +82,28 @@ class _TargetWeightsCompiledOp:
     weights: UniverseMapping[float]
     cash: float
 
-    def reallocate(self, reallocation: _WeightsReallocation) -> None:
+    def _reallocate(self, weight_delta: UniverseMapping[float]) -> None:
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"Applying weights reallocation: {reallocation.inner}\n"
+                f"Applying weights reallocation: {weight_delta}\n"
                 f"to target weights {self.weights}"
             )
-        assert np.isclose(reallocation.inner.sum(), 0), (
+        assert np.isclose(weight_delta.sum(), 0), (
             "Computed a reallocation that does not sum to 0."
         )
-        self.weights = self.weights + reallocation.inner
+        self.weights = self.weights + weight_delta
+
+    def reallocate_by_value(
+        self,
+        reallocation: _ValueReallocation,
+        total_value: float,
+    ) -> None:
+        value_changes = reallocation.inner
+        weight_changes = value_changes / total_value
+        self._reallocate(weight_changes)
+
+    def reallocate_by_weight(self, reallocation: _WeightsReallocation) -> None:
+        self._reallocate(reallocation.inner)
 
 
 @dataclass(slots=True)
@@ -99,16 +111,38 @@ class _TargetHoldingsCompiledOp:
     holdings: UniverseMapping[int]
     cash: float
 
-    def reallocate(self, reallocation: _HoldingsReallocation) -> None:
+    def reallocate_by_value(
+        self,
+        reallocation: _ValueReallocation,
+        prices: UniverseMapping[float],
+    ) -> None:
+        qty_changes = (reallocation.inner / prices).truncate()
+        actual_value_changes = qty_changes * prices
+        cash_delta = -(actual_value_changes.sum())
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(
-                f"Applying holdings reallocation: {reallocation.inner}\n"
-                f"to target holdings {self.holdings}"
+                f"Applying value reallocation: {reallocation.inner}\n"
+                f"to target holdings {self.holdings}\n"
+                f"Quantity reallocation: {qty_changes}\nCash delta: {cash_delta}"
             )
-        assert np.isclose(reallocation.inner.sum(), 0), (
-            "Computed a reallocation that does not sum to 0."
+        assert np.isclose(actual_value_changes.sum() + cash_delta, 0), (
+            "Computed a value reallocation that does not sum to 0."
         )
-        self.holdings = self.holdings + reallocation.inner
+        self.holdings = self.holdings + qty_changes
+        self.cash = self.cash + cash_delta
+
+    def reallocate_by_weight(
+        self,
+        reallocation: _WeightsReallocation,
+        prices: UniverseMapping[float],
+        total_value: float,
+    ) -> None:
+        weight_changes = reallocation.inner
+        target_value_changes = weight_changes * total_value
+        self.reallocate_by_value(
+            _ValueReallocation(target_value_changes),
+            prices=prices,
+        )
 
 
 _CompiledOps = _TargetWeightsCompiledOp | _TargetHoldingsCompiledOp | Trades
@@ -229,8 +263,8 @@ class PerfectWorldPlanExecutor:
                         # TODO: add setting for when this silently scales down buys,
                         # warns, or errors
                         raise ValueError(
-                            "The securities in 'out_of' are not held in the portfolio."
-                            " Cannot perform a reallocation out of them."
+                            "The securities in 'out_of' are not held in the portfolio. "
+                            "Cannot perform a reallocation out of them."
                         )
 
                     from_reallocation = make_universe_mapping(
@@ -271,28 +305,32 @@ class PerfectWorldPlanExecutor:
                     f"Unsupported portfolio type: {type(portfolio)}"
                 )
 
+        logger.debug(
+            "Applying reallocation to portfolio target. "
+            f"Target: {compiled_targetting_op}. Reallocation: {compiled_reallocation}"
+        )
         if isinstance(compiled_targetting_op, _TargetWeightsCompiledOp):
             if isinstance(compiled_reallocation, _WeightsReallocation):
-                compiled_targetting_op.reallocate(compiled_reallocation)
-            elif isinstance(compiled_reallocation, _HoldingsReallocation):
-                holdings_changes = compiled_reallocation.inner
-                value_changes = holdings_changes * prices
-                weight_changes = value_changes / portfolio.total_value
-                compiled_targetting_op.reallocate(_WeightsReallocation(weight_changes))
+                compiled_targetting_op.reallocate_by_weight(compiled_reallocation)
+            elif isinstance(compiled_reallocation, _ValueReallocation):
+                compiled_targetting_op.reallocate_by_value(
+                    reallocation=compiled_reallocation,
+                    total_value=portfolio.total_value,
+                )
             elif compiled_reallocation is not None:
                 assert_never(compiled_reallocation)
             yield compiled_targetting_op
         elif isinstance(compiled_targetting_op, _TargetHoldingsCompiledOp):
-            if isinstance(compiled_reallocation, _HoldingsReallocation):
-                compiled_targetting_op.reallocate(compiled_reallocation)
+            if isinstance(compiled_reallocation, _ValueReallocation):
+                compiled_targetting_op.reallocate_by_value(
+                    compiled_reallocation, prices=prices
+                )
             elif isinstance(compiled_reallocation, _WeightsReallocation):
-                weight_changes = compiled_reallocation.inner
-                target_value_changes = weight_changes * portfolio.total_value
-                qty_changes = (target_value_changes / prices).truncate()
-                actual_value_changes = qty_changes * prices
-                cash_delta = -(actual_value_changes.sum())
-                compiled_targetting_op.reallocate(_HoldingsReallocation(qty_changes))
-                compiled_targetting_op.cash += cash_delta
+                compiled_targetting_op.reallocate_by_weight(
+                    compiled_reallocation,
+                    prices=prices,
+                    total_value=portfolio.total_value,
+                )
             elif compiled_reallocation is not None:
                 assert_never(compiled_reallocation)
             yield compiled_targetting_op
