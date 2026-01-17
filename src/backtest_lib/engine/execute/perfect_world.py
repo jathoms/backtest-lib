@@ -24,9 +24,11 @@ from backtest_lib.portfolio import (
     Portfolio,
     QuantityPortfolio,
     WeightedPortfolio,
+)
+from backtest_lib.universe.universe_mapping import (
+    UniverseMapping,
     make_universe_mapping,
 )
-from backtest_lib.universe.universe_mapping import UniverseMapping
 
 
 class TargettingOpNotFirstException(Exception): ...

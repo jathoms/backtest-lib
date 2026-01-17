@@ -17,7 +17,7 @@ class TradeDirection(StrEnum):
 
 
 class DecisionBase:
-    def __add__(self: Decision, other: Decision) -> DecisionBase:
+    def __add__(self: Decision, other: Decision) -> Decision:
         if isinstance(self, HoldDecision):
             return other
         if isinstance(other, HoldDecision):

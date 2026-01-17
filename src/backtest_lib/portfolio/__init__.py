@@ -7,7 +7,10 @@ from dataclasses import dataclass, replace
 
 from backtest_lib.market import get_mapping_type_from_backend
 from backtest_lib.market.polars_impl import SeriesUniverseMapping
-from backtest_lib.universe.universe_mapping import UniverseMapping
+from backtest_lib.universe.universe_mapping import (
+    UniverseMapping,
+    make_universe_mapping,
+)
 
 Quantity = int
 FractionalQuantity = float
@@ -248,25 +251,6 @@ def uniform_portfolio(
         total_value=value,
         constructor_backend=backend,
     )
-
-
-def make_universe_mapping[T: (int, float)](
-    m: Mapping[str, T],
-    universe: Iterable[str],
-    constructor_backend: str = "polars",
-) -> UniverseMapping[T]:
-    if not isinstance(m, UniverseMapping) and isinstance(m, Mapping):
-        backend_mapping_type = get_mapping_type_from_backend(constructor_backend)
-        # TODO: check if this dictionary collection is slow.
-        # also, this doesn't check that securities passed in via the mapping are
-        # actually part of the universe. checking for that would be quite slow,
-        # so we avoid it for now.
-        return backend_mapping_type.from_vectors(
-            universe,
-            (m.get(k, 0.0) for k in universe),
-        )
-    else:
-        return m
 
 
 @dataclass(frozen=True, slots=True)
