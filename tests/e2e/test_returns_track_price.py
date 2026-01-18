@@ -24,9 +24,8 @@ def test_returns_track_price_when_portfolio_is_one_security(single_security_mark
     backtest = btl.Backtest(
         strategy=strategy, market_view=market, initial_portfolio=initial_portfolio
     )
-
     results = backtest.run()
-    assert (
+    assert all(
         portfolio_value == pytest.approx(i)
         for portfolio_value, i in zip(results.nav, range(1, 101), strict=True)
     )

@@ -34,7 +34,7 @@ from backtest_lib.market.polars_impl._plotting import (
     PolarsPastViewPlotAccessor,
 )
 from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
-from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
+from backtest_lib.market.polars_impl._universe_mapping import PolarsUniverseMapping
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -118,7 +118,7 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
         return df
 
     @overload
-    def __getitem__(self, key: SupportsIndex) -> SeriesUniverseMapping: ...
+    def __getitem__(self, key: SupportsIndex) -> PolarsUniverseMapping: ...
     @overload
     def __getitem__(self, key: slice) -> PolarsPastView: ...
 
@@ -129,7 +129,7 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
             s = self._period_column_df.get_column(col_name)
             if self._row_indexer is not None:
                 s = s.gather(self._row_indexer)
-            return SeriesUniverseMapping(
+            return PolarsUniverseMapping(
                 names=self._security_axis.names,
                 _data=s,
                 pos=self._security_axis.pos,

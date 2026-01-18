@@ -26,7 +26,7 @@ if TYPE_CHECKING:
         PolarsPastView,
     )
     from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
-    from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
+    from backtest_lib.market.polars_impl._universe_mapping import PolarsUniverseMapping
 
 
 class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
@@ -57,8 +57,8 @@ class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
         return self._obj.by_security.plot.line(agg, y_padding, smoothing)
 
 
-class SeriesUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
-    def __init__(self, obj: SeriesUniverseMapping):
+class PolarsUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
+    def __init__(self, obj: PolarsUniverseMapping):
         self._obj = obj
         self._series = obj.as_series()
 

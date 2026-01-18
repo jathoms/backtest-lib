@@ -49,9 +49,9 @@ def get_pastview_type_from_backend(backend: str) -> type[PastView]:
 
 def get_mapping_type_from_backend(backend: str) -> type[UniverseMapping]:
     if backend == "polars":
-        from backtest_lib.market.polars_impl import SeriesUniverseMapping
+        from backtest_lib.market.polars_impl import PolarsUniverseMapping
 
-        return SeriesUniverseMapping
+        return PolarsUniverseMapping
     else:
         raise ValueError(f"Could not find data backend {backend}")
 

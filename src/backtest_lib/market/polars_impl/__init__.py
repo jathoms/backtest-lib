@@ -4,7 +4,7 @@ from backtest_lib.market.polars_impl._past_view import (
     PolarsPastView,
 )
 from backtest_lib.market.polars_impl._timeseries import PolarsTimeseries
-from backtest_lib.market.polars_impl._universe_mapping import SeriesUniverseMapping
+from backtest_lib.market.polars_impl._universe_mapping import PolarsUniverseMapping
 
 __all__ = [
     "PolarsPastView",
@@ -12,5 +12,5 @@ __all__ = [
     "PolarsBySecurity",
     "PolarsTimeseries",
     "PolarsBySecurity",
-    "SeriesUniverseMapping",
+    "PolarsUniverseMapping",
 ]

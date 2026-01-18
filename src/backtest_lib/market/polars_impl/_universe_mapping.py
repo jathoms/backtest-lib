@@ -19,7 +19,7 @@ from backtest_lib.market.plotting import (
     UniverseMappingPlotAccessor,
 )
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON
-from backtest_lib.market.polars_impl._plotting import SeriesUniverseMappingPlotAccessor
+from backtest_lib.market.polars_impl._plotting import PolarsUniverseMappingPlotAccessor
 from backtest_lib.universe import Universe
 from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
@@ -33,7 +33,7 @@ ScalarU = float | int
 
 
 @dataclass(frozen=True, init=False)
-class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
+class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
     names: Universe
     _data: pl.Series
     pos: dict[str, int] = field(repr=False)
@@ -45,7 +45,7 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
         data: pl.Series,
         dtype: type[int] | type[float] | None = None,
     ) -> Self:
-        return SeriesUniverseMapping(
+        return PolarsUniverseMapping(
             names=names,
             _data=data,
             pos={name: i for i, name in enumerate(names)},
@@ -108,7 +108,7 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
             if not isinstance(other, int) and self._scalar_type is int:
                 return float(other), float
             return float(other), self._scalar_type
-        elif isinstance(other, SeriesUniverseMapping):
+        elif isinstance(other, PolarsUniverseMapping):
             data = other._data
             if other.names != self.names:
                 if not all(name in self.names for name in other.names):
@@ -136,86 +136,86 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
             return aligned_series, self._scalar_type
 
         raise TypeError(
-            "Unsupported operand: only scalars, mappings or SeriesUniverseMapping "
-            "with compatible axes are allowed."
+            "Unsupported operand: only scalars, mappings or PolarsUniverseMapping"
+            " with compatible axes are allowed."
         )
 
     def __add__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping:
+    ) -> PolarsUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
             return self.__radd__(other)
-        return SeriesUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
+        return PolarsUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
 
     def __radd__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping:
+    ) -> PolarsUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return SeriesUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
+        return PolarsUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
 
     def __sub__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping:
+    ) -> PolarsUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
-            if isinstance(other, SeriesUniverseMapping):
+            if isinstance(other, PolarsUniverseMapping):
                 return other.__rsub__(self)
             else:
                 return NotImplemented
-        return SeriesUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
+        return PolarsUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
 
     def __rsub__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping:
+    ) -> PolarsUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return SeriesUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
+        return PolarsUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
 
     def __mul__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping:
+    ) -> PolarsUniverseMapping:
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
-            if isinstance(other, SeriesUniverseMapping):
+            if isinstance(other, PolarsUniverseMapping):
                 return other.__rmul__(self)
             else:
                 return NotImplemented
-        return SeriesUniverseMapping[new_type](
+        return PolarsUniverseMapping[new_type](
             self.names, self._data * rhs, self.pos, new_type
         )
 
     def __rmul__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping:
+    ) -> PolarsUniverseMapping:
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return SeriesUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
+        return PolarsUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
 
     def __truediv__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping[float]:
+    ) -> PolarsUniverseMapping[float]:
         rhs, _ = self._rhs(other)
         if rhs is _RHS_HANDOFF:
-            if isinstance(other, SeriesUniverseMapping):
+            if isinstance(other, PolarsUniverseMapping):
                 return other.__rtruediv__(self)
             else:
                 return NotImplemented
-        return SeriesUniverseMapping[float](
+        return PolarsUniverseMapping[float](
             self.names, self._data / rhs, self.pos, float
         )
 
     def __rtruediv__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> SeriesUniverseMapping[float]:
+    ) -> PolarsUniverseMapping[float]:
         lhs, _ = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return SeriesUniverseMapping[float](
+        return PolarsUniverseMapping[float](
             self.names, lhs / self._data, self.pos, float
         )
 
@@ -233,17 +233,17 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
         return self._scalar_type(m)
 
     def abs(self) -> Self:
-        return SeriesUniverseMapping(
+        return PolarsUniverseMapping(
             self.names, self._data.abs(), self.pos, self._scalar_type
         )
 
-    def floor(self) -> SeriesUniverseMapping[int]:
-        return SeriesUniverseMapping[int](
+    def floor(self) -> PolarsUniverseMapping[int]:
+        return PolarsUniverseMapping[int](
             names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
         )
 
-    def truncate(self) -> SeriesUniverseMapping[int]:
-        return SeriesUniverseMapping[int](
+    def truncate(self) -> PolarsUniverseMapping[int]:
+        return PolarsUniverseMapping[int](
             names=self.names,
             _data=self._data.cast(pl.Int64),
             pos=self.pos,
@@ -252,23 +252,23 @@ class SeriesUniverseMapping[T: (float, int)](UniverseMapping[T]):
 
     @property
     def plot(self) -> UniverseMappingPlotAccessor:
-        return SeriesUniverseMappingPlotAccessor(self)
+        return PolarsUniverseMappingPlotAccessor(self)
 
     @classmethod
     def from_vectors(
         cls, keys: Iterable[str], values: Iterable[T]
-    ) -> SeriesUniverseMapping[T]:
+    ) -> PolarsUniverseMapping[T]:
         keys_tuple = tuple(keys)
 
         values_series = (
             pl.Series(values) if not isinstance(values, pl.Series) else values
         )
 
-        return SeriesUniverseMapping.from_names_and_data(keys_tuple, values_series)
+        return PolarsUniverseMapping.from_names_and_data(keys_tuple, values_series)
 
 
 def _mapping_to_series[T: (float, int)](
-    mapping: SeriesUniverseMapping,
+    mapping: PolarsUniverseMapping,
     other_mapping: Mapping[Any, T] | VectorMapping[Any, T],
 ) -> pl.Series:
     idxs = (mapping.pos[k] for k in other_mapping)

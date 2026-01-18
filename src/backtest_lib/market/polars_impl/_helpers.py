@@ -59,7 +59,7 @@ class Array1DDTView(Sequence[np.datetime64]):
     @overload
     def __getitem__(self, index: slice) -> Self: ...
 
-    def __getitem__(self, index: int | slice) -> np.datetime64 | Self:
+    def __getitem__(self, index: int | slice) -> np.datetime64 | Array1DDTView:
         if isinstance(index, slice):
             return Array1DDTView(self._a[index])
         if isinstance(index, (int, np.integer)):

@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 
 from backtest_lib.market import get_mapping_type_from_backend
-from backtest_lib.market.polars_impl import SeriesUniverseMapping
+from backtest_lib.market.polars_impl import PolarsUniverseMapping
 from backtest_lib.universe.universe_mapping import (
     UniverseMapping,
     make_universe_mapping,
@@ -184,7 +184,7 @@ class WeightedPortfolio(PortfolioBase[Weight]):
         )
 
     def into_long_only(self) -> WeightedPortfolio:
-        if isinstance(self.holdings, SeriesUniverseMapping):
+        if isinstance(self.holdings, PolarsUniverseMapping):
             import polars as pl
 
             # Assumes we want to keep our leverage ratio at 1
