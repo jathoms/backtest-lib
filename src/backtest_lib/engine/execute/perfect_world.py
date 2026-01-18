@@ -338,11 +338,13 @@ class PerfectWorldPlanExecutor:
             assert_never(compiled_targetting_op)
 
         if trades:
-            yield Trades(
+            batched_trades = Trades(
                 trades=tuple(trades),
                 security_alignment=self._security_alignment,
                 backend_mapping_type=self._backend_mapping_type,
             )
+            if batched_trades.position_delta.abs().sum() != 0:
+                yield batched_trades
 
     def execute_plan(
         self,

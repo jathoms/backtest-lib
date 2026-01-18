@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, assert_never, overload
 
 from backtest_lib.backtest._helpers import _to_pydt
 from backtest_lib.backtest.results import BacktestResults
@@ -15,7 +15,13 @@ from backtest_lib.engine.plan.perfect_world import (
     PerfectWorldPlanGenerator,
 )
 from backtest_lib.market import MarketView, get_pastview_type_from_backend
-from backtest_lib.portfolio import CashPortfolio, Portfolio, WeightedPortfolio
+from backtest_lib.portfolio import (
+    Cash,
+    FractionalQuantityPortfolio,
+    Portfolio,
+    QuantityPortfolio,
+    WeightedPortfolio,
+)
 from backtest_lib.strategy import Strategy
 from backtest_lib.strategy.context import StrategyContext
 
@@ -105,14 +111,14 @@ class Backtest:
         >>> bt = btl.Backtest(hold_strategy, market, uniform_portfolio(universe))
         >>> results = bt.run()
         >>> results.annualized_return
-        -0.00553564...
+        -0.00035649...
     """
 
     strategy: Strategy
     universe: Universe
     market_view: MarketView
-    initial_portfolio: WeightedPortfolio
-    _current_portfolio: WeightedPortfolio
+    initial_portfolio: Portfolio
+    _current_portfolio: Portfolio
     settings: BacktestSettings
     _schedule: DecisionSchedule
     _backend: type[PastView]
@@ -122,7 +128,7 @@ class Backtest:
         self,
         strategy: Strategy,
         market_view: MarketView,
-        initial_portfolio: WeightedPortfolio,
+        initial_portfolio: Portfolio | Cash,
         universe: Universe | None = None,
         settings: BacktestSettings = _DEFAULT_BACKTEST_SETTINGS,
         *,
@@ -133,7 +139,7 @@ class Backtest:
         self.strategy = strategy
         self.universe = universe or market_view.securities
         self.market_view = market_view
-        if isinstance(initial_portfolio, CashPortfolio):
+        if isinstance(initial_portfolio, Cash):
             initial_portfolio = initial_portfolio.materialize(
                 universe=self.universe, backend=backend
             )
@@ -160,6 +166,7 @@ class Backtest:
     def run(self, ctx: StrategyContext | None = None) -> BacktestResults:
         schedule_it = iter(self._schedule)
         next_decision_period = next(schedule_it)
+        advance_schedule = False
         if ctx is None:
             ctx = StrategyContext()
         output_holdings: list[VectorMapping[str, float]] = []
@@ -176,15 +183,7 @@ class Backtest:
                 f" {self._current_portfolio.total_value}",
             )
             if ctx.now >= _to_pydt(next_decision_period):
-                try:
-                    next_decision_period = next(schedule_it)
-                except StopIteration:
-                    logger.debug(
-                        "Reached end of decision schedule, breaking from backtest loop"
-                        f" at {ctx.now} (period {i}).",
-                    )
-                    break
-
+                advance_schedule = True
                 # NOTE: we are using close prices here. this is an implicit assumption.
                 # the user may want to use (low+high)/2, mid price, VWAP/TWAP.
                 result = self._engine.execute_strategy(
@@ -195,15 +194,7 @@ class Backtest:
                     prices=yesterday_prices,
                 )
 
-                # problem: we convert into quantities a lot even when we may not have
-                # to. i.e when the user is using a PerfectWorldGenerator/Executor and
-                # only wants to pass target weights.
-                # idea: allow a decorator or something on the user's strategy to say:
-                # @weight_based or @quantity_based or something else so we can optimize
-                # our backtesting behaviour due to not neeeding constant conversions.
-                portfolio_after_decision = result.after.into_quantities(
-                    yesterday_prices
-                )
+                portfolio_after_decision = result.after
                 logger.debug(
                     f"engine output for {ctx.now}: {result.after.holdings}, "
                     f"cash: {result.after.cash}"
@@ -216,9 +207,7 @@ class Backtest:
                         ctx.now,
                     )
             else:
-                portfolio_after_decision = self._current_portfolio.into_quantities(
-                    yesterday_prices
-                )
+                portfolio_after_decision = self._current_portfolio
             # TODO: the weights can be calculated as part of the results calculation,
             pf_as_weights = portfolio_after_decision.into_weighted(
                 prices=yesterday_prices
@@ -234,43 +223,93 @@ class Backtest:
 
             self._current_portfolio = inter_day_adjusted_portfolio
             yesterday_prices = today_prices
+            if advance_schedule:
+                try:
+                    next_decision_period = next(schedule_it)
+                    advance_schedule = False
+                except StopIteration:
+                    logger.debug(
+                        "Reached end of decision schedule, breaking from backtest loop"
+                        f" at {ctx.now} (period {i}).",
+                    )
+                    break
 
         allocation_history: PastView = self._backend.from_security_mappings(
             output_holdings,
-            self.market_view.periods[: i - 1],
+            self.market_view.periods[:i],
         )
         results = BacktestResults.from_weights_market_initial_capital(
             weights=allocation_history,
-            market=self.market_view.truncated_to(i - 1),
+            market=self.market_view.truncated_to(i),
             backend=self._backend,
         )
         return results
 
 
+@overload
 def _apply_inter_period_price_changes(
     portfolio: WeightedPortfolio,
     pct_change: UniverseMapping[float],
-) -> WeightedPortfolio:
-    prev_cash = portfolio.cash
-    prev_hold = portfolio.holdings
-    # logger.debug(
-    #     f"Holdings length: {len(prev_hold)}, pct_change length: {len(pct_change)}, "
-    #     f"hold: {prev_hold}, pct_change: {pct_change}"
-    # )
+) -> WeightedPortfolio: ...
 
-    new_total_holdings_weight = prev_hold * pct_change
-    new_total_weight = prev_cash + new_total_holdings_weight.sum()
 
-    new_cash = prev_cash / new_total_weight
-    new_holdings = new_total_holdings_weight / new_total_weight
+@overload
+def _apply_inter_period_price_changes(
+    portfolio: QuantityPortfolio,
+    pct_change: UniverseMapping[float],
+) -> QuantityPortfolio: ...
 
-    return WeightedPortfolio(
-        cash=new_cash,
-        holdings=new_holdings,
-        universe=new_holdings.keys(),  # brittle, review this
-        total_value=portfolio.total_value * new_total_weight,
-        constructor_backend=portfolio._backend,
-    )
+
+@overload
+def _apply_inter_period_price_changes(
+    portfolio: FractionalQuantityPortfolio,
+    pct_change: UniverseMapping[float],
+) -> FractionalQuantityPortfolio: ...
+
+
+def _apply_inter_period_price_changes(
+    portfolio: Portfolio,
+    pct_change: UniverseMapping[float],
+) -> Portfolio:
+    if isinstance(portfolio, WeightedPortfolio):
+        prev_cash = portfolio.cash
+        prev_hold = portfolio.holdings
+
+        new_total_holdings_weight = prev_hold * pct_change
+        new_total_weight = prev_cash + new_total_holdings_weight.sum()
+
+        new_cash = prev_cash / new_total_weight
+        new_holdings = new_total_holdings_weight / new_total_weight
+
+        return WeightedPortfolio(
+            cash=new_cash,
+            holdings=new_holdings,
+            universe=new_holdings.keys(),  # brittle, review this
+            total_value=portfolio.total_value * new_total_weight,
+            constructor_backend=portfolio._backend,
+        )
+    elif isinstance(portfolio, QuantityPortfolio):
+        value_changes = portfolio.holdings * pct_change
+        new_total_value = value_changes.sum()
+        return QuantityPortfolio(
+            universe=portfolio.universe,
+            holdings=portfolio.holdings,
+            cash=portfolio.cash,
+            total_value=new_total_value,
+            constructor_backend=portfolio._backend,
+        )
+    elif isinstance(portfolio, FractionalQuantityPortfolio):
+        value_changes = portfolio.holdings * pct_change
+        new_total_value = value_changes.sum()
+        return FractionalQuantityPortfolio(
+            universe=portfolio.universe,
+            holdings=portfolio.holdings,
+            cash=portfolio.cash,
+            total_value=new_total_value,
+            constructor_backend=portfolio._backend,
+        )
+    else:
+        assert_never(portfolio)
 
 
 def _check_tradable(

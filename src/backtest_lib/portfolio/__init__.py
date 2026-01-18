@@ -20,7 +20,7 @@ Weight = float
 logger = logging.getLogger(__name__)
 
 
-class Portfolio[H: (float, int)]:
+class PortfolioBase[H: (float, int)]:
     """PLACEHOLDER"""
 
     holdings: UniverseMapping[H]
@@ -35,7 +35,7 @@ class Portfolio[H: (float, int)]:
         holdings: UniverseMapping[H] | Mapping[str, H],
         cash: float,
         total_value: float,
-        constructor_backend: str,
+        constructor_backend: str = "polars",
     ):
         universe_tup = tuple(universe)
         self.holdings = make_universe_mapping(
@@ -64,7 +64,7 @@ class Portfolio[H: (float, int)]:
     ) -> FractionalQuantityPortfolio: ...
 
 
-class QuantityPortfolio(Portfolio[Quantity]):
+class QuantityPortfolio(PortfolioBase[Quantity]):
     """PLACEHOLDER"""
 
     def into_weighted(
@@ -102,7 +102,7 @@ class QuantityPortfolio(Portfolio[Quantity]):
         )
 
 
-class FractionalQuantityPortfolio(Portfolio[FractionalQuantity]):
+class FractionalQuantityPortfolio(PortfolioBase[FractionalQuantity]):
     """PLACEHOLDER"""
 
     def into_weighted(self, prices: UniverseMapping | None = None) -> WeightedPortfolio:
@@ -138,7 +138,7 @@ class FractionalQuantityPortfolio(Portfolio[FractionalQuantity]):
         return self
 
 
-class WeightedPortfolio(Portfolio[Weight]):
+class WeightedPortfolio(PortfolioBase[Weight]):
     """PLACEHOLDER"""
 
     def into_weighted(self, prices=None) -> WeightedPortfolio:
@@ -254,7 +254,7 @@ def uniform_portfolio(
 
 
 @dataclass(frozen=True, slots=True)
-class CashPortfolio:
+class Cash:
     value: float
 
     def materialize(self, universe: Iterable[str], backend: str) -> WeightedPortfolio:
@@ -272,4 +272,7 @@ class CashPortfolio:
 
 
 def cash(value: float):
-    return CashPortfolio(value=value)
+    return Cash(value=value)
+
+
+Portfolio = WeightedPortfolio | QuantityPortfolio | FractionalQuantityPortfolio
