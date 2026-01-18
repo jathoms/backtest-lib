@@ -184,8 +184,8 @@ class BacktestResults[IndexT: Comparable]:
     def from_weights_market_initial_capital(
         weights: PastView[float, Any],
         market: MarketView[Any],
+        initial_capital: float,
         *,
-        initial_capital: float = 1.0,
         periods_per_year: float = 252.0,
         risk_free_annual: float | None = 0.02,
         backend: type[PastView],

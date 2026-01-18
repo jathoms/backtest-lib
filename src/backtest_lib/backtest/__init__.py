@@ -242,6 +242,7 @@ class Backtest:
             weights=allocation_history,
             market=self.market_view.truncated_to(i),
             backend=self._backend,
+            initial_capital=self.initial_portfolio.total_value,
         )
         return results
 
