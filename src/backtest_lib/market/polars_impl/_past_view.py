@@ -16,6 +16,7 @@ from typing import (
 
 import numpy as np
 import polars as pl
+from polars.exceptions import InvalidOperationError
 
 from backtest_lib.market import ByPeriod, BySecurity, Closed, PastView
 from backtest_lib.market.plotting import (
@@ -525,7 +526,16 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
             ) from e
 
         if dates.dtype not in (pl.Date, pl.Datetime):
-            dates = dates.cast(pl.Datetime("us"))
+            if dates.dtype == pl.String:
+                dates = dates.str.to_datetime(time_unit="us")
+            else:
+                try:
+                    dates = dates.cast(pl.Datetime("us"))
+                except InvalidOperationError as e:
+                    raise ValueError(
+                        "Cannot convert 'date' column with polars type "
+                        f"{dates.dtype} to polars.Datetime)"
+                    ) from e
 
         period_names = dates.dt.to_string()
         non_date_cols = [x for x in df.columns if x != "date"]

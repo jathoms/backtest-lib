@@ -259,7 +259,7 @@ class BacktestResults[IndexT: Comparable]:
         return results
 
     @cached_property
-    def holdings(self) -> PastView[float, IndexT]:
+    def quantities_held(self) -> PastView[float, IndexT]:
         weights = self.weights.by_security.to_dataframe(lazy=True)
         prices = self.market.prices.close.by_security.to_dataframe(lazy=True)
 
@@ -273,10 +273,35 @@ class BacktestResults[IndexT: Comparable]:
             )
             if dtype.is_numeric()
         ]
+        nav_series = pl.Series(self.nav)
 
-        result = joined.select(
+        qtys = joined.select(
             "date",
-            *[(pl.col(c) * pl.col(f"{c}_p")).alias(c) for c in numeric_cols],
+            *[
+                (pl.col(c) * nav_series / pl.col(f"{c}_p")).alias(c)
+                for c in numeric_cols
+            ],
         )
 
-        return self._backend.from_dataframe(result.collect())
+        return self._backend.from_dataframe(qtys.collect())
+
+    @cached_property
+    def values_held(self) -> PastView[float, IndexT]:
+        weights = self.weights.by_security.to_dataframe(lazy=True)
+
+        weights_schema = weights.collect_schema()
+        numeric_cols = [
+            name
+            for name, dtype in zip(
+                weights_schema.names(), weights_schema.dtypes(), strict=True
+            )
+            if dtype.is_numeric()
+        ]
+        nav_series = pl.Series(self.nav)
+
+        values = weights.select(
+            "date",
+            *[(pl.col(c) * nav_series).alias(c) for c in numeric_cols],
+        )
+
+        return self._backend.from_dataframe(values.collect())
