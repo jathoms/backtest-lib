@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from typing import (
+    TYPE_CHECKING,
+    Literal,
     Self,
     TypeVar,
     overload,
@@ -21,11 +23,17 @@ from backtest_lib.market.polars_impl._plotting import PolarsTimeseriesPlotAccess
 from backtest_lib.market.timeseries import Timeseries
 from backtest_lib.universe.vector_ops import VectorOps
 
+if TYPE_CHECKING:
+    import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 
 Scalar = TypeVar("Scalar", float, int)
 ScalarU = float | int
+
+
+class AlignmentError(Exception): ...
 
 
 @dataclass(frozen=True, init=False)
@@ -135,78 +143,81 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     def __len__(self) -> int:
         return len(self._axis)
 
-    def as_series(self) -> pl.Series:
-        return self._vec
+    @overload
+    def to_series(self, backend: Literal["polars"]) -> pl.Series: ...
+    @overload
+    def to_series(self, backend=...) -> pl.Series: ...
+    @overload
+    def to_series(self, backend: Literal["pandas"]) -> pd.Series: ...
+    def to_series(
+        self, backend: Literal["polars", "pandas"] = "polars"
+    ) -> pl.Series | pd.Series:
+        if backend == "polars":
+            return self._vec
+        elif backend == "pandas":
+            return self._vec.to_pandas()
+        else:
+            raise ValueError(backend)
 
     # TODO: add scalar type return in here so that
     # the scalar types are properly kept track of.
-    def _rhs(self, other: VectorOps[Scalar] | ScalarU) -> pl.Series | T:
+    def _rhs(
+        self, other: VectorOps[Scalar] | ScalarU
+    ) -> tuple[pl.Series | T, type[ScalarU]]:
         if isinstance(other, (int, float)):
-            return self._scalar_type(other)
+            return self._scalar_type(other), self._scalar_type
         if isinstance(other, PolarsTimeseries):
             if other._axis is self._axis or other._axis.labels == self._axis.labels:
-                return other._vec
+                return other._vec, other._scalar_type
             raise ValueError("Axis mismatch: operations require identical PeriodAxis.")
         raise TypeError("Only scalars or same-axis PolarsTimeseries are supported.")
 
     def __add__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
-        rhs = self._rhs(other)
-        return PolarsTimeseries(
-            self._vec + rhs, self._axis, self._name, self._scalar_type
-        )
+        rhs, scalar_type = self._rhs(other)
+        return PolarsTimeseries(self._vec + rhs, self._axis, self._name, scalar_type)
 
     def __radd__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
-        lhs = self._rhs(other)
-        return PolarsTimeseries(
-            lhs + self._vec, self._axis, self._name, self._scalar_type
-        )
+        lhs, scalar_type = self._rhs(other)
+        return PolarsTimeseries(lhs + self._vec, self._axis, self._name, scalar_type)
 
     def __sub__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
-        rhs = self._rhs(other)
-        return PolarsTimeseries(
-            self._vec - rhs, self._axis, self._name, self._scalar_type
-        )
+        rhs, scalar_type = self._rhs(other)
+        return PolarsTimeseries(self._vec - rhs, self._axis, self._name, scalar_type)
 
     def __rsub__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
-        lhs = self._rhs(other)
-        return PolarsTimeseries(
-            lhs - self._vec, self._axis, self._name, self._scalar_type
-        )
+        lhs, scalar_type = self._rhs(other)
+        return PolarsTimeseries(lhs - self._vec, self._axis, self._name, scalar_type)
 
     def __mul__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
-        rhs = self._rhs(other)
-        return PolarsTimeseries(
-            self._vec * rhs, self._axis, self._name, self._scalar_type
-        )
+        rhs, scalar_type = self._rhs(other)
+        return PolarsTimeseries(self._vec * rhs, self._axis, self._name, scalar_type)
 
     def __rmul__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
-        lhs = self._rhs(other)
-        return PolarsTimeseries(
-            lhs * self._vec, self._axis, self._name, self._scalar_type
-        )
+        lhs, scalar_type = self._rhs(other)
+        return PolarsTimeseries(lhs * self._vec, self._axis, self._name, scalar_type)
 
     def __truediv__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[float]:
-        rhs = self._rhs(other)
+        rhs, scalar_type = self._rhs(other)
         return PolarsTimeseries[float](self._vec / rhs, self._axis, self._name, float)
 
     def __rtruediv__(
         self, other: VectorOps[Scalar] | ScalarU
     ) -> PolarsTimeseries[float]:
-        lhs = self._rhs(other)
+        lhs, scalar_type = self._rhs(other)
         return PolarsTimeseries[float](lhs / self._vec, self._axis, self._name, float)
 
     def sum(self) -> T:
@@ -239,3 +250,34 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     @property
     def plot(self) -> TimeseriesPlotAccessor:
         return PolarsTimeseriesPlotAccessor(self)
+
+    def from_vectors(
+        values: Iterable[Scalar],
+        periods: Iterable[np.datetime64],
+        name: str = "",
+    ) -> PolarsTimeseries[Scalar]:
+        values_series = pl.Series(np.asarray(values))
+        periods_series = pl.Series(
+            np.asarray(periods, dtype="datetime64[us]"), dtype=pl.Datetime("us")
+        )
+
+        values_dtype = POLARS_TO_PYTHON[values_series.dtype]
+
+        if values_dtype not in (int, float):
+            raise TypeError(
+                "Cannot create PolarsTimeseries with passed values. "
+                f"Type was determined to be {values_dtype}"
+            )
+
+        if len(values_series) != len(periods_series):
+            raise AlignmentError(
+                "Length of values must match length of periods, "
+                f"lengths were {len(values_series)} and "
+                "{len(periods_series)} respectively."
+            )
+
+        period_axis = PeriodAxis.from_series(periods_series)
+
+        return PolarsTimeseries(
+            _vec=values_series, _axis=period_axis, _name=name, _scalar_type=values_dtype
+        )

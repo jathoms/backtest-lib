@@ -60,7 +60,7 @@ class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
 class PolarsUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
     def __init__(self, obj: PolarsUniverseMapping):
         self._obj = obj
-        self._series = obj.as_series()
+        self._series = obj.to_series()
 
     def __call__(
         self,
@@ -165,7 +165,7 @@ class PolarsUniverseMappingPlotAccessor(UniverseMappingPlotAccessor):
 class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
     def __init__(self, obj: PolarsTimeseries):
         self._obj = obj
-        self._series = obj.as_series()
+        self._series = obj.to_series()
 
     def __call__(self, **kwargs) -> alt.Chart:
         return self.line(**kwargs)

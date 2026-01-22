@@ -75,7 +75,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         object.__setattr__(self, "pos", pos)
         object.__setattr__(self, "_scalar_type", _scalar_type)
 
-    def as_series(self) -> pl.Series:
+    def to_series(self) -> pl.Series:
         return self._data
 
     @overload

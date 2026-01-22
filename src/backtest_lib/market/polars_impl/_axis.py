@@ -39,10 +39,9 @@ class PeriodAxis:
             date_s = date_s.cast(pl.Datetime("us"))
         labels = tuple(date_s.dt.strftime(fmt).to_list())
         dt64 = date_s.to_numpy().astype("datetime64[us]", copy=False)
-        # assert np.all(dt64[1:] >= dt64[:-1])
         return PeriodAxis(dt64, labels, {lbl: i for i, lbl in enumerate(labels)})
 
-    def take(self, idxs: Sequence[int] | NDArray[np.int64]) -> PeriodAxis:
+    def take(self, idxs: Sequence[int] | NDArray[np.integer]) -> PeriodAxis:
         """
         Creates a new PeriodAxis from a sequence of
         integer indices contained in the period axis.

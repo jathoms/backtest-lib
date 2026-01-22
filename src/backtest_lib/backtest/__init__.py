@@ -121,7 +121,7 @@ class Backtest:
     _current_portfolio: Portfolio
     settings: BacktestSettings
     _schedule: DecisionSchedule
-    _backend: type[PastView]
+    _backend: str
     _engine: Engine
 
     def __init__(
@@ -155,7 +155,7 @@ class Backtest:
             self._schedule = make_decision_schedule(market_view.periods)
         else:
             self._schedule = decision_schedule
-        self._backend = get_pastview_type_from_backend(backend)
+        self._backend = backend
 
         self._engine = engine or make_engine(
             PerfectWorldPlanGenerator(),
@@ -234,7 +234,9 @@ class Backtest:
                     )
                     break
 
-        allocation_history: PastView = self._backend.from_security_mappings(
+        allocation_history: PastView = get_pastview_type_from_backend(
+            self._backend
+        ).from_security_mappings(
             output_holdings,
             self.market_view.periods[:i],
         )

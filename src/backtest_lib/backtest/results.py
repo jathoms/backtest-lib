@@ -6,6 +6,12 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
+from backtest_lib.market import (
+    get_pastview_type_from_backend,
+    get_timeseries_type_from_backend,
+)
+from backtest_lib.market.timeseries import Timeseries
+
 if TYPE_CHECKING:
     from backtest_lib.market import MarketView, PastView
     from backtest_lib.market.timeseries import Comparable
@@ -28,12 +34,12 @@ class BacktestResults[IndexT: Comparable]:
     asset_returns: PastView[float, IndexT] = field(repr=False)
     initial_capital: float
 
-    portfolio_returns: list[float]
-    nav: list[float]
-    drawdowns: list[float]
-    gross_exposure: list[float]
-    net_exposure: list[float]
-    turnover: list[float]
+    portfolio_returns: Timeseries[float, IndexT]
+    nav: Timeseries[float, IndexT]
+    drawdowns: Timeseries[float, IndexT]
+    gross_exposure: Timeseries[float, IndexT]
+    net_exposure: Timeseries[float, IndexT]
+    turnover: Timeseries[float, IndexT]
 
     total_return: float
     annualized_return: float
@@ -43,7 +49,9 @@ class BacktestResults[IndexT: Comparable]:
     avg_turnover: float
 
     market: MarketView[IndexT]
-    _backend: type[PastView]
+    _backend: str
+    _backend_pastview_type: type[PastView]
+    _backend_timeseries_type: type[Timeseries]
 
     @staticmethod
     def from_weights_and_returns(
@@ -54,7 +62,7 @@ class BacktestResults[IndexT: Comparable]:
         initial_capital: float = 1.0,
         periods_per_year: float = 252.0,
         risk_free_annual: float | None = None,
-        backend: type[PastView],
+        backend: str = "polars",
     ) -> BacktestResults[Any]:
         """
         Build results from pre-computed per-security simple returns.
@@ -158,18 +166,20 @@ class BacktestResults[IndexT: Comparable]:
             )
             sharpe = (annualized_return - risk_free_annual) / annualized_volatility
 
+        timeseries_type = get_timeseries_type_from_backend(backend)
+
         return BacktestResults(
             periods=periods,
             securities=securities,
             weights=weights,
             asset_returns=returns,
             initial_capital=initial_capital,
-            portfolio_returns=portfolio_returns,
-            nav=nav,
-            drawdowns=drawdowns,
-            gross_exposure=gross_exposure,
-            net_exposure=net_exposure,
-            turnover=turnover,
+            portfolio_returns=timeseries_type.from_vectors(portfolio_returns, periods),
+            nav=timeseries_type.from_vectors(nav, periods),
+            drawdowns=timeseries_type.from_vectors(drawdowns, periods),
+            gross_exposure=timeseries_type.from_vectors(gross_exposure, periods),
+            net_exposure=timeseries_type.from_vectors(net_exposure, periods),
+            turnover=timeseries_type.from_vectors(turnover, periods),
             total_return=total_return,
             annualized_return=annualized_return,
             annualized_volatility=annualized_volatility,
@@ -178,6 +188,8 @@ class BacktestResults[IndexT: Comparable]:
             avg_turnover=avg_turnover,
             market=market,
             _backend=backend,
+            _backend_pastview_type=get_pastview_type_from_backend(backend),
+            _backend_timeseries_type=timeseries_type,
         )
 
     @staticmethod
@@ -188,7 +200,7 @@ class BacktestResults[IndexT: Comparable]:
         *,
         periods_per_year: float = 252.0,
         risk_free_annual: float | None = 0.02,
-        backend: type[PastView],
+        backend: str,
     ) -> BacktestResults[Any]:
         """
         Convenience constructor that derives per-security returns from
@@ -244,7 +256,9 @@ class BacktestResults[IndexT: Comparable]:
             .collect()
         )
 
-        asset_returns: PastView = backend.from_dataframe(asset_returns_df)
+        backend_pastview_type = get_pastview_type_from_backend(backend)
+
+        asset_returns: PastView = backend_pastview_type.from_dataframe(asset_returns_df)
 
         results = BacktestResults.from_weights_and_returns(
             weights=weights,
@@ -273,17 +287,16 @@ class BacktestResults[IndexT: Comparable]:
             )
             if dtype.is_numeric()
         ]
-        nav_series = pl.Series(self.nav)
 
         qtys = joined.select(
             "date",
             *[
-                (pl.col(c) * nav_series / pl.col(f"{c}_p")).alias(c)
+                (pl.col(c) * self.nav.to_series() / pl.col(f"{c}_p")).alias(c)
                 for c in numeric_cols
             ],
         )
 
-        return self._backend.from_dataframe(qtys.collect())
+        return self._backend_pastview_type.from_dataframe(qtys.collect())
 
     @cached_property
     def values_held(self) -> PastView[float, IndexT]:
@@ -297,11 +310,10 @@ class BacktestResults[IndexT: Comparable]:
             )
             if dtype.is_numeric()
         ]
-        nav_series = pl.Series(self.nav)
 
         values = weights.select(
             "date",
-            *[(pl.col(c) * nav_series).alias(c) for c in numeric_cols],
+            *[(pl.col(c) * self.nav.to_series()).alias(c) for c in numeric_cols],
         )
 
-        return self._backend.from_dataframe(values.collect())
+        return self._backend_pastview_type.from_dataframe(values.collect())

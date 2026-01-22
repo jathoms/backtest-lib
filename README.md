@@ -109,7 +109,7 @@ def aapl_momentum_with_liquidity(
 
     # liquidity filter: average recent volume
     if aapl_volume is not None and len(aapl_volume) >= vol_window:
-        avg_vol = aapl_volume[-vol_window:].as_series().mean()
+        avg_vol = aapl_volume[-vol_window:].mean()
         vol_ok = avg_vol is not None and avg_vol > 0
     else:
         avg_vol = None

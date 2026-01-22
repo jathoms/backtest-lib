@@ -188,7 +188,7 @@ class WeightedPortfolio(PortfolioBase[Weight]):
             import polars as pl
 
             # Assumes we want to keep our leverage ratio at 1
-            df = pl.DataFrame({"w": self.holdings.as_series()})
+            df = pl.DataFrame({"w": self.holdings.to_series()})
             redistributed_weights = (
                 df.select(
                     pl.col("w"),
