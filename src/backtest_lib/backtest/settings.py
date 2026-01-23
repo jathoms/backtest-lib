@@ -8,11 +8,19 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BacktestSettings:
-    """PLACEHOLDER"""
+    """Configuration for backtest execution constraints.
+
+    Attributes:
+        allow_short: Whether strategies may target negative weights.
+    """
 
     allow_short: bool
 
     @staticmethod
     def default() -> BacktestSettings:
-        """PLACEHOLDER"""
+        """Return the default backtest settings.
+
+        Returns:
+            BacktestSettings with conservative defaults (shorting disabled).
+        """
         return BacktestSettings(allow_short=False)

@@ -14,7 +14,18 @@ Universe = tuple[str, ...]
 
 @dataclass(frozen=True)
 class PastUniversePrices[Index: Comparable]:
-    """PLACEHOLDER"""
+    """Container of historical price views for a universe.
+
+    Holds the close price view and optional open/high/low views. Each price view
+    is a :class:`~backtest_lib.market.PastView` aligned over the same periods and
+    securities.
+
+    Attributes:
+        close: Close prices for the universe.
+        open: Optional open prices.
+        high: Optional high prices.
+        low: Optional low prices.
+    """
 
     close: PastView[float, Index]
     open: PastView[float, Index] | None = None

@@ -71,7 +71,7 @@ type SecurityMappings[T: (float, int)] = (
 
 
 class SecurityAxisPolicy(Enum):
-    """PLACEHOLDER"""
+    """Policy for aligning securities across market views."""
 
     STRICT = auto()
     SUBSET_OK = auto()
@@ -80,7 +80,7 @@ class SecurityAxisPolicy(Enum):
 
 
 class PeriodAxisPolicy(Enum):
-    """PLACEHOLDER"""
+    """Policy for aligning periods across market views."""
 
     STRICT = auto()
     INTERSECT = auto()
@@ -101,25 +101,41 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
     @property
     @abstractmethod
     def periods(self) -> tuple[Index, ...]:
-        """PLACEHOLDER PROPERTY"""
+        """Periods represented by this view.
+
+        Returns:
+            Tuple of period labels ordered from oldest to newest.
+        """
         ...
 
     @property
     @abstractmethod
     def securities(self) -> tuple[str, ...]:
-        """PLACEHOLDER PROPERTY"""
+        """Securities represented by this view.
+
+        Returns:
+            Tuple of security identifiers aligned to the view.
+        """
         ...
 
     @property
     @abstractmethod
     def by_period(self) -> ByPeriod[ValueT, Index]:
-        """PLACEHOLDER PROPERTY"""
+        """Period-axis accessor for the view.
+
+        Returns:
+            ByPeriod accessor that indexes snapshots by period.
+        """
         ...
 
     @property
     @abstractmethod
     def by_security(self) -> BySecurity[ValueT, Index]:
-        """PLACEHOLDER PROPERTY"""
+        """Security-axis accessor for the view.
+
+        Returns:
+            BySecurity accessor that indexes series by security.
+        """
         ...
 
     @abstractmethod
@@ -130,7 +146,16 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         *,
         closed: Closed | str = Closed.LEFT,
     ) -> Self:
-        """PLACEHOLDER"""
+        """Return a view for periods between two bounds.
+
+        Args:
+            start: Start bound for the slice.
+            end: End bound for the slice.
+            closed: Which side of the interval is inclusive.
+
+        Returns:
+            A new view containing the bounded range of periods.
+        """
         ...  # will not clone data, must be contiguous, performs a binary search
 
     @abstractmethod
@@ -140,7 +165,15 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         *,
         inclusive: bool = True,  # common expectation: include the start tick
     ) -> Self:
-        """PLACEHOLDER"""
+        """Return a view of periods at or after ``start``.
+
+        Args:
+            start: Start bound for the slice.
+            inclusive: Whether to include the start period.
+
+        Returns:
+            A view containing periods after the bound.
+        """
         ...
 
     @abstractmethod
@@ -150,7 +183,15 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         *,
         inclusive: bool = False,  # common expectation: half-open [.., end)
     ) -> Self:
-        """PLACEHOLDER"""
+        """Return a view of periods before ``end``.
+
+        Args:
+            end: End bound for the slice.
+            inclusive: Whether to include the end period.
+
+        Returns:
+            A view containing periods before the bound.
+        """
         ...
 
     @staticmethod
@@ -159,28 +200,54 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         ms: SecurityMappings[Any],
         periods: Sequence[Index],
     ) -> Self:
-        """PLACEHOLDER"""
+        """Build a view from security mappings and periods.
+
+        Args:
+            ms: Sequence of per-period security mappings.
+            periods: Period labels aligned to ``ms``.
+
+        Returns:
+            PastView instance containing the provided values.
+        """
         ...
 
     @staticmethod
     @abstractmethod
     def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
-        """PLACEHOLDER"""
+        """Build a view from a DataFrame.
+
+        The DataFrame must include a ``date`` column and one column per security.
+
+        Args:
+            df: Polars or pandas DataFrame of historical values.
+
+        Returns:
+            PastView instance containing the provided values.
+        """
         ...
 
     @property
     @abstractmethod
     def plot(self) -> PastViewPlotAccessor:
-        """PLACEHOLDER"""
+        """Return the plotting accessor for this view.
+
+        Returns:
+            Backend-specific plot accessor.
+        """
         ...
 
 
 class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
-    """PLACEHOLDER"""
+    """Period-axis accessor for a :class:`PastView`.
+
+    Provides indexing by period position and slicing by range. A single period
+    access returns a :class:`~backtest_lib.universe.UniverseMapping`, while
+    slicing returns a new :class:`PastView`.
+    """
 
     @abstractmethod
     def __len__(self) -> int:
-        """PLACEHOLDER"""
+        """Return the number of periods available in the view."""
         ...
 
     @overload
@@ -193,18 +260,25 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
     def __getitem__(
         self, key: SupportsIndex | slice
     ) -> UniverseMapping[ValueT] | PastView[ValueT, Index]:
-        """PLACEHOLDER"""
+        """Index by period position or slice.
+
+        Args:
+            key: Integer index for a single period or slice for a range.
+
+        Returns:
+            UniverseMapping for a single period or PastView for a range.
+        """
         ...
 
     @abstractmethod
     def __iter__(self) -> Iterator[Index]:
-        """PLACEHOLDER"""
+        """Iterate over period labels in order."""
         ...
 
     @property
     @abstractmethod
     def plot(self) -> ByPeriodPlotAccessor:
-        """PLACEHOLDER"""
+        """Return the plotting accessor for this axis view."""
         ...
 
     @overload
@@ -251,16 +325,29 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
         lazy: bool = False,
         backend: Literal["polars", "pandas"] = "polars",
     ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame:
-        """PLACEHOLDER"""
+        """Convert the view to a DataFrame.
+
+        Args:
+            show_securities: Whether to include the security labels as a column.
+            lazy: Whether to return a lazy frame for supported backends.
+            backend: Target DataFrame backend.
+
+        Returns:
+            DataFrame containing the per-period values.
+        """
         ...
 
 
 class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
-    """PLACEHOLDER"""
+    """Security-axis accessor for a :class:`PastView`.
+
+    Indexing by security name returns a timeseries for that security, while
+    slicing by multiple names returns a new :class:`PastView`.
+    """
 
     @abstractmethod
     def __len__(self) -> int:
-        """PLACEHOLDER"""
+        """Return the number of securities available in the view."""
         ...
 
     @overload
@@ -273,18 +360,25 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
     def __getitem__(
         self, key: str | Iterable[str]
     ) -> Timeseries[ValueT, Index] | PastView[ValueT, Index]:
-        """PLACEHOLDER"""
+        """Index by security name or collection of names.
+
+        Args:
+            key: Security identifier or iterable of identifiers.
+
+        Returns:
+            Timeseries for a single security or PastView for multiple securities.
+        """
         ...
 
     @abstractmethod
     def __iter__(self) -> Iterator[str]:
-        """PLACEHOLDER"""
+        """Iterate over security identifiers."""
         ...
 
     @property
     @abstractmethod
     def plot(self) -> BySecurityPlotAccessor:
-        """PLACEHOLDER"""
+        """Return the plotting accessor for this axis view."""
         ...
 
     @overload
@@ -322,7 +416,16 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
         lazy: bool = False,
         backend: Literal["polars", "pandas"] = "polars",
     ) -> pl.DataFrame | pl.LazyFrame | pd.DataFrame:
-        """PLACEHOLDER"""
+        """Convert the view to a DataFrame.
+
+        Args:
+            show_periods: Whether to include the period labels as a column.
+            lazy: Whether to return a lazy frame for supported backends.
+            backend: Target DataFrame backend.
+
+        Returns:
+            DataFrame containing per-security series data.
+        """
         ...
 
 

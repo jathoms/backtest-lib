@@ -21,7 +21,19 @@ logger = logging.getLogger(__name__)
 
 
 class PortfolioBase[H: (float, int)]:
-    """PLACEHOLDER"""
+    """Base portfolio representation.
+
+    A portfolio records holdings for a fixed universe along with a cash position
+    and the total portfolio value. Subclasses determine the unit for holdings
+    (weights, whole-share quantities, or fractional quantities) and provide
+    conversions across these representations.
+
+    Attributes:
+        holdings: Mapping from security to holdings in the portfolio's unit.
+        cash: Cash balance in portfolio units (value or weight).
+        total_value: Total portfolio value in cash units.
+        universe: Universe of securities that index the holdings.
+    """
 
     holdings: UniverseMapping[H]
     cash: float = 0
@@ -65,7 +77,11 @@ class PortfolioBase[H: (float, int)]:
 
 
 class QuantityPortfolio(PortfolioBase[Quantity]):
-    """PLACEHOLDER"""
+    """Portfolio with integer share quantities.
+
+    Holdings represent whole-share quantities for each security. Converting to a
+    weighted portfolio requires passing prices so that weights can be computed.
+    """
 
     def into_weighted(
         self, prices: UniverseMapping[float] | None = None
@@ -103,7 +119,11 @@ class QuantityPortfolio(PortfolioBase[Quantity]):
 
 
 class FractionalQuantityPortfolio(PortfolioBase[FractionalQuantity]):
-    """PLACEHOLDER"""
+    """Portfolio with fractional share quantities.
+
+    Holdings represent share quantities that may be fractional. Conversions to
+    weights or whole-share quantities require price data.
+    """
 
     def into_weighted(self, prices: UniverseMapping | None = None) -> WeightedPortfolio:
         if prices is None:
@@ -139,7 +159,12 @@ class FractionalQuantityPortfolio(PortfolioBase[FractionalQuantity]):
 
 
 class WeightedPortfolio(PortfolioBase[Weight]):
-    """PLACEHOLDER"""
+    """Portfolio whose holdings are weights.
+
+    Holdings are expressed as weights that sum to 1 when combined with the cash
+    weight. Converting to quantities requires prices and the portfolio's
+    ``total_value``.
+    """
 
     def into_weighted(self, prices=None) -> WeightedPortfolio:
         del prices
@@ -231,7 +256,21 @@ def uniform_portfolio(
     value: float = 1.0,
     backend: str = "polars",
 ) -> WeightedPortfolio:
-    """PLACEHOLDER"""
+    """Create an equal-weight portfolio over a universe.
+
+    The portfolio distributes weights uniformly across the tradable subset of
+    the universe and assigns zero weight to non-tradable securities.
+
+    Args:
+        full_universe: Full set of securities used to index holdings.
+        tradable_universe: Optional subset of securities that receive non-zero
+            weight. Defaults to ``full_universe``.
+        value: Total portfolio value to assign.
+        backend: Backend used to construct the holdings mapping.
+
+    Returns:
+        WeightedPortfolio with uniform weights over the tradable securities.
+    """
     if tradable_universe is None:
         tradable_universe = full_universe
     full_tup = tuple(full_universe)

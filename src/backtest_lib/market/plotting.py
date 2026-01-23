@@ -21,7 +21,12 @@ PV = TypeVar("PV", bound="PastView")
 
 
 class PastViewPlotAccessor(ABC):
-    """PLACEHOLDER"""
+    """Plot accessor for :class:`~backtest_lib.market.PastView` objects.
+
+    Backends implement this interface to provide convenient plotting helpers for
+    a full :class:`~backtest_lib.market.PastView`. The accessor is available on
+    ``PastView.plot``.
+    """
 
     @abstractmethod
     def __init__(self, obj): ...
@@ -46,7 +51,11 @@ class PastViewPlotAccessor(ABC):
 
 
 class UniverseMappingPlotAccessor(ABC):
-    """PLACEHOLDER"""
+    """Plot accessor for :class:`~backtest_lib.universe.UniverseMapping` data.
+
+    Backends implement this interface to visualize a mapping of securities to
+    scalar values. The accessor is available on ``UniverseMapping.plot``.
+    """
 
     @abstractmethod
     def __init__(self, obj: VM): ...
@@ -90,7 +99,11 @@ class UniverseMappingPlotAccessor(ABC):
 
 
 class TimeseriesPlotAccessor(ABC):
-    """PLACEHOLDER"""
+    """Plot accessor for :class:`~backtest_lib.market.timeseries.Timeseries`.
+
+    Implementations typically provide line and density plot helpers for a single
+    security's time series data.
+    """
 
     @abstractmethod
     def __init__(self, obj: TS): ...
@@ -114,7 +127,11 @@ class TimeseriesPlotAccessor(ABC):
 
 
 class ByPeriodPlotAccessor(ABC):
-    """PLACEHOLDER"""
+    """Plot accessor for :class:`~backtest_lib.market.ByPeriod` data.
+
+    Exposes plotting helpers that treat the data as a sequence of per-period
+    snapshots.
+    """
 
     @abstractmethod
     def __init__(self, obj: BP): ...
@@ -131,7 +148,11 @@ class ByPeriodPlotAccessor(ABC):
 
 
 class BySecurityPlotAccessor(ABC):
-    """PLACEHOLDER"""
+    """Plot accessor for :class:`~backtest_lib.market.BySecurity` data.
+
+    Exposes plotting helpers that treat the data as a collection of security
+    time series.
+    """
 
     @abstractmethod
     def __init__(self, obj: BS): ...
