@@ -1,7 +1,23 @@
-=======
 Execute
 =======
 
 .. currentmodule:: backtest_lib.engine.execute
 
-.. autoclass:: PlanExecutor
+Execution Types
+---------------
+
+.. autosummary::
+   :toctree: api/
+
+   PlanExecutor
+   ExecutionResult
+   CostBreakdown
+   Trades
+
+Execution Constants
+-------------------
+
+.. autosummary::
+   :toctree: api/
+
+   NO_COST

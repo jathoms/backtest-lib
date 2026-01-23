@@ -7,7 +7,7 @@ from typing import (
     abstractmethod,
 )
 
-from backtest_lib.market import get_mapping_type_from_backend
+from backtest_lib.market._backends import _get_mapping_type_from_backend
 from backtest_lib.market.plotting import UniverseMappingPlotAccessor
 from backtest_lib.universe.vector_mapping import VectorMapping
 
@@ -44,7 +44,7 @@ def make_universe_mapping[T: (int, float)](
     constructor_backend: str = "polars",
 ) -> UniverseMapping[T]:
     if not isinstance(m, UniverseMapping) and isinstance(m, Mapping):
-        backend_mapping_type = get_mapping_type_from_backend(constructor_backend)
+        backend_mapping_type = _get_mapping_type_from_backend(constructor_backend)
         # TODO: check if this dictionary collection is slow.
         # also, this doesn't check that securities passed in via the mapping are
         # actually part of the universe. checking for that would be quite slow,

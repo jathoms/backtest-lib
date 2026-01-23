@@ -42,8 +42,7 @@ class PeriodAxis:
         return PeriodAxis(dt64, labels, {lbl: i for i, lbl in enumerate(labels)})
 
     def take(self, idxs: Sequence[int] | NDArray[np.integer]) -> PeriodAxis:
-        """
-        Creates a new PeriodAxis from a sequence of
+        """Creates a new PeriodAxis from a sequence of
         integer indices contained in the period axis.
         """
         new_labels = tuple(self.labels[i] for i in idxs)
@@ -54,8 +53,7 @@ class PeriodAxis:
         )
 
     def slice(self, key: slice) -> PeriodAxis:
-        """
-        Creates a new PeriodAxis from a slice
+        """Creates a new PeriodAxis from a slice
         of the current PeriodAxis.
         """
         start, stop, step = key.indices(len(self))
@@ -65,8 +63,7 @@ class PeriodAxis:
         return self.take(period_idxs)
 
     def slice_contiguous(self, start: int, stop: int) -> PeriodAxis:
-        """
-        Creates a new PeriodAxis from a slice
+        """Creates a new PeriodAxis from a slice
         of the current PeriodAxis.
         """
         new_dt64 = self.dt64[start:stop]

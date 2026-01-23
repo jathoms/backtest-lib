@@ -19,7 +19,8 @@ from backtest_lib.engine.plan import (
     TargetWeightsOp,
 )
 from backtest_lib.engine.plan.perfect_world import PerfectWorldOps
-from backtest_lib.market import MarketView, get_mapping_type_from_backend
+from backtest_lib.market import MarketView
+from backtest_lib.market._backends import _get_mapping_type_from_backend
 from backtest_lib.portfolio import (
     Portfolio,
     QuantityPortfolio,
@@ -158,7 +159,7 @@ class PerfectWorldPlanExecutor:
 
     @cached_property
     def _backend_mapping_type(self) -> type[UniverseMapping]:
-        return get_mapping_type_from_backend(self._backend)
+        return _get_mapping_type_from_backend(self._backend)
 
     def _normalize_ops(
         self,
@@ -353,8 +354,7 @@ class PerfectWorldPlanExecutor:
         prices: UniverseMapping,
         market: MarketView,
     ) -> ExecutionResult:
-        """
-        Executes a plan with assumptions of perfect conditions i.e no fees or slippage.
+        """Executes a plan with assumptions of perfect conditions i.e no fees or slippage.
         Any targetting op will instantly change the portfolio to that target, so the
         convention in ``self._normalize_ops`` is to yield the target first.
         """

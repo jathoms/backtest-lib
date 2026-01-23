@@ -5,7 +5,7 @@ from abc import abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 
-from backtest_lib.market import get_mapping_type_from_backend
+from backtest_lib.market._backends import _get_mapping_type_from_backend
 from backtest_lib.market.polars_impl import PolarsUniverseMapping
 from backtest_lib.universe.universe_mapping import (
     UniverseMapping,
@@ -33,6 +33,7 @@ class PortfolioBase[H: (float, int)]:
         cash: Cash balance in portfolio units (value or weight).
         total_value: Total portfolio value in cash units.
         universe: Universe of securities that index the holdings.
+
     """
 
     holdings: UniverseMapping[H]
@@ -270,6 +271,7 @@ def uniform_portfolio(
 
     Returns:
         WeightedPortfolio with uniform weights over the tradable securities.
+
     """
     if tradable_universe is None:
         tradable_universe = full_universe
@@ -280,7 +282,7 @@ def uniform_portfolio(
     return WeightedPortfolio(
         cash=0,
         universe=full_tup,
-        holdings=get_mapping_type_from_backend(backend).from_vectors(
+        holdings=_get_mapping_type_from_backend(backend).from_vectors(
             full_tup,
             (
                 uniform_allocation_weight if sec in tradable_universe else 0.0
@@ -297,7 +299,7 @@ class Cash:
     value: float
 
     def materialize(self, universe: Iterable[str], backend: str) -> WeightedPortfolio:
-        mapping_type = get_mapping_type_from_backend(backend)
+        mapping_type = _get_mapping_type_from_backend(backend)
         universe_tup = tuple(universe)
         return WeightedPortfolio(
             holdings=mapping_type.from_vectors(
@@ -314,4 +316,5 @@ def cash(value: float):
     return Cash(value=value)
 
 
+#: Public portfolio union covering weighted and quantity variants.
 Portfolio = WeightedPortfolio | QuantityPortfolio | FractionalQuantityPortfolio

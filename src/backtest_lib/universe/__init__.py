@@ -25,6 +25,7 @@ class PastUniversePrices[Index: Comparable]:
         open: Optional open prices.
         high: Optional high prices.
         low: Optional low prices.
+
     """
 
     close: PastView[float, Index]

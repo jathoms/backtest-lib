@@ -178,7 +178,6 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
         **kwargs,
     ) -> alt.Chart:
         """Plot the series as a line chart."""
-
         datapoints = self._series.rolling_mean(window_size=smoothing)
 
         max_y = cast(float, datapoints.max()) * (1 + y_padding)
@@ -214,7 +213,6 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
 
     def hist(self, bins: int = 20, **kwargs) -> alt.Chart:
         """Histogram of the values."""
-
         return (
             alt.Chart(self._series.to_frame())
             .mark_bar(tooltip=True)

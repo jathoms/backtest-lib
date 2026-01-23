@@ -1,3 +1,5 @@
+"""Execution engine for strategy decisions."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -17,6 +19,13 @@ if TYPE_CHECKING:
 
 
 class Engine[TPlanOp: PlanOp]:
+    """Coordinate plan generation and execution for a universe.
+
+    The engine wires a :class:`~backtest_lib.engine.plan.PlanGenerator` and a
+    :class:`~backtest_lib.engine.execute.PlanExecutor` to execute strategy
+    decisions against a consistent security universe.
+    """
+
     _planner: PlanGenerator[TPlanOp]
     _executor: PlanExecutor[TPlanOp]
     _universe: tuple[str, ...]
@@ -27,6 +36,16 @@ class Engine[TPlanOp: PlanOp]:
         executor: PlanExecutor[TPlanOp],
         universe: Iterable[str],
     ):
+        """Initialize the engine with planning and execution components.
+
+        Args:
+            planner: :class:`~backtest_lib.engine.plan.PlanGenerator` that
+                translates decisions into execution plans.
+            executor: :class:`~backtest_lib.engine.execute.PlanExecutor` that
+                applies plans to the portfolio.
+            universe: Securities considered tradable by the engine.
+
+        """
         self._planner = planner
         self._executor = executor
         self._universe = tuple(universe)
@@ -39,6 +58,24 @@ class Engine[TPlanOp: PlanOp]:
         ctx: StrategyContext,
         prices: UniverseMapping,
     ) -> ExecutionResult:
+        """Run a strategy once and execute its resulting plan.
+
+        Args:
+            strategy: :class:`~backtest_lib.strategy.Strategy` callable producing
+                a decision.
+            portfolio: :class:`~backtest_lib.portfolio.Portfolio` to update.
+            market: :class:`~backtest_lib.market.MarketView` providing historical
+                context.
+            ctx: :class:`~backtest_lib.strategy.context.StrategyContext` passed
+                to the strategy.
+            prices: :class:`~backtest_lib.universe.universe_mapping.UniverseMapping`
+                of current prices used for planning.
+
+        Returns:
+            :class:`~backtest_lib.engine.execute.ExecutionResult` after applying
+            the plan.
+
+        """
         decision = strategy(
             universe=self._universe,
             current_portfolio=portfolio,
@@ -58,4 +95,11 @@ def make_engine[TPlanOp: PlanOp](
     executor: PlanExecutor[TPlanOp],
     universe: Iterable[str],
 ) -> Engine[TPlanOp]:
+    """Create an engine from a planner and an executor.
+
+    Args:
+        planner: :class:`~backtest_lib.engine.plan.PlanGenerator` to use.
+        executor: :class:`~backtest_lib.engine.execute.PlanExecutor` to use.
+        universe: Securities considered tradable by the engine.
+    """
     return Engine(planner, executor, universe)

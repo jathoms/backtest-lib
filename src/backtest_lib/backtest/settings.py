@@ -12,6 +12,7 @@ class BacktestSettings:
 
     Attributes:
         allow_short: Whether strategies may target negative weights.
+
     """
 
     allow_short: bool
@@ -22,5 +23,6 @@ class BacktestSettings:
 
         Returns:
             BacktestSettings with conservative defaults (shorting disabled).
+
         """
         return BacktestSettings(allow_short=False)

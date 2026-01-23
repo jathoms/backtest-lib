@@ -4,4 +4,19 @@ Schedule
 
 .. currentmodule:: backtest_lib.backtest.schedule
 
-.. autoclass:: DecisionSchedule
+Schedule Types
+--------------
+
+.. autosummary::
+   :toctree: api/
+
+   DecisionSchedule
+
+Schedule Factories
+------------------
+
+.. autosummary::
+   :toctree: api/
+
+   make_decision_schedule
+   decision_schedule_factory

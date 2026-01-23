@@ -132,8 +132,7 @@ def _cron_datetime_iter(cron: str, start: datetime) -> Iterable[datetime]:
 
 
 class _IterFactoryIterable[T]:
-    """
-    Wrap an iterator factory as an Iterable,
+    """Wrap an iterator factory as an Iterable,
     so the inner schedule can always be Iterable[T].
     Each iteration produces a fresh iterator.
     """

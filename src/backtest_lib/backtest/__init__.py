@@ -14,7 +14,8 @@ from backtest_lib.engine.execute.perfect_world import PerfectWorldPlanExecutor
 from backtest_lib.engine.plan.perfect_world import (
     PerfectWorldPlanGenerator,
 )
-from backtest_lib.market import MarketView, get_pastview_type_from_backend
+from backtest_lib.market import MarketView
+from backtest_lib.market._backends import _get_pastview_type_from_backend
 from backtest_lib.portfolio import (
     Cash,
     FractionalQuantityPortfolio,
@@ -65,7 +66,7 @@ class Backtest:
 
     Args:
         strategy: Callable strategy that produces a
-            :class:`~backtest_lib.strategy.Decision` given the current
+            :data:`~backtest_lib.engine.decision.Decision` given the current
             universe, portfolio, market view, and optional context.
         universe: The tradable security set defining the expected holdings keys.
             See :class:`~backtest_lib.universe.Universe`.
@@ -112,6 +113,7 @@ class Backtest:
         >>> results = bt.run()
         >>> results.annualized_return
         -0.00035649...
+
     """
 
     strategy: Strategy
@@ -234,7 +236,7 @@ class Backtest:
                     )
                     break
 
-        allocation_history: PastView = get_pastview_type_from_backend(
+        allocation_history: PastView = _get_pastview_type_from_backend(
             self._backend
         ).from_security_mappings(
             output_holdings,

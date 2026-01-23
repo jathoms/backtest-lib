@@ -14,9 +14,8 @@ from typing import (
     overload,
 )
 
-from backtest_lib.universe import (
-    PastUniversePrices,
-)
+from backtest_lib.market import _backends
+from backtest_lib.universe import PastUniversePrices
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -36,33 +35,6 @@ class Closed(StrEnum):
     LEFT = "left"
     RIGHT = "right"
     BOTH = "both"
-
-
-def get_pastview_type_from_backend(backend: str) -> type[PastView]:
-    if backend == "polars":
-        from backtest_lib.market.polars_impl import PolarsPastView
-
-        return PolarsPastView
-    else:
-        raise ValueError(f"Could not find data backend {backend}")
-
-
-def get_mapping_type_from_backend(backend: str) -> type[UniverseMapping]:
-    if backend == "polars":
-        from backtest_lib.market.polars_impl import PolarsUniverseMapping
-
-        return PolarsUniverseMapping
-    else:
-        raise ValueError(f"Could not find data backend {backend}")
-
-
-def get_timeseries_type_from_backend(backend: str) -> type[Timeseries]:
-    if backend == "polars":
-        from backtest_lib.market.polars_impl import PolarsTimeseries
-
-        return PolarsTimeseries
-    else:
-        raise ValueError(f"Could not find data backend {backend}")
 
 
 type SecurityMappings[T: (float, int)] = (
@@ -88,8 +60,7 @@ class PeriodAxisPolicy(Enum):
 
 
 class PastView[ValueT: (float, int), Index: Comparable](ABC):
-    """
-    Time-fenced read-only series up to the current decision point.
+    """Time-fenced read-only series up to the current decision point.
 
     This protocol can abstract over different implementations (list-backed,
     NumPy array-backed, mmap, etc.) that present a "fenced" slice of
@@ -105,6 +76,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             Tuple of period labels ordered from oldest to newest.
+
         """
         ...
 
@@ -115,6 +87,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             Tuple of security identifiers aligned to the view.
+
         """
         ...
 
@@ -125,6 +98,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             ByPeriod accessor that indexes snapshots by period.
+
         """
         ...
 
@@ -135,6 +109,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             BySecurity accessor that indexes series by security.
+
         """
         ...
 
@@ -155,6 +130,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             A new view containing the bounded range of periods.
+
         """
         ...  # will not clone data, must be contiguous, performs a binary search
 
@@ -173,6 +149,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             A view containing periods after the bound.
+
         """
         ...
 
@@ -191,6 +168,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             A view containing periods before the bound.
+
         """
         ...
 
@@ -208,6 +186,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             PastView instance containing the provided values.
+
         """
         ...
 
@@ -223,6 +202,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             PastView instance containing the provided values.
+
         """
         ...
 
@@ -233,6 +213,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             Backend-specific plot accessor.
+
         """
         ...
 
@@ -241,7 +222,7 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
     """Period-axis accessor for a :class:`PastView`.
 
     Provides indexing by period position and slicing by range. A single period
-    access returns a :class:`~backtest_lib.universe.UniverseMapping`, while
+    access returns a :class:`~backtest_lib.universe.universe_mapping.UniverseMapping`, while
     slicing returns a new :class:`PastView`.
     """
 
@@ -267,6 +248,7 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             UniverseMapping for a single period or PastView for a range.
+
         """
         ...
 
@@ -334,6 +316,7 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             DataFrame containing the per-period values.
+
         """
         ...
 
@@ -367,6 +350,7 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             Timeseries for a single security or PastView for multiple securities.
+
         """
         ...
 
@@ -425,6 +409,7 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
 
         Returns:
             DataFrame containing per-security series data.
+
         """
         ...
 
@@ -496,7 +481,7 @@ class MarketView[Index: Comparable]:
         reference_view_for_axis_values: str = "prices",
         backend: str = "polars",
     ):
-        backend_pastview_type = get_pastview_type_from_backend(backend)
+        backend_pastview_type = _backends._get_pastview_type_from_backend(backend)
 
         if not isinstance(prices, PastUniversePrices):
             if isinstance(prices, PastView):

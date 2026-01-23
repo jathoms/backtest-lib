@@ -13,3 +13,10 @@ PastView
 .. autoclass:: PastView
    :members:
 
+Slicing Options
+---------------
+
+.. autosummary::
+   :toctree: api/
+
+   Closed

@@ -13,5 +13,3 @@ Universe
    universe_mapping.UniverseMapping
    vector_mapping.VectorMapping
    vector_ops.VectorOps
-   
-a

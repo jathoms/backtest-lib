@@ -36,8 +36,7 @@ POLARS_TO_PYTHON: dict[pl.DataType | type[Any], type[Any]] = {
 
 
 class Array1DDTView(Sequence[np.datetime64]):
-    """
-    Zero-copy 1-D Sequence view over an NDArray[np.datetime64].
+    """Zero-copy 1-D Sequence view over an NDArray[np.datetime64].
     Ensures 1-D at construction; slicing returns another view.
 
     This serves mainly as a wrapper around NDArray that implements

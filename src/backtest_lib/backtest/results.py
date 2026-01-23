@@ -6,9 +6,9 @@ from dataclasses import dataclass, field
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
-from backtest_lib.market import (
-    get_pastview_type_from_backend,
-    get_timeseries_type_from_backend,
+from backtest_lib.market._backends import (
+    _get_pastview_type_from_backend,
+    _get_timeseries_type_from_backend,
 )
 from backtest_lib.market.timeseries import Timeseries
 
@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BacktestResults[IndexT: Comparable]:
-    """
-    Snapshot of a backtest's results, with key statistics pre-computed.
+    """Snapshot of a backtest's results, with key statistics pre-computed.
     """
 
     periods: Sequence[IndexT] = field(repr=False)
@@ -64,15 +63,13 @@ class BacktestResults[IndexT: Comparable]:
         risk_free_annual: float | None = None,
         backend: str = "polars",
     ) -> BacktestResults[Any]:
-        """
-        Build results from pre-computed per-security simple returns.
+        """Build results from pre-computed per-security simple returns.
 
         Assumptions:
         - `weights.periods` and `returns.periods` are aligned 1:1.
         - `weights.securities` and `returns.securities` are aligned 1:1.
         - Returns are simple returns over the same period labels as weights.
         """
-
         periods: Sequence[Any] = weights.periods
         securities: Sequence[str] = weights.securities
 
@@ -166,7 +163,7 @@ class BacktestResults[IndexT: Comparable]:
             )
             sharpe = (annualized_return - risk_free_annual) / annualized_volatility
 
-        timeseries_type = get_timeseries_type_from_backend(backend)
+        timeseries_type = _get_timeseries_type_from_backend(backend)
 
         return BacktestResults(
             periods=periods,
@@ -188,7 +185,7 @@ class BacktestResults[IndexT: Comparable]:
             avg_turnover=avg_turnover,
             market=market,
             _backend=backend,
-            _backend_pastview_type=get_pastview_type_from_backend(backend),
+            _backend_pastview_type=_get_pastview_type_from_backend(backend),
             _backend_timeseries_type=timeseries_type,
         )
 
@@ -202,13 +199,11 @@ class BacktestResults[IndexT: Comparable]:
         risk_free_annual: float | None = 0.02,
         backend: str,
     ) -> BacktestResults[Any]:
-        """
-        Convenience constructor that derives per-security returns from
+        """Convenience constructor that derives per-security returns from
         `market.prices.close` and then computes all stats.
 
         Still continuous weight-space (no discrete quantities).
         """
-
         close_prices = market.prices.close
 
         if sorted(list(weights.securities)) != sorted(list(close_prices.securities)):
@@ -256,7 +251,7 @@ class BacktestResults[IndexT: Comparable]:
             .collect()
         )
 
-        backend_pastview_type = get_pastview_type_from_backend(backend)
+        backend_pastview_type = _get_pastview_type_from_backend(backend)
 
         asset_returns: PastView = backend_pastview_type.from_dataframe(asset_returns_df)
 

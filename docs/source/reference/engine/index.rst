@@ -1,4 +1,3 @@
-======
 Engine
 ======
 
@@ -12,4 +11,9 @@ Engine
 .. currentmodule:: backtest_lib.engine
 
 .. autoclass:: Engine
+   :members:
 
+.. autosummary::
+   :toctree: api/
+
+   make_engine

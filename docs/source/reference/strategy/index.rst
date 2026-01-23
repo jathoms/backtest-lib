@@ -1,9 +1,20 @@
-========
 Strategy
 ========
 
 .. currentmodule:: backtest_lib
 
-.. autoclass:: Strategy
-   :members:
+Strategy Interface
+------------------
 
+.. autosummary::
+   :toctree: api/
+
+   Strategy
+
+Strategy Context
+----------------
+
+.. autosummary::
+   :toctree: api/
+
+   strategy.context.StrategyContext

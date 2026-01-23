@@ -51,7 +51,7 @@ class PastViewPlotAccessor(ABC):
 
 
 class UniverseMappingPlotAccessor(ABC):
-    """Plot accessor for :class:`~backtest_lib.universe.UniverseMapping` data.
+    """Plot accessor for :class:`~backtest_lib.universe.universe_mapping.UniverseMapping` data.
 
     Backends implement this interface to visualize a mapping of securities to
     scalar values. The accessor is available on ``UniverseMapping.plot``.

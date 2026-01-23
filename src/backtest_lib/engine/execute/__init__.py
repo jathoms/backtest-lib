@@ -7,7 +7,8 @@ from functools import cached_property
 from typing import Protocol, Self, TypeVar
 
 from backtest_lib.engine.plan import Plan, PlanOp, TradeOrder
-from backtest_lib.market import MarketView, get_mapping_type_from_backend
+from backtest_lib.market import MarketView
+from backtest_lib.market._backends import _get_mapping_type_from_backend
 from backtest_lib.portfolio import Portfolio
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
@@ -34,6 +35,7 @@ class CostBreakdown:
             raise ValueError("Costs must be non-negative.")
 
 
+#: Zero-cost breakdown for fee- and slippage-free fills.
 NO_COST = CostBreakdown(fees=0, slippage=0)
 
 
@@ -53,7 +55,7 @@ class Trades:
         return Trades(
             trades=tuple(trades),
             security_alignment=tuple(security_alignment),
-            backend_mapping_type=get_mapping_type_from_backend(backend),
+            backend_mapping_type=_get_mapping_type_from_backend(backend),
         )
 
     @cached_property

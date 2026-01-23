@@ -16,7 +16,7 @@ class Strategy(Protocol):
 
     A strategy receives the current universe, the portfolio state, a market view
     with time-fenced data, and an optional context object. It returns a
-    :class:`~backtest_lib.engine.decision.Decision` describing the target
+    :data:`~backtest_lib.engine.decision.Decision` describing the target
     allocation or action for the current decision point.
     """
 
