@@ -8,6 +8,7 @@ This is an overview of the public API of backtest-lib.
   :hidden:
 
   backtest/index
+  decision/index
   market/index
   strategy/index
   portfolio/index

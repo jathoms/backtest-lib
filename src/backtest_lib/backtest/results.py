@@ -23,8 +23,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class BacktestResults[IndexT: Comparable]:
-    """Snapshot of a backtest's results, with key statistics pre-computed.
-    """
+    """Snapshot of a backtest's results, with key statistics pre-computed."""
 
     periods: Sequence[IndexT] = field(repr=False)
     securities: Sequence[str] = field(repr=False)

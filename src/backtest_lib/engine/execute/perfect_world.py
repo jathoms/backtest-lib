@@ -354,9 +354,9 @@ class PerfectWorldPlanExecutor:
         prices: UniverseMapping,
         market: MarketView,
     ) -> ExecutionResult:
-        """Executes a plan with assumptions of perfect conditions i.e no fees or slippage.
-        Any targetting op will instantly change the portfolio to that target, so the
-        convention in ``self._normalize_ops`` is to yield the target first.
+        """Executes a plan with assumptions of perfect conditions i.e no fees or
+        slippage. Any targetting op will instantly change the portfolio to that target,
+        so the convention in ``self._normalize_ops`` is to yield the target first.
         """
         del market
 

@@ -9,7 +9,13 @@ from typing import Literal
 
 
 class ReallocationMode(StrEnum):
-    """Modes for allocating out of and into security sets."""
+    """Modes for allocating out of and into security sets.
+
+    - ``EQUAL_OUT_EQUAL_IN`` sells evenly across ``out_of`` and buys evenly into
+      ``into``.
+    - ``PRO_RATA_OUT_EQUAL_IN`` sells in proportion to existing weights and buys
+      evenly into ``into``.
+    """
 
     EQUAL_OUT_EQUAL_IN = "equal_out_equal_in"
     PRO_RATA_OUT_EQUAL_IN = "pro_rata_out_equal_in"
@@ -30,8 +36,13 @@ class DecisionBase:
     form composite decisions.
     """
 
-    def __add__(self, other: Decision) -> Decision:
-        """Combine two decisions into a composite decision."""
+    def __add__(self: Decision, other: Decision) -> Decision:
+        """Combine two decisions into a composite decision.
+
+        ``HoldDecision`` acts as the identity element. When either side is a
+        :class:`HoldDecision`, the other decision is returned. Two composites are
+        flattened into a single :class:`CompositeDecision`.
+        """
         if isinstance(self, HoldDecision):
             return other
         if isinstance(other, HoldDecision):
@@ -43,7 +54,10 @@ class DecisionBase:
 
 @dataclass(frozen=True, slots=True)
 class MakeTradeDecision(DecisionBase):
-    """Decision returned by :func:`~backtest_lib.engine.decision.trade`."""
+    """Decision representing an explicit buy or sell instruction.
+
+    Use :func:`~backtest_lib.engine.decision.trade` to construct this decision.
+    """
 
     direction: TradeDirection
     qty: int
@@ -57,14 +71,22 @@ class MakeTradeDecision(DecisionBase):
 
 @dataclass(frozen=True, slots=True)
 class CompositeDecision(DecisionBase):
-    """Decision returned by :func:`~backtest_lib.engine.decision.combine`."""
+    """Decision containing multiple sub-decisions.
+
+    Use :func:`~backtest_lib.engine.decision.combine` to construct this decision
+    or rely on ``+`` to merge decisions.
+    """
 
     decisions: tuple[Decision, ...]
 
 
 @dataclass(frozen=True, slots=True)
 class TargetHoldingsDecision(DecisionBase):
-    """Decision returned by :func:`~backtest_lib.engine.decision.target_holdings`."""
+    """Decision targeting discrete share counts for each security.
+
+    Use :func:`~backtest_lib.engine.decision.target_holdings` to construct this
+    decision.
+    """
 
     target_holdings: Mapping[str, int]
     fill_cash: bool
@@ -73,7 +95,11 @@ class TargetHoldingsDecision(DecisionBase):
 
 @dataclass(frozen=True, slots=True)
 class TargetWeightsDecision(DecisionBase):
-    """Decision returned by :func:`~backtest_lib.engine.decision.target_weights`."""
+    """Decision targeting portfolio weights for each security.
+
+    Use :func:`~backtest_lib.engine.decision.target_weights` to construct this
+    decision.
+    """
 
     target_weights: Mapping[str, float]
     fill_cash: bool
@@ -82,14 +108,21 @@ class TargetWeightsDecision(DecisionBase):
 
 @dataclass(frozen=True, slots=True)
 class HoldDecision(DecisionBase):
-    """Decision returned by :func:`~backtest_lib.engine.decision.hold`."""
+    """Decision that leaves the portfolio unchanged.
+
+    Use :func:`~backtest_lib.engine.decision.hold` to construct this decision.
+    """
 
     pass
 
 
 @dataclass(frozen=True, slots=True)
 class ReallocateDecision(DecisionBase):
-    """Decision returned by :func:`~backtest_lib.engine.decision.reallocate`."""
+    """Decision to move exposure from one security set to another.
+
+    Use :func:`~backtest_lib.engine.decision.reallocate` to construct this
+    decision.
+    """
 
     fraction: float
     from_securities: frozenset[str]
@@ -115,7 +148,9 @@ def reallocate(
         fraction: Fraction of holdings to reallocate.
         out_of: Securities to reduce positions in.
         into: Securities to increase positions in.
-        mode: Allocation mode for distributing sales and buys.
+        mode: Allocation mode for distributing sales and buys. Accepts
+            ``"equal_out_equal_in"``, ``"pro_rata_out_equal_in"``, or a
+            :class:`~backtest_lib.engine.decision.ReallocationMode`.
 
     Returns:
         ReallocateDecision describing the move.
@@ -153,8 +188,7 @@ def hold() -> HoldDecision:
     """Create a decision that makes no trades.
 
     This is the neutral element of the decision language. When combined with
-    another decision, the other decision is returned unchanged, mirroring
-    :func:`~backtest_lib.engine.decision.combine`.
+    another decision, the other decision is returned unchanged.
     """
     return HoldDecision()
 
@@ -165,7 +199,8 @@ def target_holdings(
     """Create a decision targeting discrete holdings.
 
     This is part of the strategy output language. Use it when your strategy
-    expresses desired positions as share counts.
+    expresses desired positions as share counts. The holdings keys must be a
+    subset of the strategy universe; missing securities are treated as zero.
 
     Args:
         holdings: Desired integer holdings per security.
@@ -184,7 +219,9 @@ def target_weights(
     """Create a decision targeting portfolio weights.
 
     This is part of the strategy output language. Use it when your strategy
-    expresses desired positions as weights that should sum with cash.
+    expresses desired positions as weights that should sum with cash. The weight
+    keys must be a subset of the strategy universe; missing securities are
+    treated as zero.
 
     Args:
         weights: Desired weights per security.
@@ -220,10 +257,11 @@ def trade(
 
     This is part of the strategy output language for explicit trades. Use it
     when you want a single-buy/sell instruction rather than a target portfolio
-    expressed via :func:`~backtest_lib.engine.decision.target_weights`.
+    expressed via :func:`~backtest_lib.target_weights`.
 
     Args:
-        direction: Buy or sell direction.
+        direction: Buy or sell direction. Accepts ``"buy"``, ``"sell"``, or a
+            :class:`~backtest_lib.engine.decision.TradeDirection`.
         qty: Quantity to trade.
         security: Security identifier to trade.
 

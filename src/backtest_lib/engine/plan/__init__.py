@@ -16,6 +16,8 @@ class TradeOrder:
 
     Trade orders are produced by plan generators and executed by a
     :class:`~backtest_lib.engine.execute.PlanExecutor`.
+    ``direction`` and ``qty`` together define the signed position change, while
+    ``price`` is the execution price used to compute cash impact.
     """
 
     direction: TradeDirection
@@ -34,7 +36,12 @@ class TradeOrder:
 
 
 class PlanOp:
-    """Marker base class for plan operations."""
+    """Marker base class for plan operations.
+
+    Plan operations are the atomic instructions inside a
+    :class:`~backtest_lib.engine.plan.Plan` that a
+    :class:`~backtest_lib.engine.execute.PlanExecutor` can apply.
+    """
 
     ...
 

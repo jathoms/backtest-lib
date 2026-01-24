@@ -1,25 +1,20 @@
-Decision
-========
+Decision Types
+==============
 
 .. currentmodule:: backtest_lib.engine.decision
 
-Decision Constructors
----------------------
+Decision Objects
+----------------
 
 .. autosummary::
    :toctree: api/
 
-   hold
-   target_holdings
-   target_weights
-   trade
-   reallocate
-   combine
-
-Decision Type
--------------
-
-.. autosummary::
-   :toctree: api/
-
-   Decision
+   DecisionBase
+   CompositeDecision
+   HoldDecision
+   MakeTradeDecision
+   ReallocateDecision
+   TargetHoldingsDecision
+   TargetWeightsDecision
+   ReallocationMode
+   TradeDirection

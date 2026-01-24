@@ -296,6 +296,9 @@ def uniform_portfolio(
 
 @dataclass(frozen=True, slots=True)
 class Cash:
+    """The type of the cash-only portfolio returned by
+    :func:`~backtest_lib.portfolio.cash`"""
+
     value: float
 
     def materialize(self, universe: Iterable[str], backend: str) -> WeightedPortfolio:
@@ -312,7 +315,19 @@ class Cash:
         )
 
 
-def cash(value: float):
+def cash(value: float) -> Cash:
+    """Create a cash-only portfolio.
+
+    This can be used as the ``initial_portfolio`` for a
+    :class:`~backtest_lib.backtest.Backtest` when you want to begin with no
+    holdings.
+
+    Args:
+        value: Starting cash value.
+
+    Returns:
+        Cash portfolio with the provided value.
+    """
     return Cash(value=value)
 
 

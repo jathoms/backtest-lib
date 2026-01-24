@@ -222,8 +222,8 @@ class ByPeriod[ValueT: (float, int), Index: Comparable](ABC):
     """Period-axis accessor for a :class:`PastView`.
 
     Provides indexing by period position and slicing by range. A single period
-    access returns a :class:`~backtest_lib.universe.universe_mapping.UniverseMapping`, while
-    slicing returns a new :class:`PastView`.
+    access returns a :class:`~backtest_lib.universe.universe_mapping.UniverseMapping`,
+    while slicing returns a new :class:`PastView`.
     """
 
     @abstractmethod
