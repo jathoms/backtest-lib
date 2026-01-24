@@ -6,6 +6,13 @@ from polars import read_csv
 from backtest_lib import MarketView
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "benchmark: performance benchmarks (opt-in)",
+    )
+
+
 @pytest.fixture(scope="session")
 def test_data_dir() -> Path:
     return Path(__file__).resolve().parent / "data"

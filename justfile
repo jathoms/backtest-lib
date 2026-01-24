@@ -32,3 +32,7 @@ docs open="" output_dir="docs/_build/html":
 doctest:
   uv sync --group docs
   uv run sphinx-build -b doctest -W --keep-going docs/source docs/_build/doctest
+
+benchmark:
+  uv sync --group dev
+  uv run pytest tests/benchmark -m benchmark

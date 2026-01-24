@@ -27,6 +27,7 @@ dev = [
   "pyrefly>=0.29.2",
   "pyright>=1.1.404",
   "pytest>=8.3.0",
+  "pytest-benchmark>=5.2.3",
   "pytest-cov>=5.0.0",
   "ruff>=0.12.8",
   "ty>=0.0.1a17",
@@ -74,6 +75,9 @@ ignore = ["EM101"]
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.pytest.ini_options]
+addopts = "-m 'not benchmark'"
 
 [tool.ty.src]
 include = ["src"]
