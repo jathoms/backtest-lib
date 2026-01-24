@@ -122,6 +122,7 @@ class DecisionSchedule[I: Comparable]:
                     "Decision schedule is not non-decreasing, "
                     f"value {x} (idx:{i}) < {prev} (idx:{i - 1})"
                 )
+            prev = x
             if start is not None and x < start:
                 continue
             if end is not None and ((not self._inclusive_end and x >= end) or x > end):
@@ -252,11 +253,15 @@ def make_decision_schedule[I: Comparable](
         start = _to_pydt(start)
 
         s = schedule.strip()
-        inferred = (
-            _step_datetime_iter(_parse_step(s), start)
-            if _is_interval_string(s)
-            else _cron_datetime_iter(s, start)
-        )
+        if _is_interval_string(s):
+            inferred = _step_datetime_iter(_parse_step(s), start)
+        else:
+            if not croniter.is_valid(s):
+                raise ValueError(
+                    "Invalid schedule string. Use an interval like '2h' or a "
+                    "cron expression like '0 * * * *'."
+                )
+            inferred = _cron_datetime_iter(s, start)
         return DecisionSchedule[datetime](
             inferred,
             start,

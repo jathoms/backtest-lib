@@ -47,6 +47,7 @@ build-backend = "hatchling.build"
 [tool.coverage.run]
 source = ["backtest_lib"]
 branch = true
+omit = ["src/backtest_lib/examples/*"]
 
 [tool.pyrefly]
 project-includes = ["**/*"]
