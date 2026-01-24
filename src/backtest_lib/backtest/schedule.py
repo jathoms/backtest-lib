@@ -1,3 +1,5 @@
+"""Decision schedules for controlling backtest evaluation."""
+
 import re
 from collections.abc import Callable, Iterable, Iterator
 from datetime import datetime, timedelta
@@ -71,6 +73,12 @@ def _parse_step(s: str) -> timedelta | relativedelta:
 
 
 class DecisionSchedule[I: Comparable]:
+    """Iterable schedule of decision points.
+
+    Schedules can be built from explicit iterables of comparable values or from
+    time-based schedules created via :func:`make_decision_schedule`.
+    """
+
     _schedule: Iterable[I]
     _start: I
     _end: I | None
@@ -94,9 +102,16 @@ class DecisionSchedule[I: Comparable]:
 
     @property
     def schedule(self) -> Iterable[I]:
+        """Return the underlying iterable of schedule values."""
         return self._schedule
 
     def __iter__(self) -> Iterator[I]:
+        """Iterate over schedule values within optional bounds.
+
+        The iterator skips values before ``start`` and stops at ``end`` (with
+        optional inclusive behavior) while validating that the schedule is
+        non-decreasing.
+        """
         start = self._start
         end = self._end
         prev = None
@@ -180,6 +195,50 @@ def make_decision_schedule[I: Comparable](
     *,
     inclusive_end: bool = True,
 ) -> DecisionSchedule:
+    """Create a decision schedule from an iterable or time-based string.
+
+    The schedule can be a re-iterable of comparable values or a string interval
+    (e.g., ``"2h"``) or cron expression (e.g., ``"0 * * * *"``) when paired with
+    a ``datetime`` start.
+
+    Example:
+        >>> import datetime as dt
+        >>> from backtest_lib.backtest.schedule import make_decision_schedule
+        >>> schedule = make_decision_schedule(
+        ...     "2h",
+        ...     start=dt.datetime(2021, 11, 13),
+        ... )
+        >>> it = iter(schedule)
+        >>> next(it)
+        datetime.datetime(2021, 11, 13, 0, 0)
+        >>> next(it)
+        datetime.datetime(2021, 11, 13, 2, 0)
+
+        >>> cron_schedule = make_decision_schedule(
+        ...     "0 * * * *",
+        ...     start=dt.datetime(2025, 2, 1),
+        ... )
+        >>> cron_it = iter(cron_schedule)
+        >>> next(cron_it)
+        datetime.datetime(2025, 2, 1, 1, 0)
+        >>> next(cron_it)
+        datetime.datetime(2025, 2, 1, 2, 0)
+
+        >>> schedule = make_decision_schedule(
+        ...     [dt.datetime(2025, 1, 1), dt.datetime(2025, 1, 2)]
+        ... )
+        >>> list(schedule)
+        [datetime.datetime(2025, 1, 1, 0, 0), datetime.datetime(2025, 1, 2, 0, 0)]
+
+    Args:
+        schedule: Iterable of schedule values, interval string, or cron string.
+        start: Start value (required for string schedules).
+        end: Optional end value used to truncate the schedule.
+        inclusive_end: Whether the end bound is inclusive.
+
+    Returns:
+        DecisionSchedule for the provided specification.
+    """
     if isinstance(schedule, str):
         if not isinstance(start, DateTimeLike):
             raise TypeError("For string schedules, start must be a datetime.")
@@ -232,6 +291,29 @@ def decision_schedule_factory[I: Comparable](
     *,
     inclusive_end: bool = True,
 ) -> DecisionSchedule[I]:
+    """Create a decision schedule from a factory of iterators.
+
+    Example:
+        >>> import datetime as dt
+        >>> from backtest_lib.backtest.schedule import decision_schedule_factory
+        >>> def factory():
+        ...     yield from [
+        ...         dt.datetime(2025, 1, 1),
+        ...         dt.datetime(2025, 1, 2),
+        ...     ]
+        >>> schedule = decision_schedule_factory(factory)
+        >>> list(schedule)
+        [datetime.datetime(2025, 1, 1, 0, 0), datetime.datetime(2025, 1, 2, 0, 0)]
+
+    Args:
+        factory: Callable that returns a fresh iterator of schedule values.
+        start: Optional start value for bounds checking.
+        end: Optional end value used to truncate the schedule.
+        inclusive_end: Whether the end bound is inclusive.
+
+    Returns:
+        DecisionSchedule built from the factory.
+    """
     schedule = _IterFactoryIterable(factory)
 
     if start is None:
