@@ -59,6 +59,9 @@ project-excludes = [
   "src/backtest_lib/examples/*",
 ]
 
+[tool.pytest]
+addopts = ["-m", "not benchmark"]
+
 [tool.ruff]
 line-length = 88
 
@@ -76,9 +79,6 @@ ignore = ["EM101"]
 
 [tool.ruff.format]
 docstring-code-format = true
-
-[tool.pytest.ini_options]
-addopts = "-m 'not benchmark'"
 
 [tool.ty.src]
 include = ["src"]
