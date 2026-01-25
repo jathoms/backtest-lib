@@ -124,6 +124,16 @@ class TimeseriesPlotAccessor(ABC):
         ...
 
     @abstractmethod
+    def bar(self, **kwargs) -> Any:
+        """Plot the series as a bar chart."""
+        ...
+
+    @abstractmethod
+    def hist(self, bins: int = 20, **kwargs) -> Any:
+        """Histogram of the series values."""
+        ...
+
+    @abstractmethod
     def kde(self, color="steelblue", **kwargs) -> Any: ...
 
 

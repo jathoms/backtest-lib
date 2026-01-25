@@ -310,9 +310,9 @@ class PolarsBySecurityPlotAccessor(BySecurityPlotAccessor):
             return chart
 
         if agg == "mean":
-            agg_expr = pl.mean_horizontal()
+            agg_expr = pl.mean_horizontal(pl.all().exclude("date"))
         elif agg == "sum":
-            agg_expr = pl.sum_horizontal()
+            agg_expr = pl.sum_horizontal(pl.all().exclude("date"))
         else:
             raise ValueError(f"Unknown agg type '{agg}'")
 
