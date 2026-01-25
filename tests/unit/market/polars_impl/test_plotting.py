@@ -118,6 +118,21 @@ def test_timeseries_bar_plot(small_timeseries: PolarsTimeseries) -> None:
     assert spec["encoding"]["y"]["field"] == "value"
 
 
+def test_timeseries_bar_plot_data(small_timeseries: PolarsTimeseries) -> None:
+    chart = small_timeseries.plot.bar()
+    data = chart.data
+    assert data["value"].to_list() == [1.0, 2.0, 3.0]
+    expected_dates = np.array(
+        [
+            "2024-01-01",
+            "2024-01-02",
+            "2024-01-03",
+        ],
+        dtype="datetime64[us]",
+    )
+    np.testing.assert_array_equal(data["date"].to_numpy(), expected_dates)
+
+
 def test_timeseries_hist_plot(small_timeseries: PolarsTimeseries) -> None:
     chart = small_timeseries.plot.hist(bins=7)
     spec = chart.to_dict()
