@@ -311,7 +311,10 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
             if self._sel_names is not None and key not in self._sel_names:
                 raise KeyError(key)
 
-            s = self._security_column_df.get_column(key)
+            try:
+                s = self._security_column_df.get_column(key)
+            except Exception as e:
+                raise KeyError(key) from e
             if self._period_slice_start != 0 or self._period_slice_len is not None:
                 s = s.slice(self._period_slice_start, self._period_slice_len)
 
@@ -462,12 +465,14 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
                 f"mapping list, lengths were {len(periods)} and {len(ms)} respectively."
             )
 
-        first_keys = set(ms[0].keys())
-        if not all(len(set(m.keys()) ^ first_keys) == 0 for m in ms):
+        first_keys = list(ms[0].keys())
+        if len(first_keys) != len(set(first_keys)):
+            raise ValueError("Security mappings must not contain duplicate keys.")
+        if not all(len(set(m.keys()) ^ set(first_keys)) == 0 for m in ms):
             differing_keys = next(
                 (periods[i], set(m.keys()).symmetric_difference(set(first_keys)))
                 for i, m in enumerate([dict(x) for x in ms])
-                if m.keys() != first_keys
+                if set(m.keys()) != set(first_keys)
             )
             raise KeyError(
                 "All security mappings must have the same keys to create a"
