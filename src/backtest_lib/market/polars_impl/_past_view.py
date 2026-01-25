@@ -151,18 +151,11 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
                 _row_indexer=self._row_indexer,
             )
 
-            new_period_cols = self._col_names_cache[abs_start:abs_stop]
-            new_period_axis = PeriodAxis(
-                dt64=self._period_axis.dt64[abs_start:abs_stop],
-                labels=tuple(new_period_cols),
-                pos={lbl: i for i, lbl in enumerate(new_period_cols)},
-            )
-
             by_security_view = PolarsBySecurity(
                 _security_column_df=self._security_column_df,
                 _period_column_df=self._period_column_df,
                 _security_axis=self._security_axis,
-                _period_axis=new_period_axis,
+                _period_axis=self._period_axis,
                 _sel_names=self._security_axis.names,
                 _period_slice_start=abs_start,
                 _period_slice_len=abs_stop - abs_start,
@@ -171,7 +164,7 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
             return PolarsPastView(
                 _by_period=by_period_view,
                 _by_security=by_security_view,
-                _period_axis=new_period_axis,
+                _period_axis=self._period_axis,
                 _security_axis=self._security_axis,
             )
 
@@ -446,7 +439,9 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
 
     @cached_property
     def periods(self) -> tuple[np.datetime64, ...]:
-        return tuple(x for x in self._period_axis.dt64)
+        start = self._by_period._period_slice_start
+        stop = start + len(self._by_period)
+        return tuple(x for x in self._period_axis.dt64[start:stop])
 
     @property
     def securities(self) -> tuple[str, ...]:
