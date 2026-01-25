@@ -286,7 +286,15 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
         if self._period_slice_start != 0 or self._period_slice_len is not None:
             df = df.slice(self._period_slice_start, self._period_slice_len)
         if show_periods:
-            periods_series = pl.Series(self._period_axis.dt64, dtype=pl.Datetime)
+            start = self._period_slice_start
+            stop = start + (
+                len(self._period_axis.labels) - start
+                if self._period_slice_len is None
+                else self._period_slice_len
+            )
+            periods_series = pl.Series(
+                self._period_axis.dt64[start:stop], dtype=pl.Datetime
+            )
             return df.with_columns(date=periods_series).select(
                 "date", pl.all().exclude("date")
             )

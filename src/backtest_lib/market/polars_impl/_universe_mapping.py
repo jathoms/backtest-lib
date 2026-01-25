@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
@@ -260,9 +261,22 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
     ) -> PolarsUniverseMapping[T]:
         keys_tuple = tuple(keys)
 
-        values_series = (
-            pl.Series(values) if not isinstance(values, pl.Series) else values
-        )
+        if isinstance(values, pl.Series):
+            values_series = values
+        elif isinstance(values, np.ndarray):
+            values_series = pl.Series(np.asarray(values))
+        else:
+            iterator = iter(values)
+            try:
+                first = next(iterator)
+            except StopIteration:
+                values_series = pl.Series(np.array([], dtype=float))
+            else:
+                dtype = float if isinstance(first, float) else int
+                values_array = np.fromiter(
+                    itertools.chain((first,), iterator), dtype=dtype
+                )
+                values_series = pl.Series(values_array)
 
         return PolarsUniverseMapping.from_names_and_data(keys_tuple, values_series)
 

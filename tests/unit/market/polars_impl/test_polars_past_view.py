@@ -1,4 +1,7 @@
+import decimal
+
 import numpy as np
+import pandas as pd
 import polars as pl
 import pytest
 
@@ -97,6 +100,11 @@ def test_from_dataframe_invalid_date_dtype() -> None:
         PolarsPastView.from_dataframe(df)
 
 
+def test_from_dataframe_invalid_object() -> None:
+    with pytest.raises(ValueError):
+        PolarsPastView.from_dataframe(object())  # type: ignore[arg-type]
+
+
 def test_by_security_single_series(small_past_view: PolarsPastView) -> None:
     series = small_past_view.by_security["AAA"]
     assert series.to_series().to_list() == [1.0, 2.0, 3.0]
@@ -117,10 +125,26 @@ def test_by_security_selection_unknown_key(small_past_view: PolarsPastView) -> N
         small_past_view.by_security["CCC"]
 
 
+def test_by_period_out_of_range(small_past_view: PolarsPastView) -> None:
+    with pytest.raises(IndexError):
+        small_past_view.by_period[99]
+    with pytest.raises(IndexError):
+        small_past_view.by_period[-99]
+
+
 def test_by_period_single_mapping(small_past_view: PolarsPastView) -> None:
     mapping = small_past_view.by_period[0]
     assert mapping.names == ("AAA", "BBB")
     assert mapping.to_series().to_list() == [1.0, 10.0]
+
+
+def test_by_period_single_mapping_with_security_subset(
+    small_past_view: PolarsPastView,
+) -> None:
+    subset = small_past_view.by_security[["BBB", "AAA"]]
+    mapping = subset.by_period[0]
+    assert mapping.names == ("BBB", "AAA")
+    assert mapping.to_series().to_list() == [10.0, 1.0]
 
 
 def test_by_period_slice(small_past_view: PolarsPastView) -> None:
@@ -131,6 +155,16 @@ def test_by_period_slice(small_past_view: PolarsPastView) -> None:
     assert subset.periods == expected_periods
     assert subset.by_security["AAA"].to_series().to_list() == [2.0, 3.0]
     assert subset.by_security["BBB"].to_series().to_list() == [20.0, 30.0]
+
+
+def test_by_period_slice_non_contiguous(small_past_view: PolarsPastView) -> None:
+    subset = small_past_view.by_period[::2]
+    expected_periods = tuple(
+        np.array(["2024-01-01", "2024-01-03"], dtype="datetime64[us]")
+    )
+    assert subset.periods == expected_periods
+    assert subset.by_security["AAA"].to_series().to_list() == [1.0, 3.0]
+    assert subset.by_security["BBB"].to_series().to_list() == [10.0, 30.0]
 
 
 def test_before_after_inclusive(small_past_view: PolarsPastView) -> None:
@@ -165,7 +199,66 @@ def test_by_security_to_dataframe(small_past_view: PolarsPastView) -> None:
     assert df.columns == ["date", "AAA", "BBB"]
 
 
+def test_by_security_to_dataframe_pandas(small_past_view: PolarsPastView) -> None:
+    df = small_past_view.by_security.to_dataframe(backend="pandas")
+    assert isinstance(df, pd.DataFrame)
+
+
+def test_by_security_to_dataframe_invalid_backend(
+    small_past_view: PolarsPastView,
+) -> None:
+    with pytest.raises(ValueError):
+        small_past_view.by_security.to_dataframe(backend="invalid")  # type: ignore[arg-type]
+
+
 def test_by_period_as_df_show_securities(small_past_view: PolarsPastView) -> None:
     df = small_past_view.by_period.as_df(show_securities=True, lazy=False)
     assert df.columns[0] == "security"
     assert df.select("security").to_series().to_list() == ["AAA", "BBB"]
+
+
+def test_by_period_as_df_with_security_subset(small_past_view: PolarsPastView) -> None:
+    subset = small_past_view.by_security[["BBB", "AAA"]]
+    df = subset.by_period.as_df(show_securities=True, lazy=False)
+    assert df.columns[0] == "security"
+    assert df.select("security").to_series().to_list() == ["BBB", "AAA"]
+
+
+def test_by_period_to_dataframe_pandas(small_past_view: PolarsPastView) -> None:
+    df = small_past_view.by_period.to_dataframe(backend="pandas")
+    assert isinstance(df, pd.DataFrame)
+
+
+def test_by_period_to_dataframe_invalid_backend(
+    small_past_view: PolarsPastView,
+) -> None:
+    with pytest.raises(ValueError):
+        small_past_view.by_period.to_dataframe(backend="invalid")  # type: ignore[arg-type]
+
+
+def test_by_security_as_df_with_selection(small_past_view: PolarsPastView) -> None:
+    subset = small_past_view.by_security[["BBB", "AAA"]]
+    df = subset.by_security.as_df(show_periods=False)
+    assert df.columns == ["BBB", "AAA"]
+
+
+def test_by_security_as_df_with_period_slice(small_past_view: PolarsPastView) -> None:
+    subset = small_past_view.by_period[1:3]
+    df = subset.by_security.as_df(show_periods=True, lazy=False)
+    assert df.columns == ["date", "AAA", "BBB"]
+    assert df.select("AAA").to_series().to_list() == [2.0, 3.0]
+
+
+def test_by_security_iteration_with_selection(small_past_view: PolarsPastView) -> None:
+    subset = small_past_view.by_security[["BBB", "AAA"]]
+    assert list(subset.by_security) == ["BBB", "AAA"]
+
+
+def test_from_security_mappings_invalid_type() -> None:
+    periods = [np.datetime64("2024-01-01"), np.datetime64("2024-01-02")]
+    ms = [
+        {"AAA": decimal.Decimal("1.0")},
+        {"AAA": decimal.Decimal("2.0")},
+    ]
+    with pytest.raises(ValueError):
+        PolarsPastView.from_security_mappings(ms, periods)
