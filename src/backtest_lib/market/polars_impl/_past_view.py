@@ -45,12 +45,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 Scalar = TypeVar("Scalar", int, float)
+_DEFAULT_PERIOD_COLUMN_NAME = "date"
 
 
 @dataclass(frozen=True)
 class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
-    _period_column_df: pl.DataFrame
-    _security_column_df: pl.DataFrame = field(repr=False)
+    _period_column_df: pl.LazyFrame
+    _security_column_df: pl.LazyFrame = field(repr=False)
     _security_axis: SecurityAxis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
@@ -67,7 +68,9 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
 
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "_col_names_cache", tuple(self._period_column_df.columns)
+            self,
+            "_col_names_cache",
+            tuple(self._period_column_df.collect_schema().names()),
         )
 
     def __len__(self) -> int:
@@ -103,20 +106,17 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
     ) -> pl.DataFrame | pl.LazyFrame:
         start = self._period_slice_start
         stop = self._period_slice_start + len(self)
-        df = (
-            self._period_column_df[:, start:stop].lazy()
-            if lazy
-            else self._period_column_df[:, start:stop]
-        )
+        columns = self._period_column_df.collect_schema().names()
+        df = self._period_column_df.select(columns[start:stop])
 
         if self._row_indexer is not None:
             df = df.select(pl.all().gather(self._row_indexer))
         if show_securities:
             securities_series = pl.Series(self._security_axis.names)
-            return df.with_columns(security=securities_series).select(
+            df = df.with_columns(security=securities_series).select(
                 "security", pl.all().exclude("security")
             )
-        return df
+        return df if lazy else df.collect()
 
     @overload
     def __getitem__(self, key: SupportsIndex) -> PolarsUniverseMapping: ...
@@ -127,14 +127,17 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
         if isinstance(key, SupportsIndex):
             abs_j = self._abs_col_index(int(key))
             col_name = self._col_names_cache[abs_j]
-            s = self._period_column_df.get_column(col_name)
+            s = self._period_column_df.select(col_name)
             if self._row_indexer is not None:
-                s = s.gather(self._row_indexer)
-            return PolarsUniverseMapping(
-                names=self._security_axis.names,
-                _data=s,
-                pos=self._security_axis.pos,
-            )
+                s = s.select(pl.all().gather(self._row_indexer))
+            try:
+                return PolarsUniverseMapping(
+                    names=self._security_axis.names,
+                    _data=s.collect().to_series(),
+                    pos=self._security_axis.pos,
+                )
+            except Exception as e:
+                raise KeyError(key) from e
 
         start, stop, step = key.indices(len(self))
         if step == 1:
@@ -250,8 +253,8 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
 
 @dataclass(frozen=True)
 class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
-    _security_column_df: pl.DataFrame
-    _period_column_df: pl.DataFrame = field(repr=False)
+    _security_column_df: pl.LazyFrame
+    _period_column_df: pl.LazyFrame = field(repr=False)
     _security_axis: SecurityAxis = field(repr=False)
     _period_axis: PeriodAxis = field(repr=False)
 
@@ -280,7 +283,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
     def as_df(
         self, *, show_periods: bool = True, lazy: bool = False
     ) -> pl.DataFrame | pl.LazyFrame:
-        df = self._security_column_df.lazy() if lazy else self._security_column_df
+        df = self._security_column_df
         if self._sel_names is not None:
             df = df.select(list(self._sel_names))
         if self._period_slice_start != 0 or self._period_slice_len is not None:
@@ -295,10 +298,10 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
             periods_series = pl.Series(
                 self._period_axis.dt64[start:stop], dtype=pl.Datetime
             )
-            return df.with_columns(date=periods_series).select(
+            df = df.with_columns(date=periods_series).select(
                 "date", pl.all().exclude("date")
             )
-        return df
+        return df if lazy else df.collect()
 
     @overload
     def __getitem__(self, key: str) -> PolarsTimeseries: ...
@@ -312,10 +315,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
             if self._sel_names is not None and key not in self._sel_names:
                 raise KeyError(key)
 
-            try:
-                s = self._security_column_df.get_column(key)
-            except Exception as e:
-                raise KeyError(key) from e
+            s = self._security_column_df.select(key)
             if self._period_slice_start != 0 or self._period_slice_len is not None:
                 s = s.slice(self._period_slice_start, self._period_slice_len)
 
@@ -332,7 +332,10 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
                     lbl: i for i, lbl in enumerate(self._period_axis.labels[start:stop])
                 },
             )
-            return PolarsTimeseries(s, pax, key, float)
+            try:
+                return PolarsTimeseries(s.collect().to_series(), pax, key, float)
+            except Exception as e:
+                raise KeyError(key) from e
 
         names = tuple(key)
         idx = np.fromiter(
@@ -514,45 +517,85 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         return PolarsPastView.from_dataframe(df)
 
     @staticmethod
-    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
-        if not isinstance(df, pl.DataFrame):
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame | pl.LazyFrame) -> Self:
+        if not isinstance(df, pl.LazyFrame):
             try:
-                df = pl.DataFrame(df)
+                df = pl.LazyFrame(df)
             except Exception as e:
                 raise ValueError(
                     f"Cannot create PolarsPastView from passed object with "
                     f"type '{type(df)}'. "
-                    "It must be able to be turned into a polars DataFrame with a "
+                    "It must be able to be turned into a polars LazyFrame with a "
                     f"'date' column and a column for each security: {e}"
                 ) from e
+
+        input_schema = df.collect_schema()
+
+        period_column_name = _DEFAULT_PERIOD_COLUMN_NAME
+
+        if period_column_name not in input_schema:
+            datetime_columns = [
+                k for k, t in input_schema.items() if t in (pl.Date, pl.Datetime)
+            ]
+
+            if len(datetime_columns) != 1:
+                raise ValueError(
+                    "Input dataframe must have column for 'date' "
+                    "(or exactly one Datetime column) and a column for each security"
+                )
+
+            period_column_name = datetime_columns[0]
+
+        actual_period_column_type = input_schema[period_column_name]
+
+        if actual_period_column_type not in (pl.Date, pl.Datetime):
+            if actual_period_column_type == pl.String:
+                df = df.with_columns(
+                    pl.col(period_column_name)
+                    .str.to_datetime(time_unit="us", strict=False)
+                    .name.keep()
+                )
+            else:
+                df = df.with_columns(
+                    pl.col(period_column_name)
+                    .cast(pl.Datetime("us"), strict=False)
+                    .name.keep()
+                )
+
         try:
-            dates = df.get_column("date")
-        except Exception as e:
+            if df.select(pl.col(period_column_name).has_nulls()).collect().item():
+                raise InvalidOperationError
+        except InvalidOperationError as e:
             raise ValueError(
-                "Input dataframe must have column for 'date' and a column for each"
-                " security"
+                f"Cannot convert '{period_column_name}' column to polars.Datetime"
             ) from e
 
-        if dates.dtype not in (pl.Date, pl.Datetime):
-            if dates.dtype == pl.String:
-                dates = dates.str.to_datetime(time_unit="us")
-            else:
-                try:
-                    dates = dates.cast(pl.Datetime("us"))
-                except InvalidOperationError as e:
-                    raise ValueError(
-                        "Cannot convert 'date' column with polars type "
-                        f"{dates.dtype} to polars.Datetime)"
-                    ) from e
+        df_with_string_periods = df.with_columns(
+            pl.col(period_column_name).dt.to_string().name.keep()
+        )
+        period_names = (
+            df_with_string_periods.select(period_column_name).collect().to_series()
+        )
 
-        period_names = dates.dt.to_string()
-        non_date_cols = [x for x in df.columns if x != "date"]
+        security_column_df = df.select(pl.all().exclude(period_column_name))
 
-        security_column_df = df.select(non_date_cols)
-        period_column_df = security_column_df.transpose(column_names=period_names)
+        unpivoted_df = df_with_string_periods.unpivot(
+            index=period_column_name, variable_name="security_name"
+        )
+        period_column_df = unpivoted_df.pivot(
+            on=period_column_name,
+            on_columns=period_names,
+            index="security_name",
+            values="value",
+            maintain_order=True,
+        ).drop("security_name")
 
-        security_axis = SecurityAxis.from_names(security_column_df.columns)
-        period_axis = PeriodAxis.from_series(dates)
+        security_axis = SecurityAxis.from_names(
+            security_column_df.collect_schema().names()
+        )
+        period_axis = PeriodAxis.from_series(
+            df.select(period_column_name).collect().to_series()
+        )
 
         return PolarsPastView(
             PolarsByPeriod(
@@ -566,7 +609,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         )
 
     def _slice_period(self, left: int, right: int) -> PolarsPastView:
-        cols = self.by_period._period_column_df.columns[left:right]
+        cols = self.by_period._period_column_df.collect_schema().names()[left:right]
         new_period_df = self.by_period._period_column_df.select(cols)
 
         win_len = right - left

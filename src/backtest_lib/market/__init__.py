@@ -192,7 +192,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
     @staticmethod
     @abstractmethod
-    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame | pl.LazyFrame) -> Self:
         """Build a view from a DataFrame.
 
         The DataFrame must include a ``date`` column and one column per security.
