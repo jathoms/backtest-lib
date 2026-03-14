@@ -12,6 +12,8 @@ from backtest_lib.portfolio import (
     FractionalQuantityPortfolio,
     QuantityPortfolio,
     WeightedPortfolio,
+    cash,
+    uniform_portfolio,
 )
 from backtest_lib.strategy import Strategy
 from backtest_lib.universe import PastUniversePrices
@@ -30,4 +32,6 @@ __all__ = [
     "target_weights",
     "trade",
     "combine",
+    "cash",
+    "uniform_portfolio",
 ]

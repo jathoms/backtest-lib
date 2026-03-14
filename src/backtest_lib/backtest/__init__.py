@@ -103,13 +103,12 @@ class Backtest:
     Example:
         >>> import backtest_lib as btl
         >>> from polars import read_csv
-        >>> from backtest_lib.portfolio import uniform_portfolio
         >>> spot_prices = read_csv("docs/assets/data/spot_prices.csv")
         >>> market = btl.MarketView(spot_prices)
         >>> universe = market.securities
         >>> def hold_strategy(universe, current_portfolio, market, ctx):
         ...     return btl.hold()
-        >>> bt = btl.Backtest(hold_strategy, market, uniform_portfolio(universe))
+        >>> bt = btl.Backtest(hold_strategy, market, btl.uniform_portfolio(universe))
         >>> results = bt.run()
         >>> results.annualized_return
         -0.00035649...

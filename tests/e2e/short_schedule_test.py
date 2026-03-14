@@ -3,13 +3,12 @@ from backtest_lib import target_weights
 from backtest_lib.engine.decision import (
     Decision,
 )
-from backtest_lib.portfolio import uniform_portfolio
 
 
 def test_over_single_market_movement(simple_market):
     market = simple_market
     initial_capital = 1_000_000
-    initial_portfolio = uniform_portfolio(market.securities, value=initial_capital)
+    initial_portfolio = btl.uniform_portfolio(market.securities, value=initial_capital)
 
     def strategy(*args, **kwargs) -> Decision:
         return target_weights({"sec1": 0.5, "sec2": 0.5})

@@ -10,12 +10,11 @@ Below is an example of a buy-and-hold strategy uniform over the entire universe 
 import polars as pl
 
 import backtest_lib as btl
-from backtest_lib.portfolio import uniform_portfolio
 
 prices = pl.read_csv("docs/assets/data/spot_prices.csv")
 market = btl.MarketView(prices)
 
-initial_portfolio = uniform_portfolio(market.securities, value=1_000_000)
+initial_portfolio = btl.uniform_portfolio(market.securities, value=1_000_000)
 
 
 def buy_and_hold(universe, current_portfolio, market, ctx):
