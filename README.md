@@ -1,5 +1,7 @@
 # backtest-lib
 
+Find the full reference docs [here](https://jathoms.github.io/backtest-lib)
+
 ## Usage
 
 ### Quickstart
