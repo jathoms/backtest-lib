@@ -1,4 +1,4 @@
-name: CI - Build docs
+name: CI - Build docs - Deploy on push to main
 
 on:
   push:
@@ -11,40 +11,47 @@ on:
     paths:
       - "docs/**"
       - ".github/workflows/build-docs.yml"
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
-
+permissions:
+  contents: read
+  pages: write
+  id-token: write
 jobs:
   docs:
     name: Build docs
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup
         uses: ./.github/actions/setup
-
-      - name: Set up just 
+      - name: Set up just
         uses: extractions/setup-just@v3
-
       - name: Build docs
         run: just docs
-
+      - name: Upload pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        id: deployment
+        uses: actions/deploy-pages@v4
   doctest:
     name: Run doctests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup
         uses: ./.github/actions/setup
         with:
           group: docs
-
       - name: Set up just
         uses: extractions/setup-just@v3
-
       - name: Run doctests
         run: just doctest
