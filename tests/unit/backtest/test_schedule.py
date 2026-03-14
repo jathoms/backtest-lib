@@ -1,4 +1,5 @@
 import datetime as dt
+from collections.abc import Iterator
 
 import pytest
 
@@ -139,9 +140,9 @@ def test_decision_schedule_factory_infers_start() -> None:
 
 
 def test_decision_schedule_factory_requires_non_empty_iterable() -> None:
-    def factory():
+    def factory() -> Iterator[dt.datetime]:
         if False:
-            yield None
+            yield dt.datetime(2024, 1, 1)
 
     with pytest.raises(ValueError):
         decision_schedule_factory(factory)

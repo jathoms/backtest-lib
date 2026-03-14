@@ -6,10 +6,8 @@ from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import (
     Any,
-    Self,
     SupportsFloat,
     TypeVar,
-    cast,
     overload,
 )
 
@@ -26,7 +24,12 @@ from backtest_lib.universe.universe_mapping import UniverseMapping
 from backtest_lib.universe.vector_mapping import VectorMapping
 from backtest_lib.universe.vector_ops import VectorOps
 
-_RHS_HANDOFF = object()
+
+class _RhsHandoff:
+    pass
+
+
+_RHS_HANDOFF = _RhsHandoff()
 logger = logging.getLogger(__name__)
 
 Other_scalar = TypeVar("Other_scalar", float, int)
@@ -40,13 +43,14 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
     pos: dict[str, int] = field(repr=False)
     _scalar_type: type[T]
 
-    @staticmethod
+    @classmethod
     def from_names_and_data(
+        cls: type[PolarsUniverseMapping[T]],
         names: Universe,
         data: pl.Series,
-        dtype: type[int] | type[float] | None = None,
-    ) -> Self:
-        return PolarsUniverseMapping(
+        dtype: type[T] | None = None,
+    ) -> PolarsUniverseMapping[T]:
+        return cls(
             names=names,
             _data=data,
             pos={name: i for i, name in enumerate(names)},
@@ -104,7 +108,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
 
     def _rhs(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
-    ) -> tuple[pl.Series | float, type[float] | type[int]]:
+    ) -> tuple[pl.Series | float | _RhsHandoff, type[float] | type[int]]:
         if isinstance(other, SupportsFloat):
             if not isinstance(other, int) and self._scalar_type is int:
                 return float(other), float
@@ -122,7 +126,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
                         }"
                         " items found in lhs not in rhs"
                     )
-                    return cast(float, _RHS_HANDOFF), float
+                    return _RHS_HANDOFF, float
                 data = _mapping_to_series(self, other)
             if other._scalar_type is not int:
                 return data, float
@@ -233,7 +237,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
             raise ValueError("Mean of empty series")
         return self._scalar_type(m)
 
-    def abs(self) -> Self:
+    def abs(self) -> PolarsUniverseMapping[T]:
         return PolarsUniverseMapping(
             self.names, self._data.abs(), self.pos, self._scalar_type
         )
@@ -256,9 +260,29 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         return PolarsUniverseMappingPlotAccessor(self)
 
     @classmethod
+    @overload
     def from_vectors(
-        cls, keys: Iterable[str], values: Iterable[T]
-    ) -> PolarsUniverseMapping[T]:
+        cls, keys: Iterable[str], values: Iterable[int]
+    ) -> PolarsUniverseMapping[int]: ...
+
+    @classmethod
+    @overload
+    def from_vectors(
+        cls, keys: Iterable[str], values: Iterable[float]
+    ) -> PolarsUniverseMapping[float]: ...
+
+    @classmethod
+    @overload
+    def from_vectors(
+        cls, keys: Iterable[str], values: Iterable[int | float]
+    ) -> PolarsUniverseMapping[float]: ...
+
+    @classmethod
+    def from_vectors(
+        cls,
+        keys: Iterable[str],
+        values: Iterable[int | float],
+    ) -> PolarsUniverseMapping[int] | PolarsUniverseMapping[float]:
         keys_tuple = tuple(keys)
 
         if isinstance(values, pl.Series):
@@ -278,7 +302,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
                 )
                 values_series = pl.Series(values_array)
 
-        return PolarsUniverseMapping.from_names_and_data(keys_tuple, values_series)
+        return cls.from_names_and_data(keys_tuple, values_series)
 
 
 def _mapping_to_series[T: (float, int)](

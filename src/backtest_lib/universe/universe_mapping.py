@@ -11,14 +11,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
-from typing import TypeVar
+from typing import TypeVar, overload
 
 from backtest_lib.market._backends import _get_mapping_type_from_backend
 from backtest_lib.market.plotting import UniverseMappingPlotAccessor
 from backtest_lib.universe.vector_mapping import VectorMapping
 
 Scalar = TypeVar("Scalar", float, int)
-Other_scalar = TypeVar("Other_scalar", float, int)
 
 
 class UniverseMapping[Scalar: (float, int)](VectorMapping[str, Scalar], ABC):
@@ -32,6 +31,156 @@ class UniverseMapping[Scalar: (float, int)](VectorMapping[str, Scalar], ABC):
     def plot(self) -> UniverseMappingPlotAccessor:
         """Return the plotting accessor for the mapping."""
         ...
+
+    @overload
+    def __add__(
+        self: UniverseMapping[int],
+        other: int | VectorMapping[str, int] | Mapping[str, int],
+    ) -> UniverseMapping[int]: ...
+
+    @overload
+    def __add__(
+        self: UniverseMapping[int],
+        other: float | VectorMapping[str, float] | Mapping[str, float],
+    ) -> UniverseMapping[float]: ...
+
+    @overload
+    def __add__(
+        self: UniverseMapping[float],
+        other: int
+        | float
+        | VectorMapping[str, int]
+        | VectorMapping[str, float]
+        | Mapping[str, int | float],
+    ) -> UniverseMapping[float]: ...
+
+    @abstractmethod
+    def __add__(self, other) -> UniverseMapping: ...
+
+    @overload
+    def __radd__(
+        self: UniverseMapping[int],
+        other: int | VectorMapping[str, int] | Mapping[str, int],
+    ) -> UniverseMapping[int]: ...
+
+    @overload
+    def __radd__(
+        self: UniverseMapping[int],
+        other: float | VectorMapping[str, float] | Mapping[str, float],
+    ) -> UniverseMapping[float]: ...
+
+    @overload
+    def __radd__(
+        self: UniverseMapping[float],
+        other: int
+        | float
+        | VectorMapping[str, int]
+        | VectorMapping[str, float]
+        | Mapping[str, int | float],
+    ) -> UniverseMapping[float]: ...
+
+    @abstractmethod
+    def __radd__(self, other) -> UniverseMapping: ...
+
+    @overload
+    def __sub__(
+        self: UniverseMapping[int],
+        other: int | VectorMapping[str, int] | Mapping[str, int],
+    ) -> UniverseMapping[int]: ...
+
+    @overload
+    def __sub__(
+        self: UniverseMapping[int],
+        other: float | VectorMapping[str, float] | Mapping[str, float],
+    ) -> UniverseMapping[float]: ...
+
+    @overload
+    def __sub__(
+        self: UniverseMapping[float],
+        other: int
+        | float
+        | VectorMapping[str, int]
+        | VectorMapping[str, float]
+        | Mapping[str, int | float],
+    ) -> UniverseMapping[float]: ...
+
+    @abstractmethod
+    def __sub__(self, other) -> UniverseMapping: ...
+
+    @overload
+    def __rsub__(
+        self: UniverseMapping[int],
+        other: int | VectorMapping[str, int] | Mapping[str, int],
+    ) -> UniverseMapping[int]: ...
+
+    @overload
+    def __rsub__(
+        self: UniverseMapping[int],
+        other: float | VectorMapping[str, float] | Mapping[str, float],
+    ) -> UniverseMapping[float]: ...
+
+    @overload
+    def __rsub__(
+        self: UniverseMapping[float],
+        other: int
+        | float
+        | VectorMapping[str, int]
+        | VectorMapping[str, float]
+        | Mapping[str, int | float],
+    ) -> UniverseMapping[float]: ...
+
+    @abstractmethod
+    def __rsub__(self, other) -> UniverseMapping: ...
+
+    @overload
+    def __mul__(
+        self: UniverseMapping[int],
+        other: int | VectorMapping[str, int] | Mapping[str, int],
+    ) -> UniverseMapping[int]: ...
+
+    @overload
+    def __mul__(
+        self: UniverseMapping[int],
+        other: float | VectorMapping[str, float] | Mapping[str, float],
+    ) -> UniverseMapping[float]: ...
+
+    @overload
+    def __mul__(
+        self: UniverseMapping[float],
+        other: int
+        | float
+        | VectorMapping[str, int]
+        | VectorMapping[str, float]
+        | Mapping[str, int | float],
+    ) -> UniverseMapping[float]: ...
+
+    @abstractmethod
+    def __mul__(self, other) -> UniverseMapping: ...
+
+    @overload
+    def __rmul__(
+        self: UniverseMapping[int],
+        other: int | VectorMapping[str, int] | Mapping[str, int],
+    ) -> UniverseMapping[int]: ...
+
+    @overload
+    def __rmul__(
+        self: UniverseMapping[int],
+        other: float | VectorMapping[str, float] | Mapping[str, float],
+    ) -> UniverseMapping[float]: ...
+
+    @overload
+    def __rmul__(
+        self: UniverseMapping[float],
+        other: int
+        | float
+        | VectorMapping[str, int]
+        | VectorMapping[str, float]
+        | Mapping[str, int | float],
+    ) -> UniverseMapping[float]: ...
+
+    @abstractmethod
+    def __rmul__(self, other) -> UniverseMapping: ...
 
     @abstractmethod
     def __truediv__(

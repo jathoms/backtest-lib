@@ -1,4 +1,5 @@
 import decimal
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -47,17 +48,17 @@ def test_from_security_mappings_key_mismatch() -> None:
 
 
 def test_from_security_mappings_mixed_types() -> None:
-    with pytest.raises(ValueError):
-        PolarsPastView.from_security_mappings(
-            [{"AAA": 1}, {"AAA": 1.5}],
-            [np.datetime64("2024-01-01"), np.datetime64("2024-01-02")],
-        )
+    pv = PolarsPastView.from_security_mappings(
+        [{"AAA": 1}, {"AAA": 1.5}],
+        [np.datetime64("2024-01-01"), np.datetime64("2024-01-02")],
+    )
+    assert pv.by_security["AAA"].to_series().to_list() == [1.0, 1.5]
 
 
 def test_from_security_mappings_unsupported_type() -> None:
     with pytest.raises(ValueError):
-        PolarsPastView.from_security_mappings(
-            [{"AAA": "x"}, {"AAA": "y"}],
+        PolarsPastView.from_security_mappings(  # type: ignore[no-matching-overload]
+            [{"AAA": "x"}, {"AAA": "y"}],  # type: ignore
             [np.datetime64("2024-01-01"), np.datetime64("2024-01-02")],
         )
 
@@ -261,4 +262,4 @@ def test_from_security_mappings_invalid_type() -> None:
         {"AAA": decimal.Decimal("2.0")},
     ]
     with pytest.raises(ValueError):
-        PolarsPastView.from_security_mappings(ms, periods)
+        PolarsPastView.from_security_mappings(cast(Any, ms), periods)

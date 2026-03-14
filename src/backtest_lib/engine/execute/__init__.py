@@ -45,14 +45,15 @@ class Trades:
     security_alignment: tuple[str, ...]
     backend_mapping_type: type[UniverseMapping]
 
-    @staticmethod
+    @classmethod
     def from_inputs(
+        cls,
         trades: Iterable[TradeOrder],
         *,
         security_alignment: Iterable[str],
         backend: str,
     ) -> Self:
-        return Trades(
+        return cls(
             trades=tuple(trades),
             security_alignment=tuple(security_alignment),
             backend_mapping_type=_get_mapping_type_from_backend(backend),
@@ -60,14 +61,14 @@ class Trades:
 
     @cached_property
     def position_delta(self) -> UniverseMapping[int]:
-        zeros = self.backend_mapping_type.from_vectors(
-            self.security_alignment, (0 for _ in self.security_alignment)
-        ).floor()
         batched_trades: dict[str, int] = defaultdict(int)
         for t in self.trades:
             batched_trades[t.security] += t.signed_qty
 
-        return zeros + batched_trades
+        return self.backend_mapping_type.from_vectors(
+            self.security_alignment,
+            (batched_trades.get(security, 0) for security in self.security_alignment),
+        ).floor()
 
     def total_cost(self) -> float:
         return sum(trade.cost() for trade in self.trades)

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import (
     TYPE_CHECKING,
     Any,
     Literal,
-    Self,
     SupportsIndex,
     TypeVar,
     overload,
@@ -85,7 +84,7 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
 
     @overload
     def as_df(
-        self, *, show_securities: bool = ..., lazy: Literal[True] = ...
+        self, *, show_securities: bool = ..., lazy: Literal[True]
     ) -> pl.LazyFrame: ...
 
     @overload
@@ -264,7 +263,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
 
     @overload
     def as_df(
-        self, *, show_periods: bool = ..., lazy: Literal[True] = ...
+        self, *, show_periods: bool = ..., lazy: Literal[True]
     ) -> pl.LazyFrame: ...
 
     @overload
@@ -456,10 +455,31 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         return self._security_axis.names
 
     @staticmethod
+    @overload
     def from_security_mappings(
-        ms: SecurityMappings[Any],
+        ms: SecurityMappings[int],
         periods: Sequence[np.datetime64],
-    ) -> Self:
+    ) -> PolarsPastView[int]: ...
+
+    @staticmethod
+    @overload
+    def from_security_mappings(
+        ms: SecurityMappings[float],
+        periods: Sequence[np.datetime64],
+    ) -> PolarsPastView[float]: ...
+
+    @staticmethod
+    @overload
+    def from_security_mappings(
+        ms: Sequence[Mapping[str, float | int]],
+        periods: Sequence[np.datetime64],
+    ) -> PolarsPastView[float]: ...
+
+    @staticmethod
+    def from_security_mappings(
+        ms: Sequence[Mapping[str, float | int]],
+        periods: Sequence[np.datetime64],
+    ) -> PolarsPastView[int] | PolarsPastView[float]:
         if not ms or any(not m for m in ms):
             raise ValueError("Cannot create a PolarsPastView from an empty mapping.")
         if not len(periods) == len(ms):
@@ -489,12 +509,31 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
 
         unique_passed_types = {type(v) for m in ms for v in m.values()}
         passed_type = next(iter(unique_passed_types), None)
-        if not all(x is passed_type for x in unique_passed_types):
+        python_numeric_types: set[type[Any]] = set()
+        for value_type in unique_passed_types:
+            if issubclass(value_type, (int, np.integer)) and not issubclass(
+                value_type, (bool, np.bool_)
+            ):
+                python_numeric_types.add(int)
+            elif issubclass(value_type, (float, np.floating)):
+                python_numeric_types.add(float)
+            else:
+                python_numeric_types.add(value_type)
+        if python_numeric_types - {int, float}:
             raise ValueError(
-                "All values of the mapping must be the same to create a "
-                f"PolarsPastView, {len(unique_passed_types)} types were passed "
-                f"({unique_passed_types})"
+                "All values of the mapping must be numeric (int or float) to "
+                "create a PolarsPastView, "
+                f"{len(unique_passed_types)} types were passed ({unique_passed_types})"
             )
+
+        if python_numeric_types == {int, float}:
+            ms = [
+                {security: float(value) for security, value in mapping.items()}
+                for mapping in ms
+            ]
+            passed_type = float
+            unique_passed_types = {float}
+
         if passed_type not in allowed_types:
             raise ValueError(f"Cannot create PolarsPastView of type {passed_type}.")
 
@@ -514,7 +553,7 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         return PolarsPastView.from_dataframe(df)
 
     @staticmethod
-    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> PolarsPastView:
         if not isinstance(df, pl.DataFrame):
             try:
                 df = pl.DataFrame(df)

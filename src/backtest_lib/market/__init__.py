@@ -173,11 +173,35 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         ...
 
     @staticmethod
+    @overload
     @abstractmethod
     def from_security_mappings(
-        ms: SecurityMappings[Any],
+        ms: SecurityMappings[int],
         periods: Sequence[Index],
-    ) -> Self:
+    ) -> PastView[int, Index]: ...
+
+    @staticmethod
+    @overload
+    @abstractmethod
+    def from_security_mappings(
+        ms: SecurityMappings[float],
+        periods: Sequence[Index],
+    ) -> PastView[float, Index]: ...
+
+    @staticmethod
+    @overload
+    @abstractmethod
+    def from_security_mappings(
+        ms: Sequence[Mapping[str, float | int]],
+        periods: Sequence[Index],
+    ) -> PastView[float, Index]: ...
+
+    @staticmethod
+    @abstractmethod
+    def from_security_mappings(
+        ms: Sequence[Mapping[str, float | int]],
+        periods: Sequence[Index],
+    ) -> PastView[int, Index] | PastView[float, Index]:
         """Build a view from security mappings and periods.
 
         Args:
@@ -192,7 +216,7 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
 
     @staticmethod
     @abstractmethod
-    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> Self:
+    def from_dataframe(df: pl.DataFrame | pd.DataFrame) -> PastView:
         """Build a view from a DataFrame.
 
         The DataFrame must include a ``date`` column and one column per security.

@@ -172,38 +172,146 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             raise ValueError("Axis mismatch: operations require identical PeriodAxis.")
         raise TypeError("Only scalars or same-axis PolarsTimeseries are supported.")
 
+    @overload
     def __add__(
-        self, other: VectorOps[Scalar] | ScalarU
+        self: PolarsTimeseries[int],
+        other: int | VectorOps[int],
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def __add__(
+        self: PolarsTimeseries[int],
+        other: float | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def __add__(
+        self: PolarsTimeseries[float],
+        other: int | float | VectorOps[int] | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    def __add__(
+        self, other: VectorOps | int | float
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         rhs, scalar_type = self._rhs(other)
         return PolarsTimeseries(self._vec + rhs, self._axis, self._name, scalar_type)
 
+    @overload
     def __radd__(
-        self, other: VectorOps[Scalar] | ScalarU
+        self: PolarsTimeseries[int],
+        other: int | VectorOps[int],
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def __radd__(
+        self: PolarsTimeseries[int],
+        other: float | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def __radd__(
+        self: PolarsTimeseries[float],
+        other: int | float | VectorOps[int] | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    def __radd__(
+        self, other: VectorOps | int | float
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         lhs, scalar_type = self._rhs(other)
         return PolarsTimeseries(lhs + self._vec, self._axis, self._name, scalar_type)
 
+    @overload
     def __sub__(
-        self, other: VectorOps[Scalar] | ScalarU
+        self: PolarsTimeseries[int],
+        other: int | VectorOps[int],
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def __sub__(
+        self: PolarsTimeseries[int],
+        other: float | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def __sub__(
+        self: PolarsTimeseries[float],
+        other: int | float | VectorOps[int] | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    def __sub__(
+        self, other: VectorOps | int | float
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         rhs, scalar_type = self._rhs(other)
         return PolarsTimeseries(self._vec - rhs, self._axis, self._name, scalar_type)
 
+    @overload
     def __rsub__(
-        self, other: VectorOps[Scalar] | ScalarU
+        self: PolarsTimeseries[int],
+        other: int | VectorOps[int],
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def __rsub__(
+        self: PolarsTimeseries[int],
+        other: float | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def __rsub__(
+        self: PolarsTimeseries[float],
+        other: int | float | VectorOps[int] | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    def __rsub__(
+        self, other: VectorOps | int | float
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         lhs, scalar_type = self._rhs(other)
         return PolarsTimeseries(lhs - self._vec, self._axis, self._name, scalar_type)
 
+    @overload
     def __mul__(
-        self, other: VectorOps[Scalar] | ScalarU
+        self: PolarsTimeseries[int],
+        other: int | VectorOps[int],
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def __mul__(
+        self: PolarsTimeseries[int],
+        other: float | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def __mul__(
+        self: PolarsTimeseries[float],
+        other: int | float | VectorOps[int] | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    def __mul__(
+        self, other: VectorOps | int | float
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         rhs, scalar_type = self._rhs(other)
         return PolarsTimeseries(self._vec * rhs, self._axis, self._name, scalar_type)
 
+    @overload
     def __rmul__(
-        self, other: VectorOps[Scalar] | ScalarU
+        self: PolarsTimeseries[int],
+        other: int | VectorOps[int],
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def __rmul__(
+        self: PolarsTimeseries[int],
+        other: float | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def __rmul__(
+        self: PolarsTimeseries[float],
+        other: int | float | VectorOps[int] | VectorOps[float],
+    ) -> PolarsTimeseries[float]: ...
+
+    def __rmul__(
+        self, other: VectorOps | int | float
     ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         lhs, scalar_type = self._rhs(other)
         return PolarsTimeseries(lhs * self._vec, self._axis, self._name, scalar_type)
@@ -251,11 +359,32 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     def plot(self) -> TimeseriesPlotAccessor:
         return PolarsTimeseriesPlotAccessor(self)
 
+    @overload
     def from_vectors(
-        values: Iterable[Scalar],
+        values: Iterable[int],
         periods: Iterable[np.datetime64],
         name: str = "",
-    ) -> PolarsTimeseries[Scalar]:
+    ) -> PolarsTimeseries[int]: ...
+
+    @overload
+    def from_vectors(
+        values: Iterable[float],
+        periods: Iterable[np.datetime64],
+        name: str = "",
+    ) -> PolarsTimeseries[float]: ...
+
+    @overload
+    def from_vectors(
+        values: Iterable[int | float],
+        periods: Iterable[np.datetime64],
+        name: str = "",
+    ) -> PolarsTimeseries[float]: ...
+
+    def from_vectors(
+        values: Iterable[int | float],
+        periods: Iterable[np.datetime64],
+        name: str = "",
+    ) -> PolarsTimeseries[int] | PolarsTimeseries[float]:
         values_series = pl.Series(np.asarray(values))
         periods_series = pl.Series(
             np.asarray(periods, dtype="datetime64[us]"), dtype=pl.Datetime("us")

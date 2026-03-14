@@ -32,7 +32,11 @@ class PastViewPlotAccessor(ABC):
     def __init__(self, obj): ...
 
     @abstractmethod
-    def __call__(self, kind: Literal["bar", "line"] = "line", **kwargs): ...
+    def __call__(
+        self,
+        kind: Literal["bar", "line"] = "line",
+        **kwargs,
+    ) -> Any: ...
 
     @abstractmethod
     def bar(
@@ -134,7 +138,11 @@ class TimeseriesPlotAccessor(ABC):
         ...
 
     @abstractmethod
-    def kde(self, color="steelblue", **kwargs) -> Any: ...
+    def kde(
+        self,
+        color="steelblue",
+        **kwargs,
+    ) -> Any: ...
 
 
 class ByPeriodPlotAccessor(ABC):

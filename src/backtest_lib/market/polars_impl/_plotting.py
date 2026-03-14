@@ -33,7 +33,11 @@ class PolarsPastViewPlotAccessor(PastViewPlotAccessor):
     def __init__(self, obj: PolarsPastView):
         self._obj = obj
 
-    def __call__(self, kind: Literal["bar", "line"] = "line", **kwargs):
+    def __call__(
+        self,
+        kind: Literal["bar", "line"] = "line",
+        **kwargs,
+    ):
         if kind == "bar":
             return self.bar(**kwargs)
         elif kind == "line":
@@ -211,7 +215,11 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
             .encode(x="date:T", y="value", **kwargs)
         )
 
-    def hist(self, bins: int = 20, **kwargs) -> alt.Chart:
+    def hist(
+        self,
+        bins: int = 20,
+        **kwargs,
+    ) -> alt.Chart:
         """Histogram of the values."""
         return (
             alt.Chart(self._series.to_frame())
@@ -224,7 +232,11 @@ class PolarsTimeseriesPlotAccessor(TimeseriesPlotAccessor):
             .interactive()
         )
 
-    def kde(self, color="steelblue", **kwargs) -> alt.Chart:
+    def kde(
+        self,
+        color="steelblue",
+        **kwargs,
+    ) -> alt.Chart:
         """KDE Plot of values."""
         return (
             alt.Chart(self._series.to_frame())
@@ -255,7 +267,7 @@ class PolarsByPeriodPlotAccessor(ByPeriodPlotAccessor):
     ) -> alt.LayerChart:
         charts = [
             self._obj[idx].plot.stacked_bar(
-                bar_label=period, bar_label_encoding_type="T"
+                bar_label=cast(str, period), bar_label_encoding_type="T"
             )
             for idx, period in enumerate(self._obj)
         ]

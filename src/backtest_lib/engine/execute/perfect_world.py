@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(slots=True)
 class _ValueReallocation:
-    inner: UniverseMapping[int]
+    inner: UniverseMapping[float]
 
 
 @dataclass(slots=True)
