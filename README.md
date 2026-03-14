@@ -1,6 +1,6 @@
-# backtest-lib (name in progress)
+# backtest-lib
 
-## Usage (wip)
+## Usage
 
 ### Strategy
 
