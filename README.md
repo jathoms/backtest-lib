@@ -2,6 +2,36 @@
 
 ## Usage
 
+### Quickstart
+
+Below is an example of a buy-and-hold strategy uniform over the entire universe specified by the data in `spot_prices.csv`.
+
+```python
+import polars as pl
+
+import backtest_lib as btl
+from backtest_lib.portfolio import uniform_portfolio
+
+prices = pl.read_csv("docs/assets/data/spot_prices.csv")
+market = btl.MarketView(prices)
+
+initial_portfolio = uniform_portfolio(market.securities, value=1_000_000)
+
+
+def buy_and_hold(universe, current_portfolio, market, ctx):
+    return btl.hold()
+
+
+backtest = btl.Backtest(
+    strategy=buy_and_hold,
+    market_view=market,
+    initial_portfolio=initial_portfolio,
+)
+results = backtest.run()
+
+print("total return:", results.total_return)
+```
+
 ### Strategy
 
 This library provides a lightweight framework for backtesting trading strategies. At its core, you define a strategy as a simple Python function that maps the current market state and portfolio into a decision about what to hold next. The library handles the rest: simulating trades over time, applying your decision rules at an optionally specified frequency, and generating performance statistics.
