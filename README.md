@@ -1,5 +1,9 @@
 # backtest-lib
 
+[![PyPI](https://img.shields.io/pypi/v/backtest-lib)](https://pypi.org/project/backtest-lib/)
+[![Tests](https://github.com/jathoms/backtest-lib/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/jathoms/backtest-lib/actions/workflows/unit-tests.yml/badge.svg)
+[![Python](https://img.shields.io/pypi/pyversions/backtest-lib)](https://pypi.org/project/backtest-lib/)
+
 Find the full reference docs [here](https://jathoms.github.io/backtest-lib)
 
 ## Usage
