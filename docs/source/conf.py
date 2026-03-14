@@ -9,7 +9,7 @@ doctest_default_flags = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
 project = "backtest-lib"
 author = "jathoms"
 copyright = f"{date.today().year}, {author}"
-release = "0.0.0"
+release = "0.1.0"
 
 extensions = [
     "sphinx.ext.doctest",
