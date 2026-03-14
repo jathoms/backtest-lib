@@ -29,7 +29,11 @@ backtest = btl.Backtest(
 results = backtest.run()
 
 print("total return:", results.total_return)
+
+results.values_held.plot().properties(width=1000, height=600)
+
 ```
+Output: ![The output chart of the above result](docs/assets/chart.svg)
 
 ### Strategy
 
