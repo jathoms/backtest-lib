@@ -292,13 +292,21 @@ class PolarsBySecurityPlotAccessor(BySecurityPlotAccessor):
                 variable_name="series",
                 value_name="value",
             )
+            max_y = cast(float, df_long["value"].max()) * (1 + y_padding)
+            min_y = cast(float, df_long["value"].min()) * (1 - y_padding)
 
             chart = (
                 alt.Chart(df_long)
                 .mark_line()
                 .encode(
                     x=alt.X("date:T"),
-                    y=alt.Y("value:Q"),
+                    y=alt.Y(
+                        "value:Q",
+                        scale=alt.Scale(
+                            domain=[min_y, max_y],
+                            clamp=True,
+                        ),
+                    ),
                     color=alt.Color("series:N"),
                     tooltip=[
                         alt.Tooltip("series:N"),
