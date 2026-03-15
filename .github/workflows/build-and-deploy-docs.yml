@@ -1,16 +1,19 @@
-name: CI - Build docs - Deploy on push to main
+name: CI - Build docs - Deploy on release tags
 
 on:
   push:
     branches: [ main ]
+    tags:
+      - "v*"
     paths:
       - "docs/**"
       - "**/*.py"
-      - ".github/workflows/build-docs.yml"
+      - ".github/workflows/build-and-deploy-docs.yml"
   pull_request:
     paths:
       - "docs/**"
-      - ".github/workflows/build-docs.yml"
+      - "**/*.py"
+      - ".github/workflows/build-and-deploy-docs.yml"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -34,12 +37,12 @@ jobs:
       - name: Build docs
         run: just docs
       - name: Upload pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
         with:
           path: docs/_build/html
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
         id: deployment
         uses: actions/deploy-pages@v4
   doctest:

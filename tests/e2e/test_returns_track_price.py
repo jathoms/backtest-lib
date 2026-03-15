@@ -19,7 +19,7 @@ def test_returns_track_price_when_portfolio_is_one_security(single_security_mark
         total_value=initial_capital,
     )
 
-    def strategy(*args, **kwargs) -> Decision:
+    def strategy() -> Decision:
         return hold()
 
     backtest = btl.Backtest(

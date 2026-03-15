@@ -10,7 +10,7 @@ def test_over_single_market_movement(simple_market):
     initial_capital = 1_000_000
     initial_portfolio = btl.uniform_portfolio(market.securities, value=initial_capital)
 
-    def strategy(*args, **kwargs) -> Decision:
+    def strategy() -> Decision:
         return target_weights({"sec1": 0.5, "sec2": 0.5})
 
     backtest = btl.Backtest(

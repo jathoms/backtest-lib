@@ -6,10 +6,9 @@ Strategy
 Strategy Interface
 ------------------
 
-.. autosummary::
-   :toctree: api/
+.. automodule:: backtest_lib.strategy
+   :members:
 
-   Strategy
 
 Strategy Context
 ----------------
@@ -17,4 +16,4 @@ Strategy Context
 .. autosummary::
    :toctree: api/
 
-   strategy.context.StrategyContext
+   context.StrategyContext
