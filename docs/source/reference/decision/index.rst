@@ -1,3 +1,5 @@
+.. _decision-reference:
+
 ========
 Decision
 ========

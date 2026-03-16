@@ -1,3 +1,5 @@
+.. _engine-decision-types:
+
 Decision Types
 ==============
 
