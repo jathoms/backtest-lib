@@ -45,52 +45,54 @@ Output: ![The output chart of the above result](docs/assets/chart.svg)
 
 This library provides a lightweight framework for backtesting trading strategies. At its core, you define a strategy as a simple Python function that maps the current market state and portfolio into a decision about what to hold next. The library handles the rest: simulating trades over time, applying your decision rules at an optionally specified frequency, and generating performance statistics.
 
-A strategy must conform to the following structure:
+A strategy is any callable that returns a `Decision`:
 
 ```python
-class Strategy(Protocol):
-    def __call__(
-        self,
-        universe: Universe,
-        current_portfolio: WeightedPortfolio,
-        market: MarketView,
-        ctx: StrategyContext | None,
-    ) -> Decision: ...
+Strategy = Callable[..., Decision]
 ```
 
-_In short, a function is called a strategy as long as it takes the universe, the current holdings, a market view, and additional context as parameters, and returns a Decision, which can be constructed using the functions provided in the `decision` module, re-exported at the library root for convenience._
+Inputs are injected by parameter name (pytest-fixture style). Your strategy can request any subset of:
 
-As inputs, the strategy receives the available universe, current holdings, a view of the market, and a context object for state.
+- `universe`: `tuple[str, ...]`
+- `current_portfolio`: `backtest_lib.portfolio.Portfolio`
+- `market`: `backtest_lib.market.MarketView`
+- `ctx`: `backtest_lib.strategy.context.StrategyContext`
 
-For outputs, the strategy emits a Decision for each decision point in the _decision schedule_ 
+At each decision point in the decision schedule, your strategy returns one `Decision` object.
 
-An toy example strategy can be written as follows, where we allocate our holdings uniformly across our universe:
-
-```python
-from backtest_lib import target_weights
-
-def equal_weight_strategy(
-    universe,
-    current_portfolio,
-    market,
-    ctx,
-):
-    return target_weights({sec: 1/len(universe) for sec in universe})
-```
-
-Or alternatively, another trivial strategy where we do nothing after creating our initial portfolio:
+Examples:
 
 ```python
-from backtest_lib import hold
+from backtest_lib import hold, target_weights
 
-def buy_and_hold_strategy(
-    universe,
-    current_portfolio,
-    market,
-    ctx,
-):
+
+def equal_weight_strategy(universe):
+    return target_weights({sec: 1 / len(universe) for sec in universe})
+
+
+def buy_and_hold_strategy():
     return hold()
+
+
+def monthly_rebalance(universe, market, ctx):
+    if ctx.now.day != 1 or len(market.prices.close.by_period) < 21:
+        return hold()
+    latest = market.prices.close.by_period[-1]
+    month_ago = market.prices.close.by_period[-21]
+    strength = {
+        sec: max(latest[sec] / month_ago[sec] - 1.0, 0.0)
+        for sec in universe
+    }
+    total = sum(strength.values())
+    if total == 0:
+        return hold()
+    return target_weights(
+        {sec: score / total for sec, score in strength.items()},
+        fill_cash=True,
+    )
 ```
+
+`Decision` objects are created with helper functions such as `hold`, `trade`, `target_weights`, `target_holdings`, `reallocate`, and `combine` (all re-exported from `backtest_lib`).
 
 ## Market
 
@@ -122,11 +124,9 @@ Assuming we are using daily data, we can implement a momentum/volume filter stra
 
 ```python
 def aapl_momentum_with_liquidity(
-    universe: Universe,
-    current_holdings: Holdings,
-    market: MarketView,
-    ctx: StrategyContext,
-) -> Decision:
+    universe,
+    market,
+):
     if "AAPL" not in universe:
         return hold()
     aapl_close = market.prices.close.by_security["AAPL"]
@@ -165,7 +165,7 @@ def aapl_momentum_with_liquidity(
 
 ## Building
 
-- get python 3.13
+- get python 3.14
 - run `pip install uv`
 - run `uv run python --version` and it will create a venv for you
 
