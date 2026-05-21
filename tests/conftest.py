@@ -30,3 +30,9 @@ def simple_market(test_data_dir) -> MarketView:
     data = read_csv(test_data_dir / "simple_market.csv")
     market = MarketView(data)
     return market
+
+
+@pytest.fixture(scope="session")
+def spike_market(test_data_dir) -> MarketView:
+    data = read_csv(test_data_dir / "spike_market.csv")
+    return MarketView(data)

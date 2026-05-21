@@ -173,16 +173,36 @@ class Backtest:
         output_holdings: list[VectorMapping[str, float]] = []
 
         self._current_portfolio = self.initial_portfolio
-        yesterday_prices = self.market_view.prices.close.by_period[0]
 
-        for i in range(1, len(self.market_view.periods) + 1):
+        # no decision on the first period, as there is
+        # no data to base the decision off of yet.
+        portfolio_after_decision = self.initial_portfolio
+
+        output_holdings.append(
+            self.initial_portfolio.into_weighted(
+                self.market_view.prices.close.by_period[0]
+            ).holdings
+        )
+        for i in range(1, len(self.market_view.periods)):
             past_market_view = self.market_view.truncated_to(i)
-            today_prices = past_market_view.prices.close.by_period[-1]
-            ctx.now = _to_pydt(self.market_view.periods[i - 1])
+            today_prices = self.market_view.prices.close.by_period[i]
+            yesterday_prices = self.market_view.prices.close.by_period[i - 1]
+            ctx.now = _to_pydt(self.market_view.periods[i])
             logger.debug(
                 f"Starting period {i} ({ctx.now}). Current total portfolio value:"
                 f" {self._current_portfolio.total_value}",
             )
+            pct_change = today_prices / yesterday_prices
+
+            # TODO: the weights can be calculated as part of the results calculation,
+            pf_as_weights = portfolio_after_decision.into_weighted(prices=today_prices)
+            inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
+                pf_as_weights,
+                pct_change,
+            )
+            output_holdings.append(pf_as_weights.holdings)
+            self._current_portfolio = inter_day_adjusted_portfolio
+
             if ctx.now >= _to_pydt(next_decision_period):
                 advance_schedule = True
                 # NOTE: we are using close prices here. this is an implicit assumption.
@@ -192,7 +212,7 @@ class Backtest:
                     portfolio=self._current_portfolio,
                     market=past_market_view,
                     ctx=ctx,
-                    prices=yesterday_prices,
+                    prices=today_prices,
                 )
 
                 portfolio_after_decision = result.after
@@ -209,21 +229,7 @@ class Backtest:
                     )
             else:
                 portfolio_after_decision = self._current_portfolio
-            # TODO: the weights can be calculated as part of the results calculation,
-            pf_as_weights = portfolio_after_decision.into_weighted(
-                prices=yesterday_prices
-            )
-            output_holdings.append(pf_as_weights.holdings)
 
-            pct_change = today_prices / yesterday_prices
-
-            inter_day_adjusted_portfolio = _apply_inter_period_price_changes(
-                pf_as_weights,
-                pct_change,
-            )
-
-            self._current_portfolio = inter_day_adjusted_portfolio
-            yesterday_prices = today_prices
             if advance_schedule:
                 try:
                     next_decision_period = next(schedule_it)
@@ -239,11 +245,11 @@ class Backtest:
             self._backend
         ).from_security_mappings(
             output_holdings,
-            self.market_view.periods[:i],
+            self.market_view.periods[: i + 1],
         )
         results = BacktestResults.from_weights_market_initial_capital(
             weights=allocation_history,
-            market=self.market_view.truncated_to(i),
+            market=self.market_view.truncated_to(i + 1),
             backend=self._backend,
             initial_capital=self.initial_portfolio.total_value,
         )
