@@ -190,7 +190,7 @@ class Backtest:
                 result = self._engine.execute_strategy(
                     strategy=self.strategy,
                     portfolio=self._current_portfolio,
-                    market=self.market_view,
+                    market=past_market_view,
                     ctx=ctx,
                     prices=yesterday_prices,
                 )
