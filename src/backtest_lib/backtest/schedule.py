@@ -162,7 +162,7 @@ class _IterFactoryIterable[T]:
 
 def _raise_iterator_input_error(schedule: object) -> None:
     raise TypeError(
-        "decision_schedule(...) requires a re-iterable schedule (e.g.,"
+        "make_decision_schedule(...) requires a re-iterable schedule (e.g.,"
         f" list/tuple/range), not passed type {type(schedule)}. If you need to stream"
         " non-materialized values, use decision_schedule_factory(f) where `f` is a"
         " function that yields the values of your schedule "
