@@ -12,7 +12,7 @@ from backtest_lib.market._backends import _get_mapping_type_from_backend
 from backtest_lib.portfolio import Portfolio
 from backtest_lib.universe.universe_mapping import UniverseMapping
 
-TPlanOp_contra = TypeVar("TPlanOp_contra", bound=PlanOp, infer_variance=True)
+TPlanOp_contra = TypeVar("TPlanOp_contra", bound=PlanOp, contravariant=True)
 
 
 class PlanExecutor[TPlanOp_contra](Protocol):

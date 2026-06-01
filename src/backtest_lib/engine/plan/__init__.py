@@ -46,7 +46,7 @@ class PlanOp:
     ...
 
 
-TPlanOp_co = TypeVar("TPlanOp_co", bound=PlanOp, infer_variance=True)
+TPlanOp_co = TypeVar("TPlanOp_co", bound=PlanOp, covariant=True)
 T_co = TypeVar("T_co", covariant=True)
 
 

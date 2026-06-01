@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Literal
+from typing import Literal, cast
 
 
 class ReallocationMode(StrEnum):
@@ -36,7 +36,7 @@ class DecisionBase:
     form composite decisions.
     """
 
-    def __add__(self: Decision, other: Decision) -> Decision:
+    def __add__(self, other: Decision) -> Decision:
         """Combine two decisions into a composite decision.
 
         ``HoldDecision`` acts as the identity element. When either side is a
@@ -46,8 +46,12 @@ class DecisionBase:
         if isinstance(self, HoldDecision):
             return other
         if isinstance(other, HoldDecision):
-            return self
-        left = self.decisions if isinstance(self, CompositeDecision) else (self,)
+            return cast(Decision, self)
+        left: tuple[Decision, ...]
+        if isinstance(self, CompositeDecision):
+            left = self.decisions
+        else:
+            left = (cast(Decision, self),)
         right = other.decisions if isinstance(other, CompositeDecision) else (other,)
         return CompositeDecision(left + right)
 

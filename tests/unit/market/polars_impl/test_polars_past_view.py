@@ -112,10 +112,20 @@ def test_by_security_single_series(small_past_view: PolarsPastView) -> None:
     assert len(series) == 3
 
 
+@pytest.mark.parametrize(
+    "key",
+    [
+        ["BBB", "AAA"],
+        ("BBB", "AAA"),
+        pl.Series(["BBB", "AAA"]),
+        (name for name in ["BBB", "AAA"]),
+    ],
+)
 def test_by_security_selection_returns_past_view(
     small_past_view: PolarsPastView,
+    key,
 ) -> None:
-    subset = small_past_view.by_security[["BBB", "AAA"]]
+    subset = small_past_view.by_security[key]  # type: ignore[index]
     assert subset.securities == ("BBB", "AAA")
     assert subset.by_security["BBB"].to_series().to_list() == [10.0, 20.0, 30.0]
     assert subset.by_security["AAA"].to_series().to_list() == [1.0, 2.0, 3.0]

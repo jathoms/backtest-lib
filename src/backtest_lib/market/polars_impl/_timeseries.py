@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import (
     TYPE_CHECKING,
     Literal,
-    Self,
     TypeVar,
     overload,
 )
@@ -86,11 +85,11 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     @overload
     def __getitem__(
         self, key: slice
-    ) -> (
-        Self
-    ): ...  # can clone, must provide exact items in the index or integer indices
+    ) -> PolarsTimeseries[
+        T
+    ]: ...  # can clone, must provide exact items in the index or integer indices
 
-    def __getitem__(self, key: int | slice) -> T | Self:
+    def __getitem__(self, key: int | slice) -> T | PolarsTimeseries[T]:
         if isinstance(key, int):
             val: T = self._scalar_type(self._vec[key])
             return val
@@ -100,7 +99,9 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
                 self._vec[key], self._axis.slice(key), self._name, self._scalar_type
             )
 
-    def before(self, end: np.datetime64 | str, *, inclusive=False) -> Self:
+    def before(
+        self, end: np.datetime64 | str, *, inclusive=False
+    ) -> PolarsTimeseries[T]:
         end = to_npdt64(end)
         left, right = self._axis.bounds_before(end, inclusive=inclusive)
         return PolarsTimeseries(
@@ -110,7 +111,9 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             self._scalar_type,
         )
 
-    def after(self, start: np.datetime64 | str, *, inclusive=True) -> Self:
+    def after(
+        self, start: np.datetime64 | str, *, inclusive=True
+    ) -> PolarsTimeseries[T]:
         start = to_npdt64(start)
         left, right = self._axis.bounds_after(start, inclusive=inclusive)
         return PolarsTimeseries(
@@ -126,7 +129,7 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
         end: np.datetime64 | str,
         *,
         closed: str = "left",
-    ) -> Self:
+    ) -> PolarsTimeseries[T]:
         start = to_npdt64(start)
         end = to_npdt64(end)
         left, right = self._axis.bounds_between(start, end, closed=closed)
@@ -144,9 +147,7 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
         return len(self._axis)
 
     @overload
-    def to_series(self, backend: Literal["polars"]) -> pl.Series: ...
-    @overload
-    def to_series(self, backend=...) -> pl.Series: ...
+    def to_series(self, backend: Literal["polars"] = "polars") -> pl.Series: ...
     @overload
     def to_series(self, backend: Literal["pandas"]) -> pd.Series: ...
     def to_series(
@@ -332,7 +333,10 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
         return self._scalar_type(self._vec.sum())
 
     def mean(self) -> T:
-        return self._scalar_type(self._vec.mean())
+        mean = self._vec.mean()
+        if not isinstance(mean, (int, float)):
+            raise TypeError(f"mean() returned non-numeric value {mean!r}")
+        return self._scalar_type(mean)
 
     def abs(self) -> PolarsTimeseries[T]:
         return PolarsTimeseries[T](
@@ -359,28 +363,36 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
     def plot(self) -> TimeseriesPlotAccessor:
         return PolarsTimeseriesPlotAccessor(self)
 
+    @classmethod
     @overload
     def from_vectors(
+        cls,
         values: Iterable[int],
         periods: Iterable[np.datetime64],
         name: str = "",
     ) -> PolarsTimeseries[int]: ...
 
+    @classmethod
     @overload
     def from_vectors(
+        cls,
         values: Iterable[float],
         periods: Iterable[np.datetime64],
         name: str = "",
     ) -> PolarsTimeseries[float]: ...
 
+    @classmethod
     @overload
     def from_vectors(
+        cls,
         values: Iterable[int | float],
         periods: Iterable[np.datetime64],
         name: str = "",
     ) -> PolarsTimeseries[float]: ...
 
+    @classmethod
     def from_vectors(
+        cls,
         values: Iterable[int | float],
         periods: Iterable[np.datetime64],
         name: str = "",
@@ -407,6 +419,6 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
 
         period_axis = PeriodAxis.from_series(periods_series)
 
-        return PolarsTimeseries(
+        return cls(
             _vec=values_series, _axis=period_axis, _name=name, _scalar_type=values_dtype
         )

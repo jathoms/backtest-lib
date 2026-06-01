@@ -28,6 +28,7 @@ class UniverseMapping[Scalar: (float, int)](VectorMapping[str, Scalar], ABC):
     """
 
     @property
+    @abstractmethod
     def plot(self) -> UniverseMappingPlotAccessor:
         """Return the plotting accessor for the mapping."""
         ...

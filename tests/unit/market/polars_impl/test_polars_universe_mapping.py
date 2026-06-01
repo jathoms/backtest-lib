@@ -37,13 +37,22 @@ def test_from_names_and_data_length_mismatch(names: tuple[str, ...]) -> None:
         PolarsUniverseMapping.from_names_and_data(names, data)
 
 
-def test_getitem_list_order(names: tuple[str, ...]) -> None:
+@pytest.mark.parametrize(
+    "key",
+    [
+        ["CCC", "AAA"],
+        ("CCC", "AAA"),
+        pl.Series(["CCC", "AAA"]),
+        (name for name in ["CCC", "AAA"]),
+    ],
+)
+def test_getitem_multi_key_order(names: tuple[str, ...], key) -> None:
     mapping = PolarsUniverseMapping.from_vectors(names, [1.0, 2.0, 3.0])
-    result = mapping[["CCC", "AAA"]]
+    result = mapping[key]  # type: ignore[index]
     assert result.to_list() == [3.0, 1.0]
 
 
-@pytest.mark.parametrize("key", [1, ("AAA", "BBB")])
+@pytest.mark.parametrize("key", [1])
 def test_getitem_invalid_type(names: tuple[str, ...], key) -> None:
     mapping = PolarsUniverseMapping.from_vectors(names, [1, 2, 3])
     with pytest.raises(ValueError):

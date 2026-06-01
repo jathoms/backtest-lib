@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 Other_scalar = TypeVar("Other_scalar", float, int)
 ScalarU = float | int
+KeySelection = Iterable[str]
 
 
 @dataclass(frozen=True, init=False)
@@ -87,18 +88,16 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
     def __getitem__(self, key: str) -> T: ...
 
     @overload
-    def __getitem__(self, key: Iterable[str]) -> pl.Series: ...
+    def __getitem__(self, key: KeySelection) -> pl.Series: ...
 
-    def __getitem__(self, key: str | Iterable[str]) -> T | pl.Series:
+    def __getitem__(self, key: str | KeySelection) -> T | pl.Series:
         if isinstance(key, str):
             return self._scalar_type(self._data.item(self.pos[key]))
-        elif isinstance(key, list):
-            idx = np.fromiter(
-                (self.pos[k] for k in key), dtype=np.int64, count=len(key)
-            )
-            return self._data.gather(idx)
-        else:
+        if not isinstance(key, Iterable):
             raise ValueError(f"Unsupported index '{key}' with type {type(key)}")
+
+        idx = np.fromiter((self.pos[k] for k in key), dtype=np.int64)
+        return self._data.gather(idx)
 
     def __iter__(self) -> Iterator[str]:
         return iter(self.names)
@@ -189,9 +188,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
                 return other.__rmul__(self)
             else:
                 return NotImplemented
-        return PolarsUniverseMapping[new_type](
-            self.names, self._data * rhs, self.pos, new_type
-        )
+        return PolarsUniverseMapping(self.names, self._data * rhs, self.pos, new_type)
 
     def __rmul__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -233,8 +230,10 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         if not (dt.is_numeric()):
             raise TypeError(f"mean() only supported on numeric dtypes, got {dt!r}")
         m = self._data.mean()
-        if m is None:
-            raise ValueError("Mean of empty series")
+        if not isinstance(m, (int, float)):
+            if m is None:
+                raise ValueError("Mean of empty series")
+            raise TypeError(f"mean() returned non-numeric value {m!r}")
         return self._scalar_type(m)
 
     def abs(self) -> PolarsUniverseMapping[T]:

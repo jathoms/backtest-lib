@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Iterator, Mapping, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import (
@@ -17,7 +17,13 @@ import numpy as np
 import polars as pl
 from polars.exceptions import InvalidOperationError
 
-from backtest_lib.market import ByPeriod, BySecurity, Closed, PastView
+from backtest_lib.market import (
+    ByPeriod,
+    BySecurity,
+    Closed,
+    PastView,
+    SecuritySelection,
+)
 from backtest_lib.market.plotting import (
     ByPeriodPlotAccessor,
     BySecurityPlotAccessor,
@@ -302,10 +308,10 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
     @overload
     def __getitem__(self, key: str) -> PolarsTimeseries: ...
     @overload
-    def __getitem__(self, key: Iterable[str]) -> PolarsPastView: ...
+    def __getitem__(self, key: SecuritySelection) -> PolarsPastView: ...
 
     def __getitem__(
-        self, key: str | Iterable[str]
+        self, key: str | SecuritySelection
     ) -> PolarsTimeseries | PolarsPastView:
         if isinstance(key, str):
             if self._sel_names is not None and key not in self._sel_names:
@@ -333,7 +339,10 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
             )
             return PolarsTimeseries(s, pax, key, float)
 
-        names = tuple(key)
+        try:
+            names = tuple(key)
+        except TypeError as e:
+            raise ValueError(f"Unsupported index '{key}' with type {type(key)}") from e
         idx = np.fromiter(
             (self._security_axis.pos[n] for n in names),
             dtype=np.int64,
@@ -455,29 +464,8 @@ class PolarsPastView[ValueT: (float, int)](PastView[ValueT, np.datetime64]):
         return self._security_axis.names
 
     @staticmethod
-    @overload
     def from_security_mappings(
-        ms: SecurityMappings[int],
-        periods: Sequence[np.datetime64],
-    ) -> PolarsPastView[int]: ...
-
-    @staticmethod
-    @overload
-    def from_security_mappings(
-        ms: SecurityMappings[float],
-        periods: Sequence[np.datetime64],
-    ) -> PolarsPastView[float]: ...
-
-    @staticmethod
-    @overload
-    def from_security_mappings(
-        ms: Sequence[Mapping[str, float | int]],
-        periods: Sequence[np.datetime64],
-    ) -> PolarsPastView[float]: ...
-
-    @staticmethod
-    def from_security_mappings(
-        ms: Sequence[Mapping[str, float | int]],
+        ms: SecurityMappings[int] | SecurityMappings[float],
         periods: Sequence[np.datetime64],
     ) -> PolarsPastView[int] | PolarsPastView[float]:
         if not ms or any(not m for m in ms):
