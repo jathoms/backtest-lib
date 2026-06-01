@@ -153,7 +153,7 @@ class Backtest:
                 end=market_view.periods[-1],
             )
         elif decision_schedule is None:
-            self._schedule = make_decision_schedule(market_view.periods)
+            self._schedule = make_decision_schedule(market_view.periods[1:])
         else:
             self._schedule = decision_schedule
         self._backend = backend
