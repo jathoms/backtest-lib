@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Iterable, Iterator
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -27,10 +27,13 @@ BoolLike = bool | np.bool | np.bool_ | NDArray[np.bool_]
 
 @runtime_checkable
 class Comparable(Protocol):
-    __lt__: Callable[[Any], Any]
-    __le__: Callable[[Any], Any]
-    __gt__: Callable[[Any], Any]
-    __ge__: Callable[[Any], Any]
+    def __lt__(self, other: Any, /) -> Any: ...
+
+    def __le__(self, other: Any, /) -> Any: ...
+
+    def __gt__(self, other: Any, /) -> Any: ...
+
+    def __ge__(self, other: Any, /) -> Any: ...
 
 
 class Timeseries[Scalar: (float, int), Index: Comparable](VectorOps[Scalar], ABC):
@@ -77,10 +80,7 @@ class Timeseries[Scalar: (float, int), Index: Comparable](VectorOps[Scalar], ABC
     def __len__(self) -> int: ...
 
     @overload
-    def to_series(self, backend: Literal["polars"]) -> pl.Series: ...
-
-    @overload
-    def to_series(self, backend=...) -> pl.Series: ...
+    def to_series(self, backend: Literal["polars"] = "polars") -> pl.Series: ...
 
     @overload
     def to_series(self, backend: Literal["pandas"]) -> pd.Series: ...
@@ -91,9 +91,13 @@ class Timeseries[Scalar: (float, int), Index: Comparable](VectorOps[Scalar], ABC
     ) -> pl.Series | pd.Series: ...
 
     @property
+    @abstractmethod
     def plot(self) -> TimeseriesPlotAccessor: ...
 
+    @classmethod
     @abstractmethod
     def from_vectors(
-        values: Iterable[Scalar], periods: Iterable[Index]
-    ) -> Timeseries[Scalar, Index]: ...
+        cls,
+        values: Iterable[Scalar],
+        periods: Iterable[Index],
+    ) -> Self: ...

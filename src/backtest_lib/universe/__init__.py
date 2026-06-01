@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from backtest_lib.market import PastView
@@ -33,7 +33,7 @@ class PastUniversePrices[Index: Comparable]:
     high: PastView[float, Index] | None = None
     low: PastView[float, Index] | None = None
 
-    def truncated_to(self, n_periods: int) -> Self:
+    def truncated_to(self, n_periods: int) -> PastUniversePrices[Index]:
         return PastUniversePrices(
             close=self.close.by_period[:n_periods],
             open=self.open.by_period[:n_periods] if self.open else None,
@@ -41,10 +41,11 @@ class PastUniversePrices[Index: Comparable]:
             high=self.high.by_period[:n_periods] if self.high else None,
         )
 
-    def filter_securities(self, securities: Sequence[str]) -> Self:
+    def filter_securities(self, securities: Sequence[str]) -> PastUniversePrices[Index]:
+        selected = tuple(securities)
         return PastUniversePrices(
-            close=self.close.by_security[securities],
-            open=self.open.by_security[securities] if self.open else None,
-            low=self.low.by_security[securities] if self.low else None,
-            high=self.high.by_security[securities] if self.high else None,
+            close=self.close.by_security[selected],
+            open=self.open.by_security[selected] if self.open else None,
+            low=self.low.by_security[selected] if self.low else None,
+            high=self.high.by_security[selected] if self.high else None,
         )

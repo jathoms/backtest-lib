@@ -6,7 +6,7 @@ from importlib.resources import files
 import numpy as np
 import pandas as pd
 import polars as pl
-import yfinance as yf
+import yfinance as yf  # type: ignore[import-untyped]
 
 import backtest_lib.examples
 from backtest_lib.market import MarketView, PastUniversePrices, PastView
@@ -55,8 +55,10 @@ def fetch_history_one(tickers, start, end=None, interval="1d"):
 
 def get_sp500_market_view(
     start: dt.datetime,
-    end: dt.datetime | None = dt.datetime.now(),
+    end: dt.datetime | None = None,
 ) -> MarketView[np.datetime64]:
+    effective_end = dt.datetime.now() if end is None else end
+
     changes = pkl.load(
         files(backtest_lib.examples).joinpath("sp500_changes.pkl").open("rb"),
     )
@@ -65,7 +67,7 @@ def get_sp500_market_view(
         files(backtest_lib.examples).joinpath("sp500_const.pkl").open("rb"),
     )
 
-    dates = pd.date_range(start, end, freq="B").values
+    dates = pd.date_range(start=start, end=effective_end, freq="B").values
 
     added = changes[["Effective Date", "Added"]]
     added.columns = added.columns.droplevel(0)

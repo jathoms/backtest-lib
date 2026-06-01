@@ -133,6 +133,7 @@ class VectorOps[Scalar: (int, float)](Sized, ABC):
             raise ValueError(f"mean of empty {type(self)}")
         return self.sum() / n
 
+    @abstractmethod
     def abs(self) -> Self: ...
 
     @abstractmethod

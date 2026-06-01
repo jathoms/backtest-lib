@@ -40,6 +40,7 @@ class Closed(StrEnum):
 type SecurityMappings[T: (float, int)] = (
     Sequence[VectorMapping[str, T]] | Sequence[Mapping[str, T]]
 )
+type SecuritySelection = Iterable[str]
 
 
 class SecurityAxisPolicy(Enum):
@@ -173,33 +174,9 @@ class PastView[ValueT: (float, int), Index: Comparable](ABC):
         ...
 
     @staticmethod
-    @overload
     @abstractmethod
     def from_security_mappings(
-        ms: SecurityMappings[int],
-        periods: Sequence[Index],
-    ) -> PastView[int, Index]: ...
-
-    @staticmethod
-    @overload
-    @abstractmethod
-    def from_security_mappings(
-        ms: SecurityMappings[float],
-        periods: Sequence[Index],
-    ) -> PastView[float, Index]: ...
-
-    @staticmethod
-    @overload
-    @abstractmethod
-    def from_security_mappings(
-        ms: Sequence[Mapping[str, float | int]],
-        periods: Sequence[Index],
-    ) -> PastView[float, Index]: ...
-
-    @staticmethod
-    @abstractmethod
-    def from_security_mappings(
-        ms: Sequence[Mapping[str, float | int]],
+        ms: SecurityMappings[int] | SecurityMappings[float],
         periods: Sequence[Index],
     ) -> PastView[int, Index] | PastView[float, Index]:
         """Build a view from security mappings and periods.
@@ -361,11 +338,11 @@ class BySecurity[ValueT: (float, int), Index: Comparable](ABC):
     def __getitem__(self, key: str) -> Timeseries[ValueT, Index]: ...
 
     @overload
-    def __getitem__(self, key: Iterable[str]) -> PastView[ValueT, Index]: ...
+    def __getitem__(self, key: SecuritySelection) -> PastView[ValueT, Index]: ...
 
     @abstractmethod
     def __getitem__(
-        self, key: str | Iterable[str]
+        self, key: str | SecuritySelection
     ) -> Timeseries[ValueT, Index] | PastView[ValueT, Index]:
         """Index by security name or collection of names.
 
@@ -681,7 +658,7 @@ class MarketView[Index: Comparable]:
             raise ValueError(f"Reference view '{spec}' is None for this MarketView")
         return view
 
-    def truncated_to(self, n_periods: int) -> Self:
+    def truncated_to(self, n_periods: int) -> MarketView[Index]:
         return MarketView(
             prices=self.prices.truncated_to(n_periods),
             volume=self.volume.by_period[:n_periods] if self.volume else None,
@@ -689,7 +666,7 @@ class MarketView[Index: Comparable]:
             signals={k: v.by_period[:n_periods] for k, v in self.signals.items()},
         )
 
-    def filter_securities(self, securities: Sequence[str]) -> Self:
+    def filter_securities(self, securities: Sequence[str]) -> MarketView[Index]:
         filtered_price = [
             sec for sec in securities if sec in self.prices.close.securities
         ]
