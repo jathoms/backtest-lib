@@ -28,6 +28,7 @@ dev = [
   "pandas>=2.3.1",
   "pandas-stubs>=2.3.3.251201",
   "pre-commit>=3.6.0",
+  "py-spy>=0.4.2",
   "pyarrow>=21.0.0",
   "pyrefly>=0.29.2",
   "pyright>=1.1.404",
@@ -82,6 +83,8 @@ project-excludes = [
 
 [tool.pytest]
 addopts = ["-m", "not benchmark"]
+log_cli = true
+log_cli_level = "DEBUG"
 
 [tool.ruff]
 line-length = 88
