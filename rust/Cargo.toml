@@ -1,0 +1,19 @@
+[package]
+name = "backtest-lib-extension"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+name = "_rs"
+
+[dependencies]
+anyhow = "1.0.102"
+arrow = "59.0.0"
+coalign = { path = "../../coalign/" }
+parquet = "59.0.0"
+polars-buffer = "0.54.4"
+polars-arrow = "0.54.4"
+polars-core = "0.54.4"
+pyo3 = { version = "0.28.3", features = ["experimental-inspect"] }
+pyo3-polars = "0.27.0"

@@ -13,6 +13,10 @@ def _get_pastview_type_from_backend(backend: str) -> type[PastView]:
         from backtest_lib.market.polars_impl import PolarsPastView
 
         return PolarsPastView
+    if backend == "native":
+        from backtest_lib.market.rust_impl import NativePastView
+
+        return NativePastView
     raise ValueError(f"Could not find data backend {backend}")
 
 
@@ -21,11 +25,15 @@ def _get_mapping_type_from_backend(backend: str) -> type[UniverseMapping]:
         from backtest_lib.market.polars_impl import PolarsUniverseMapping
 
         return PolarsUniverseMapping
+    if backend == "native":
+        from backtest_lib.market.rust_impl import NativeUniverseMapping
+
+        return NativeUniverseMapping
     raise ValueError(f"Could not find data backend {backend}")
 
 
 def _get_timeseries_type_from_backend(backend: str) -> type[Timeseries]:
-    if backend == "polars":
+    if backend == "polars" or backend == "native":
         from backtest_lib.market.polars_impl import PolarsTimeseries
 
         return PolarsTimeseries

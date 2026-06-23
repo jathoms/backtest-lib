@@ -33,3 +33,6 @@ docs/source/**/api/**
 
 # testing artifacts
 .coverage
+
+rust/target
+*.so

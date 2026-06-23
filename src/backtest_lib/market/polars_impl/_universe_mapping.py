@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 import logging
 from collections.abc import Iterable, Iterator, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     Any,
     SupportsFloat,
@@ -17,6 +17,7 @@ import polars as pl
 from backtest_lib.market.plotting import (
     UniverseMappingPlotAccessor,
 )
+from backtest_lib.market.polars_impl._axis import SecurityAxis
 from backtest_lib.market.polars_impl._helpers import POLARS_TO_PYTHON
 from backtest_lib.market.polars_impl._plotting import PolarsUniverseMappingPlotAccessor
 from backtest_lib.universe import Universe
@@ -39,9 +40,8 @@ KeySelection = Iterable[str]
 
 @dataclass(frozen=True, init=False)
 class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
-    names: Universe
+    axis: SecurityAxis
     _data: pl.Series
-    pos: dict[str, int] = field(repr=False)
     _scalar_type: type[T]
 
     @classmethod
@@ -51,35 +51,34 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         data: pl.Series,
         dtype: type[T] | None = None,
     ) -> PolarsUniverseMapping[T]:
-        return cls(
-            names=names,
-            _data=data,
-            pos={name: i for i, name in enumerate(names)},
-            _scalar_type=dtype,
-        )
+        return cls(SecurityAxis.from_names(names), data, dtype)
 
     def __init__(
         self,
-        names: Universe,
+        axis: SecurityAxis,
         _data: pl.Series,
-        pos: dict[str, int],
         _scalar_type: type[int] | type[float] | None = None,
     ):
-        n = len(names)
-        if len(_data) != n or len(pos) != n:
-            raise ValueError(
-                f"Row mapping misaligned: names={n}, _data={len(_data)}, pos={len(pos)}"
-            )
+        n = len(axis)
+        if len(_data) != n:
+            raise ValueError(f"Row mapping misaligned: names={n}, _data={len(_data)}")
         if _scalar_type is None:
             _scalar_type = POLARS_TO_PYTHON[_data.dtype]
         if _scalar_type is float and _data.dtype != pl.Float64:
             _data = _data.cast(pl.Float64)
         elif _scalar_type is int and _data.dtype != pl.Int64:
             _data = _data.cast(pl.Int64)
-        object.__setattr__(self, "names", names)
+        object.__setattr__(self, "axis", axis)
         object.__setattr__(self, "_data", _data)
-        object.__setattr__(self, "pos", pos)
         object.__setattr__(self, "_scalar_type", _scalar_type)
+
+    @property
+    def names(self) -> Universe:
+        return self.axis.names
+
+    @property
+    def pos(self) -> dict[str, int]:
+        return self.axis.pos
 
     def to_series(self) -> pl.Series:
         return self._data
@@ -114,7 +113,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
             return float(other), self._scalar_type
         elif isinstance(other, PolarsUniverseMapping):
             data = other._data
-            if other.names != self.names:
+            if other.axis != self.axis:
                 if not all(name in self.names for name in other.names):
                     logger.debug(f"lhs size: {len(self)}, rhs size: {len(other)}")
                     logger.debug(
@@ -150,7 +149,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         rhs, new_type = self._rhs(other)
         if rhs is _RHS_HANDOFF:
             return self.__radd__(other)
-        return PolarsUniverseMapping(self.names, self._data + rhs, self.pos, new_type)
+        return PolarsUniverseMapping(self.axis, self._data + rhs, new_type)
 
     def __radd__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -158,7 +157,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return PolarsUniverseMapping(self.names, lhs + self._data, self.pos, new_type)
+        return PolarsUniverseMapping(self.axis, lhs + self._data, new_type)
 
     def __sub__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -169,7 +168,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
                 return other.__rsub__(self)
             else:
                 return NotImplemented
-        return PolarsUniverseMapping(self.names, self._data - rhs, self.pos, new_type)
+        return PolarsUniverseMapping(self.axis, self._data - rhs, new_type)
 
     def __rsub__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -177,7 +176,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return PolarsUniverseMapping(self.names, lhs - self._data, self.pos, new_type)
+        return PolarsUniverseMapping(self.axis, lhs - self._data, new_type)
 
     def __mul__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -188,7 +187,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
                 return other.__rmul__(self)
             else:
                 return NotImplemented
-        return PolarsUniverseMapping(self.names, self._data * rhs, self.pos, new_type)
+        return PolarsUniverseMapping(self.axis, self._data * rhs, new_type)
 
     def __rmul__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -196,7 +195,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         lhs, new_type = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return PolarsUniverseMapping(self.names, lhs * self._data, self.pos, new_type)
+        return PolarsUniverseMapping(self.axis, lhs * self._data, new_type)
 
     def __truediv__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -207,9 +206,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
                 return other.__rtruediv__(self)
             else:
                 return NotImplemented
-        return PolarsUniverseMapping[float](
-            self.names, self._data / rhs, self.pos, float
-        )
+        return PolarsUniverseMapping[float](self.axis, self._data / rhs, float)
 
     def __rtruediv__(
         self, other: VectorOps[Other_scalar] | ScalarU | Mapping
@@ -217,9 +214,7 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         lhs, _ = self._rhs(other)
         if lhs is _RHS_HANDOFF:
             return NotImplemented
-        return PolarsUniverseMapping[float](
-            self.names, lhs / self._data, self.pos, float
-        )
+        return PolarsUniverseMapping[float](self.axis, lhs / self._data, float)
 
     def sum(self) -> T:
         return self._scalar_type(self._data.sum())
@@ -237,22 +232,13 @@ class PolarsUniverseMapping[T: (float, int)](UniverseMapping[T]):
         return self._scalar_type(m)
 
     def abs(self) -> PolarsUniverseMapping[T]:
-        return PolarsUniverseMapping(
-            self.names, self._data.abs(), self.pos, self._scalar_type
-        )
+        return PolarsUniverseMapping(self.axis, self._data.abs(), self._scalar_type)
 
     def floor(self) -> PolarsUniverseMapping[int]:
-        return PolarsUniverseMapping[int](
-            names=self.names, _data=self._data.floor(), pos=self.pos, _scalar_type=int
-        )
+        return PolarsUniverseMapping[int](self.axis, self._data.floor(), int)
 
     def truncate(self) -> PolarsUniverseMapping[int]:
-        return PolarsUniverseMapping[int](
-            names=self.names,
-            _data=self._data.cast(pl.Int64),
-            pos=self.pos,
-            _scalar_type=int,
-        )
+        return PolarsUniverseMapping[int](self.axis, self._data.cast(pl.Int64), int)
 
     @property
     def plot(self) -> UniverseMappingPlotAccessor:

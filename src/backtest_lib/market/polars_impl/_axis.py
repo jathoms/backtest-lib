@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import polars as pl
 from numpy.typing import NDArray
 
+from backtest_lib._rs import PySecurityAxis
 from backtest_lib.market import Closed
 
 
@@ -14,11 +15,45 @@ from backtest_lib.market import Closed
 class SecurityAxis:
     names: tuple[str, ...]
     pos: dict[str, int]  # name -> index (0..N-1)
+    _native: PySecurityAxis | None = field(default=None, repr=False, compare=False)
+    _native_source: tuple[SecurityAxis, tuple[int, ...]] | None = field(
+        default=None, repr=False, compare=False
+    )
 
     @staticmethod
-    def from_names(names: Sequence[str]) -> SecurityAxis:
-        names_t = tuple(names)
-        return SecurityAxis(names_t, {s: i for i, s in enumerate(names_t)})
+    def from_names(
+        names: Sequence[str],
+        native: PySecurityAxis | None = None,
+        native_source: tuple[SecurityAxis, tuple[int, ...]] | None = None,
+    ) -> SecurityAxis:
+        names_t = names if isinstance(names, tuple) else tuple(names)
+        return SecurityAxis(
+            names_t,
+            {s: i for i, s in enumerate(names_t)},
+            native,
+            native_source,
+        )
+
+    @property
+    def native(self) -> PySecurityAxis:
+        native = self._native
+        if native is None:
+            if self._native_source is not None:
+                parent, idxs = self._native_source
+                native = parent.native.take(list(idxs))
+            else:
+                native = PySecurityAxis(self.names)
+            object.__setattr__(self, "_native", native)
+        return native
+
+    def take(self, idxs: Sequence[int] | NDArray[np.integer]) -> SecurityAxis:
+        idx_tuple = tuple(int(i) for i in idxs)
+        new_names = tuple(self.names[i] for i in idx_tuple)
+        native = (
+            self._native.take(list(idx_tuple)) if self._native is not None else None
+        )
+        native_source = None if native is not None else (self, idx_tuple)
+        return SecurityAxis.from_names(new_names, native, native_source)
 
     def __len__(self):
         return len(self.names)

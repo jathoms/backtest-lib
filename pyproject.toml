@@ -24,6 +24,7 @@ dependencies = [
 dev = [
   "jupyter>=1.1.1",
   "lxml>=6.0.0",
+  "maturin>=1.14.0",
   "mypy>=1.17.1",
   "pandas>=2.3.1",
   "pandas-stubs>=2.3.3.251201",
@@ -47,8 +48,8 @@ docs = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["maturin>=1.14,<2.0"]
+build-backend = "maturin"
 
 [tool.coverage.run]
 source = ["backtest_lib"]
@@ -70,6 +71,11 @@ exclude = [
   "src/backtest_lib/examples/*.pkl",
   "src/backtest_lib/examples/*.txt",
 ]
+
+[tool.maturin]
+manifest-path = "rust/Cargo.toml"
+module-name = "backtest_lib._rs"
+python-packages = ["backtest_lib"]
 
 [tool.pyrefly]
 project-includes = ["**/*"]

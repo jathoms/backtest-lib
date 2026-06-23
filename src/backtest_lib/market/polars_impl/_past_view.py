@@ -135,11 +135,7 @@ class PolarsByPeriod[ValueT: (float, int)](ByPeriod[ValueT, np.datetime64]):
             s = self._period_column_df.get_column(col_name)
             if self._row_indexer is not None:
                 s = s.gather(self._row_indexer)
-            return PolarsUniverseMapping(
-                names=self._security_axis.names,
-                _data=s,
-                pos=self._security_axis.pos,
-            )
+            return PolarsUniverseMapping(self._security_axis, s)
 
         start, stop, step = key.indices(len(self))
         if step == 1:
@@ -349,7 +345,7 @@ class PolarsBySecurity[ValueT: (float, int)](BySecurity[ValueT, np.datetime64]):
             count=len(names),
         )
 
-        new_security_axis = SecurityAxis.from_names(names)
+        new_security_axis = self._security_axis.take(idx)
 
         start = self._period_slice_start
         stop = start + (

@@ -35,4 +35,4 @@ doctest:
 
 benchmark:
   uv sync --group dev
-  uv run pytest tests/benchmark -m benchmark
+  uv run pytest tests/benchmark -m benchmark --benchmark-group-by=param:backend --benchmark-warmup=on --benchmark-warmup-iterations=10000
