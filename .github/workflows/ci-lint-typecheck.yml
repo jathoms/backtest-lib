@@ -5,14 +5,22 @@ on:
     branches: [ main ]
     paths:
       - "**/*.py"
+      - "**/*.pyi"
+      - "rust/**/*.rs"
+      - "rust/Cargo.toml"
       - "pyproject.toml"
       - "uv.lock"
+      - ".github/actions/setup/action.yml"
       - ".github/workflows/ci-lint-typecheck.yml"
   pull_request:
     paths:
       - "**/*.py"
+      - "**/*.pyi"
+      - "rust/**/*.rs"
+      - "rust/Cargo.toml"
       - "pyproject.toml"
       - "uv.lock"
+      - ".github/actions/setup/action.yml"
       - ".github/workflows/ci-lint-typecheck.yml"
 
 concurrency:

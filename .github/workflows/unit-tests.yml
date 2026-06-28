@@ -5,6 +5,22 @@ on:
     branches: [ main ]
     paths:
       - "**/*.py"
+      - "**/*.pyi"
+      - "rust/**/*.rs"
+      - "rust/Cargo.toml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/setup/action.yml"
+      - ".github/workflows/unit-tests.yml"
+  pull_request:
+    paths:
+      - "**/*.py"
+      - "**/*.pyi"
+      - "rust/**/*.rs"
+      - "rust/Cargo.toml"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/actions/setup/action.yml"
       - ".github/workflows/unit-tests.yml"
 
 concurrency:

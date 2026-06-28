@@ -13,6 +13,9 @@ runs:
 
     - uses: astral-sh/setup-uv@v7
 
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+
     - name: Sync deps
       shell: bash
       run: uv sync --group ${{ inputs.group }} --frozen
