@@ -15,5 +15,5 @@ parquet = "59.0.0"
 polars-arrow = "0.54.4"
 polars-buffer = "0.54.4"
 polars-core = "0.54.4"
-pyo3 = { version = "0.28.3", features = ["experimental-inspect"] }
+pyo3 = "0.28.3"
 pyo3-polars = "0.27.0"

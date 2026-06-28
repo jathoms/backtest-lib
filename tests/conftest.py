@@ -10,7 +10,6 @@ from backtest_lib.market._backends import (
     _get_timeseries_type_from_backend,
 )
 
-
 MARKET_BACKENDS = ["polars", "native"]
 
 
