@@ -35,7 +35,7 @@ def test_from_vectors_success(timeseries_type) -> None:
 
 
 def test_from_vectors_length_mismatch(timeseries_type) -> None:
-    with pytest.raises(AlignmentError):
+    with pytest.raises(AlignmentError, match="lengths were 2 and 1 respectively"):
         timeseries_type.from_vectors(
             values=[1.0, 2.0],
             periods=[np.datetime64("2024-01-01")],

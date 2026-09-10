@@ -414,7 +414,7 @@ class PolarsTimeseries[T: (float, int)](Timeseries[T, np.datetime64]):
             raise AlignmentError(
                 "Length of values must match length of periods, "
                 f"lengths were {len(values_series)} and "
-                "{len(periods_series)} respectively."
+                f"{len(periods_series)} respectively."
             )
 
         period_axis = PeriodAxis.from_series(periods_series)
